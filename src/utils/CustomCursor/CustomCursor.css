@@ -1,0 +1,56 @@
+/* CustomCursor.css */
+
+/* 1. 别人选中了一段文字时的背景色高亮 */
+.ProseMirror .yjs-selection {
+  display: inline;
+  background-color: rgba(200, 200, 200, 0.4);
+}
+
+/* 2. 别人光标的那条竖线 - 一闪一闪 */
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.custom-yjs-cursor {
+  display: inline;
+  position: relative;
+  padding: 0 2px;  /* 扩大可 hover 区域，视觉上仍是竖线 */
+  margin-left: -1px;
+  margin-right: -1px;
+  width: 0;
+  border-left: 2px solid currentColor; /* 颜色由 TS 里的 border-color 覆盖 */
+  word-wrap: normal;
+  pointer-events: auto;  /* 必须为 auto 才能响应 hover 和 cursor */
+  animation: cursor-blink 1s step-end infinite;
+  cursor: pointer;
+}
+
+/* 3. 光标上方的用户名提示气泡（默认隐藏） */
+.custom-yjs-cursor > div {
+  position: absolute;
+  top: -1.05em;
+  left: -1px;
+  font-size: 13px;
+  background-color: black;
+  font-family: inherit;
+  font-style: normal;
+  font-weight: 600;
+  line-height: normal;
+  user-select: none;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border-bottom-left-radius: 0;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10; /* 确保气泡不会被其他文字遮挡 */
+}
+
+/* 4. 当鼠标悬浮在光标上，或者光标正在移动（被激活）时，显示名字 */
+.custom-yjs-cursor:hover > div,
+.custom-yjs-cursor.is-active > div {
+  opacity: 1;
+}

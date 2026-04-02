@@ -1,0 +1,36 @@
+$bg-color: rgb(221, 221, 221);
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 3rem;
+    width: fit-content;
+    gap: 1.5rem;
+    padding: 1.6rem 1rem;
+    border: 1px solid #c2c2c2;
+    border-radius: 0.3rem;
+    position: absolute;
+    left: 50%;
+    top:80%;
+    transform: translate(-50%);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    .item {
+        border: 1px solid rgb(182, 182, 182);
+        border-radius: 0.3rem;
+        padding: 0.4rem;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.2s;
+        color: var(--text-color);
+        background-color: var(--bg-color);
+        &.active {
+            background-color: #a6d9fd;
+            /* 向上移动并改变阴影实现上提感 */
+            transform: translateY(-2px);
+            
+            /* 点击时底部阴影变大变深，产生上提感 */
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+        }
+    }
+}

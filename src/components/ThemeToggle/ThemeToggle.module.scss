@@ -1,0 +1,116 @@
+$icon-size: 14px;
+
+.themeToggleContainer {
+    position: relative;
+    display: inline-block;
+    width: 56px;
+    height: 28px;
+    cursor: pointer;
+}
+
+.themeToggleContainerTheme {
+    // 主题切换器的特定样式
+}
+
+.themeToggleTrack {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-color);
+    border-radius: 14px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.themeToggleTrackTheme {
+    // 主题切换器的轨道样式
+}
+
+.themeToggleTrackActive {
+    background-color: var(--primary-color);
+}
+
+.themeToggleTrackNotificationActive {
+    background-color: var(--bg-color);
+    border: 1px solid var(--primary-color);
+}
+
+.themeToggleThumb {
+    position: absolute;
+    top: 50%;
+    left: 2px;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    background-color: var(--bg-color);
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px var(--shadow-color);
+    z-index: 2;
+}
+
+.themeToggleThumbTheme {
+    // 主题切换器的滑块样式
+}
+
+.themeToggleThumbActive {
+    transform: translate(28px, -50%);
+}
+
+.themeToggleThumbNotificationActive {
+    background-color: var(--primary-color);
+    transform: translate(28px, -50%);
+}
+
+.themeToggleIcons {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
+    display: flex;
+    justify-content: space-between;
+    padding: 0 8px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.sunIcon,
+.moonIcon {
+    font-size: $icon-size;
+    transition: all 0.3s ease;
+}
+
+.sunIcon {
+    color: #ffc107;
+}
+
+.moonIcon {
+    color: #f8f9fa;
+}
+
+.themeToggleContainer:hover .themeToggleTrack {
+    background-color: var(--border-color);
+}
+
+.themeToggleContainer:hover .themeToggleTrackActive {
+    background-color: var(--primary-color);
+}
+
+.themeToggleContainer:hover .themeToggleTrackNotificationActive {
+    background-color: var(--hover-bg);
+}
+
+.themeToggleContainer:active .themeToggleThumb {
+    transform: scale(1.1);
+}
+
+.themeToggleContainer:active .themeToggleThumbActive {
+    transform: translate(28px, -50%) scale(1.1);
+}
+
+.themeToggleContainer:active .themeToggleThumbNotificationActive {
+    transform: translate(28px, -50%) scale(1.1);
+}

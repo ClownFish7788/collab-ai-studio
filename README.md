@@ -1,36 +1,125 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+CollabAI Studio是一款多人协作的在线工具流，可使用多种工具来进行协作，并带有离线功能，用户可使用自带AI来助力工作效率
+1.界面展示
+    页面分为左右两栏，左为资源树（导航栏），右为工作区，工作区右侧自带拉伸AI聊天框（可隐藏）
+    自带 “双模式切换”，文档视图和白板视图（无限画布）
+    带有文件（PDF，图片，WORD）导出和文件下载功能
+2.智能文档编辑器
+    工作区底部自带编辑器（可向下隐藏），带有 H1/H2/H3,列表，代码块，引用
+    动态卡片插入
+    块级编辑，每一个元素都是一个块
+3.可视化AI工作流
+4.实时协同与离线功能
+    冲突解决：即使两个人同时修改同一行字，也不会互相覆盖，而是自动合并（基于 CRDT 算法）
+    离线编辑：拔掉网线，依然可以新建文档、编辑工作流。数据保存在浏览器本地（IndexedDB）
 
-## Getting Started
+src
+|   app
+|   |   page
+|   |   layout
+|   |   workspace[userId]
+|   |   |   all（全部功能页面）
+|   |   |   [workId]
+|   |   |   |   page(?mode=page/edgeless)   page-文档模式  edgeless-白板模式
+|   components
+|   |   editor（无限画布）
+|   |   toolbar（底部工具栏）
+|   |   |   tools
+|   |   switch（双模式切换）
+|   |   file（文档视图）
+|   |   AIChat（AI聊天框）
+|   |   navigationBar（左侧导航栏）
+|   |   notification（弹框）
 
-First, run the development server:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+文档模式使用Tiptap作为编辑库
+    1.Tiptap不携带默认样式和DOM结构，只提供功能逻辑，UI层完全由开发者封装
+    2.它相比于其他第三方库更适用于React框架
+    3.它基于ProseMirror，稳定性强且更加适合做协同编辑（Tiptap完美支持Y.js）
+    4.强大的Markdown支持
+Editor作为编辑组件，FontBar作为样式选择组件
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+白板模式使用TLDraw
+    1.性能优化：它内部混合了 Canvas 和 React 渲染
+    2.内置交互：框选、删除、连线、箭头、图片的缩放旋转，全部现成的
+    3.自定义形状：你可以定义一个 AffineCard 形状，里面放你的 Next.js 组件
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+使用idb代替原生的indexDB API
+    1.设计3个数据库 doc-文档数据 editor-画布数据 list-所有数据的id+title
 
-## Learn More
+实时编辑使用liveblocks + Y.js
+    tiptap部分(tiptap协同编辑插件基于Y.js)
+        tiptap <---> Y.js(CRDT保证数据一致性) <---> liveblocks/yjs(监听数据Y.js数据变化发送网络请求/接收) <---> liveblocks(接收网络请求并广播到同一房间的每个用户)
+        光标由于CollaborationCursor版本老旧导致无法兼容，所以使用y-tiptap底层调用并自行封装
+    tlDraw部分(将原数据结构转换为Y.js)
+        tlDraw <--->Y.js(hooks/useYjsStore转换数据结构) <---> ...(与tiptap一致)
+        光标可以考虑 Liveblocks Native Presence (类似游戏服务器的 UDP 数据包优化)
 
-To learn more about Next.js, take a look at the following resources:
+Y.js优势
+    1.性能：
+        会将多个连续的block合并一个
+        在确保所有人都同步后，Y.js会将历史记录真正地从内存中删除
+    2.网络无关性
+        Y.js只负责将数据，不负责传输数据，Y.js提供了灵活的provider保证可以用各种方式传输数据(Uint8Array 格式的二进制数据)
+    3.生态绑定
+        Y.js现在已经与主流框架和UI库进行了深度绑定
+    4.内置了Awareness(状态感知通道)
+        将持久需要保存(y.Doc)的数据和临时性、高频、不需要永久保存的数据(用户光标位置等)进行区分，，避免内存爆炸
+        Awareness提供了一套低延迟的广播机制
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+利用broadcastChannel和y-indexeddb来实现BroadcastChannelProvider工具，在离线状态下广播和监听多tab页的doc数据更改
+    y-indexeddb在恢复网络后先进行数据覆盖，再利用liveblocks进行数据上传
+    
+自定义toggleRealtimeEditing方法取消实时编辑
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+自定义usePasteImageToTldraw来替代tldraw原生的图片复制功能
+    根据复制内容智能配对
+        网络图片URL：通过判断URL后缀来进行智能选择是否复制图片，还是建立文本框复制文字
+        本地图片：并非直接将图片转换为base64增大Y.js内存导致内存膨胀，而是上传到后端，通过后端返回的url来建立图片
+    遇到加载极慢或带有防盗链的外部图片时，tldraw可能会抛出canvas错误，而我通过new Image()来访问图片宽高
+    若遇到跨域问题，通过try...catch捕获错误，并放置“图片失效”元素提醒用户
 
-## Deploy on Vercel
+当用户鼠标选中大量元素并移动时，在移动结束前使用“相对增量”
+    1.在选中大量元素时通过广播将这些元素的id发送出去
+    2.高频(60fps)发送鼠标偏移量
+    3.在其他用户的电脑上进行“视觉欺骗”，渲染时根据id在原本的坐标上增加偏移量
+    4.当鼠标松开时才做真正的底层数据结算
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+    
+后端 prisma
+npx prisma migrate dev --name init
+    1.生成物理文件
+    2.生成“快照”(历史记录)
+    3.触发隐式generate
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+边界问题：
+1. 离线与同步同步问题 (IndexedDB + Y.js + Liveblocks)
+CRDT（Y.js）虽然能保证最终一致性，但在实际业务中会遇到以下极端情况：
+
+长线离线后的“幽灵合并”： 用户 A 断网了一周，期间在本地写了大量文档并删除了很多旧内容。此时用户 B 在线上也对这部分内容进行了大幅修改。当 A 重新联网时，Y.js 会强行合并，这可能导致句子语法破碎（因为 CRDT 只管字符/块级别的合并，不懂人类语义）。
+IndexedDB 存储上限与被动清空： 浏览器的 IndexedDB 并不是绝对安全的。如果用户电脑 C 盘满了，或者使用了无痕模式、清理了浏览器缓存，离线数据就会丢失。边界测试： 当 IndexedDB 抛出 QuotaExceededError（容量超限）时，应用会不会崩溃？
+多标签页（Multi-tab）并发修改： 用户在离线状态下，同时打开了两个 Tab 页修改同一个文档。这两个 Tab 是如何通信的？（如果不做处理，Y.js 的 IndexedDB provider 可能会产生竞态条件，建议使用 BroadcastChannel 或 y-indexeddb 的多 Tab 支持）。
+CRDT 历史体积膨胀（Tombstones）： Y.js 为了解决冲突，会保留删除操作的历史（墓碑机制）。如果一个文档经历了几个月的频繁高强度删改，Y.js 的 Document 数据包会变得非常庞大，导致初次加载极慢。
+2. 文档与白板“双模式切换”的阻抗失配 (Tiptap vs tldraw)
+这是类似 AFFiNE 这类软件最难处理的边界。文档是线性的一维排版（上下流动），白板是空间的二维排版（X/Y 坐标）。
+
+空间映射丢失： 在白板模式下，用户将三个块随意摆放在左上、右上、右下。切回文档模式时，它们的上下顺序应该是什么？如果算法不严谨，切回文档后内容顺序会完全混乱。
+不支持的元素降级： 用户在 tldraw 里画了一根“手绘箭头”指向一段文字。切回 Tiptap 文档模式时，这个“箭头”该如何显示？（隐藏？转成不可编辑的图片？还是占位符？）
+跨模式并发编辑冲突： 用户 A 在文档模式下，光标停留在一个文本块里准备打字；同时用户 B 在白板模式下，直接把这个文本块给删除了。用户 A 的光标该何去何从？（应用可能会抛出 Null Pointer 异常并白屏）。
+3. 块级编辑器 (Tiptap) 与动态卡片
+无限嵌套导致的栈溢出： 块级元素如果允许互相嵌套（例如：列表里嵌套引用，引用里嵌套代码块，代码块里再触发某些机制），用户可能会恶意或无意嵌套几十层，导致 DOM 渲染崩溃或 Y.js 树深度过大。
+动态卡片的离线失效： 如果插入了一个“动态卡片”（比如获取某个外部 API 的数据，或者预览一个网址）。在断网离线状态下，这个卡片是显示白板、报错，还是展示上一次的缓存截图？
+中文/日文输入法（IME）与协同冲突： 这是一个经典坑。当用户正在用拼音输入法打字（文字还在输入框内，带有下划线，未按下空格确认），此时另一个用户修改了同一行文字，极容易打断前者的输入法状态，导致输入的拼音直接上屏或消失。
+4. 无限画布白板 (tldraw) 的边界
+极端坐标系： 在无限画布中，用户 A 将某个元素拖拽到了坐标 x: 9999999, y: 9999999 的极远位置。这可能会导致两个问题：1. 浏览器的渲染层坐标精度溢出（出现视觉抖动）；2. 导出 PDF/图片时，如果你试图框选所有元素，会生成一张几万像素宽度的空白图，导致内存直接 OOM 崩溃。
+海量元素的框选移动： 用户 Ctrl+A 选中了白板上的 5000 个元素，然后拖拽移动。这瞬间会向 Liveblocks 的 WebSocket 发送 5000 个坐标更新指令，极易触发 WebSocket 的消息大小限制或导致服务器限流（Rate Limit），同时本地也会出现严重掉帧。（需要做防抖和批量更新处理）。
+5. AI 助手与工作流集成
+AI 响应时的用户并发操作： 你让 AI 帮忙扩写一段文本。AI 正在使用“打字机效果”一行行往 Tiptap 里插入文本（Streaming）。这时，用户突然把正在被插入文本的那个 Block 给删除了。AI 的数据流写入到一个不存在的 DOM 节点或 Y.js 节点，会导致程序直接崩溃。
+离线时的 AI 降级体验： 大多数 AI 模型需要联网。在离线模式下，AI 侧边栏是直接隐藏、置灰，还是允许用户输入并显示“已加入队列，联网后自动执行”？如果用户在离线时堆积了 10 个 AI 任务，联网后同时并发请求，可能会被 AI API 判定为恶意攻击而封禁。
+6. 文件导出功能 (PDF/图片)
+跨域资源污染 Canvas (Tainted Canvas)： 白板导出图片通常依赖 <canvas> 截图。如果白板中插入了一张来自其他域名的图片（且没有配置 CORS 响应头），调用 canvas.toDataURL() 时浏览器会抛出跨域安全异常，导致导出直接失败。
+异步渲染未完成： 在导出 PDF 的瞬间，如果某些动态卡片、网络字体或超大图片还没加载完毕，导出的 PDF 里就会出现大片的空白或乱码。
+💡 给你的建议（预防措施）：
+引入 E2E 并发测试： 使用 Playwright 或 Cypress 模拟两个浏览器实例，同时对同一个 Block 进行删除和编辑操作，观察是否会白屏。
+Y.js 状态快照机制： 针对文档过大导致加载慢的问题，定期在服务端（或者客户端空闲时）对 Y.js 文档进行 Snapshot（快照）压缩。
+操作原子化： 把 AI 的流式输出放入一个独立的只读“AI生成块”中，等生成完毕后再由用户点击“接受”，转化为普通的编辑块，这样能完美避开 AI 与人类实时修改的竞态冲突。

@@ -1,0 +1,37 @@
+$bg-color: rgb(235, 235, 235);
+$font-color: rgb(197, 197, 197);
+
+.container {
+    width: 100%;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    transition: all 0.2s;
+    border-radius: 1rem;
+    padding: 0 1rem;
+    cursor: pointer;
+    .content {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        flex: 1;
+    }
+    .message,
+    .createDate,
+    .lastModifiedDate,
+    .collection,
+    .more {
+        color: var(--text-color);
+        font-size: 0.8rem;
+    }
+    &:hover {
+        background-color: var(--hover-bg);
+        .message,
+        .createDate,
+        .lastModifiedDate,
+        .collection,
+        .more {
+            color: #333333;
+        }
+    }
+}

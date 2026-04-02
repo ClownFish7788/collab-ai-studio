@@ -1,80 +1,85 @@
 .page {
-  --background: #fafafa;
-  --foreground: #fff;
+  --background: #f5f5f7;
+  --foreground: #ffffff;
 
-  --text-primary: #000;
-  --text-secondary: #666;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
 
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
+  --button-primary-hover: #111827;
+  --button-secondary-hover: #f3f4f6;
+  --button-secondary-border: #e5e7eb;
 
   display: flex;
   min-height: 100vh;
   align-items: center;
   justify-content: center;
   font-family: var(--font-geist-sans);
-  background-color: var(--background);
+  background: var(--background);
 }
 
 .main {
   display: flex;
-  min-height: 100vh;
   width: 100%;
-  max-width: 800px;
+  max-width: 980px;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  background-color: var(--foreground);
-  padding: 120px 60px;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 28px;
+  background-color: transparent;
+  padding: 64px 20px;
 }
 
-.intro {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 24px;
+.hero {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 36px 28px;
 }
 
-.intro h1 {
-  max-width: 320px;
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -2.4px;
-  text-wrap: balance;
+.badge {
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+
+.title {
+  margin-top: 14px;
+  font-size: 44px;
+  line-height: 1.15;
+  letter-spacing: -1.2px;
   color: var(--text-primary);
+  text-wrap: balance;
 }
 
-.intro p {
-  max-width: 440px;
-  font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
+.subtitle {
+  margin-top: 12px;
+  max-width: 720px;
+  font-size: 16px;
+  line-height: 1.8;
   color: var(--text-secondary);
-}
-
-.intro a {
-  font-weight: 500;
-  color: var(--text-primary);
+  text-wrap: balance;
 }
 
 .ctas {
   display: flex;
   flex-direction: row;
   width: 100%;
-  max-width: 440px;
   gap: 16px;
   font-size: 14px;
+  margin-top: 18px;
 }
 
 .ctas a {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 40px;
-  padding: 0 16px;
+  height: 44px;
+  padding: 0 18px;
   border-radius: 128px;
   border: 1px solid transparent;
   transition: 0.2s;
@@ -84,13 +89,14 @@
 }
 
 a.primary {
-  background: var(--text-primary);
-  color: var(--background);
-  gap: 8px;
+  background: #111827;
+  color: #f9fafb;
 }
 
 a.secondary {
   border-color: var(--button-secondary-border);
+  background: #ffffff;
+  color: #111827;
 }
 
 /* Enable hover only on non-touch devices */
@@ -106,19 +112,56 @@ a.secondary {
   }
 }
 
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 18px 16px;
+}
+
+.cardTitle {
+  color: #111827;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.cardDesc {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.footer {
+  padding: 6px 2px 0;
+}
+
+.footerLine {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
 @media (max-width: 600px) {
   .main {
-    padding: 48px 24px;
+    padding: 44px 14px;
   }
 
-  .intro {
-    gap: 16px;
+  .hero {
+    padding: 26px 18px;
   }
 
-  .intro h1 {
+  .title {
     font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
+  }
+
+  .features {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -128,14 +171,14 @@ a.secondary {
   }
 
   .page {
-    --background: #000;
-    --foreground: #000;
+    --background: #111827;
+    --foreground: #020617;
 
-    --text-primary: #ededed;
-    --text-secondary: #999;
+    --text-primary: #f9fafb;
+    --text-secondary: #e5e7eb;
 
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
+    --button-primary-hover: #f9fafb;
+    --button-secondary-hover: #020617;
+    --button-secondary-border: #1f2937;
   }
 }

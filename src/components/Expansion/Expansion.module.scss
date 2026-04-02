@@ -1,0 +1,15 @@
+.container {
+    width: 1.5rem;
+    height: 1.5rem;
+    transition: all 0.2s;
+    border-radius: 0.5rem;
+    box-sizing: content-box;
+    padding: 0.3rem;
+    cursor: pointer;
+    color: var(--text-color);
+    
+    &:hover {
+        background-color: var(--hover-bg);
+        color: #333333;
+    }
+}

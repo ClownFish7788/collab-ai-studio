@@ -1,0 +1,51 @@
+$bg-color: rgb(235, 235, 235);
+.item {
+    width: 100%;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 0.5rem;
+    border-radius: 0.5rem;
+    color: var(--text-color);
+    .decoration {
+        width: 0.15rem;
+        height: 0;
+        border-radius: 0.3rem;
+        transition: all 0.3s;
+        background-color: var(--border-color);
+    }
+    .tagPoint {
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        background-color: #7cc270;
+    }
+    .title {
+        flex: 1;
+    }
+    .svg {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 0.3rem;
+        transition: all 0.3s;
+        color: var(--text-color);
+        &.collection {
+            opacity: 0;
+        }
+        &:hover {
+            background-color: var(--hover-bg);
+            color: #333333;
+        }
+    }
+    &:hover {
+        background-color: var(--hover-bg);
+        color: #333333;
+        .decoration {
+            height: 1rem;
+        }
+        .collection {
+            opacity: 1;
+        }
+    }
+}

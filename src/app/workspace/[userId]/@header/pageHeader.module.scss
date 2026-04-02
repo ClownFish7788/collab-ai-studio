@@ -1,0 +1,11 @@
+.container {
+    display: flex;
+    gap: 1rem;
+    .item {
+        cursor: pointer;
+        color: rgb(197, 197, 197);
+        &.active {
+            color: black;
+        }
+    }
+}

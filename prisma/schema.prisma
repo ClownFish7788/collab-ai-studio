@@ -1,0 +1,34 @@
+// 1. 客户端配置（默认不用动）
+generator client {
+  provider = "prisma-client-js"
+  url      = env("DATABASE_URL") 
+}
+
+// 2. 数据库配置（我们将 provider 改成 sqlite，方便本地开发）
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL") 
+}
+
+// 3. 设计我们的数据表（模型 Model）
+// 假设我们要存一个“文档列表”
+model Document {
+  id            String   @id @default(cuid()) // 主键，自动生成唯一的 cuid
+  title         String   // 文档标题
+  roomId        String   @unique              // Liveblocks 对应的房间 ID，必须唯一
+  ownerId       String
+  isPublic      Boolean  @default(false)
+  collaborators Collaborator[]
+  createdAt     DateTime @default(now())      // 创建时间，自动设置为当前时间
+  updatedAt     DateTime @updatedAt           // 更新时间，每次修改自动更新
+}
+
+model Collaborator {
+  id         String @id @default(cuid())
+  userId     String 
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+
+  @@unique([documentId, userId])
+}
+

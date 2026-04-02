@@ -1,0 +1,11 @@
+$bg-color: rgb(197, 197, 197);
+
+.container {
+    display: flex;
+    align-items: center;
+    border-radius: 0.2rem;
+    transition: all 0.2s;
+    &:hover {
+        background-color: $bg-color;
+    }
+}

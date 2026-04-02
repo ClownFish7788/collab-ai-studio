@@ -1,0 +1,19 @@
+$bg-color: rgb(235, 235, 235);
+
+.container {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    width: 100%;
+    transition: all 0.2s;
+    line-height: 2rem;
+    padding: 0 0.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    color: var(--text-color);
+    
+    &:hover {
+        background-color: var(--hover-bg);
+        color: #333333;
+    }
+}

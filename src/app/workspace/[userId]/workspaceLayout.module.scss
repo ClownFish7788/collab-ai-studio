@@ -1,0 +1,41 @@
+$asideWidth: 16rem;
+
+.container {
+    display: flex;
+    overflow: hidden;
+    gap: 1.5rem;
+    height: 100vh;
+    .slot {
+        overflow: hidden;
+        flex: 0 0 auto;
+        width: $asideWidth;
+        .aside {
+            transition: all 0.5s;
+            transform: translateX(0);
+            will-change: transform;
+        }
+        transition: all 0.5s;
+    }
+    &.close {
+        .slot {
+            width: 0;
+            .aside {
+                transform: translateX(-$asideWidth);
+            }
+        }
+    }
+    .main {
+        transition: all 0.5s;
+        flex: 1 1 auto;
+        padding-right: 3rem;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        .header {
+            height: 4rem;
+            width: 100%;
+            display: flex;
+            align-items: center;
+        }
+    }
+}
