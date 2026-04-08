@@ -22,7 +22,8 @@ const TiptapEditor = ({doc, provider}: {
     doc:Y.Doc,
     provider: LiveblocksYjsProvider
 }) => {
-    const { id, title, updateTitle } = useEditorStore(state => state)
+    const { id, updateTitle } = useEditorStore(state => state)
+    const title = useEditorStore(state => state.title)
     const isOpenNetwork = useNetworkStore(state => state.isOpenNetwork)
     const inpRef = useRef<HTMLInputElement | null>(null)
     const editor = useEditor({
@@ -65,6 +66,14 @@ const TiptapEditor = ({doc, provider}: {
             updateTitle_db(id, data.title)
         }
     }, [updateTitle])
+    // 初始化title
+    const isInitTitle = useRef(false)
+    useEffect(() => {
+        if(inpRef.current && !isInitTitle.current) {
+            inpRef.current.value = title
+            isInitTitle.current = true
+        }
+    }, [title])
     // 通过id获取数据
     useEffect(() => {
         initTitle(id as string)
@@ -72,7 +81,7 @@ const TiptapEditor = ({doc, provider}: {
     // 上传更改title
     const handleChangeTitle = useDebounce(async (newTitle: string) => {
         updateTitle(newTitle)
-        await updateTitle_db(newTitle, id)
+        await updateTitle_db(id, newTitle)
         const response = await fetch('/api/title', {
             method: "POST",
             headers: {
@@ -105,14 +114,14 @@ const TiptapEditor = ({doc, provider}: {
         }
         togglePauseNetwork()
     }, [isOpenNetwork, provider, toggleNetworkStatus])
+
     if (!editor) {
         return null
     }
     return (
         <div className={styles.editorWrapper}>
             <input
-                type="text" 
-                value={title || ""}
+                type="text"
                 onChange={e => handleChangeTitle(e.target.value)} 
                 className={classNames(styles.title)} 
                 placeholder="Title"

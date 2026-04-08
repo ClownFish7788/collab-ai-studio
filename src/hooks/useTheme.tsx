@@ -13,7 +13,6 @@ export const useTheme = () => {
     // 初始化theme - 立即设置主题，避免闪烁
     useEffect(() => {
         const localTheme = localStorage.getItem('theme') || 'light'
-        console.log('localTheme', localTheme)
         // 直接设置document的data-theme属性，避免等待状态更新
         document.documentElement.setAttribute('data-theme', localTheme)
         if(theme !== localTheme) {

@@ -1,7 +1,11 @@
+import { headers } from "next/headers";
 import styles from "./page.module.css";
 import Link from "next/link";
 
-export default function Home() {
+export default async function Home() {
+  const headerList = await headers()
+  const userId = headerList.get('x-user-id')
+  const tragetUrl = `/workspace/${userId}`
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -14,7 +18,8 @@ export default function Home() {
             基于 Y.js（CRDT）与 Liveblocks 的实时协同编辑工作区，同时支持 IndexedDB 离线持久化与多标签页同步。
           </p>
           <div className={styles.ctas}>
-            <Link className={styles.primary} href="/workspace/dgshajdh">
+            {/* 需新增设置cookie功能，若有cookie就跳转至特定的页面 */}
+            <Link className={styles.primary} href={tragetUrl}>
               进入工作区
             </Link>
             <a className={styles.secondary} href="https://liveblocks.io" target="_blank" rel="noreferrer">

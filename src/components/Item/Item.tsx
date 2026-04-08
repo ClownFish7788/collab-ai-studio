@@ -1,7 +1,7 @@
 
 import styles from './Item.module.scss'
 import classNames from 'classnames'
-import Floder from '@/svg/Floder'
+import Floder from '@/svg/Folder'
 import Collection from '@/svg/Collection/Collection'
 import Rename from '@/svg/Rename'
 import Edit from '@/svg/Edit'

@@ -6,15 +6,15 @@ export interface ListItem {
     createAt: Date
 }
 
-interface DataItem {
+interface DateItem {
     date: string
     dataList: ListItem[]
 }
 
 interface ListStore {
-    dataList: DataItem[]
+    dataList: DateItem[]
     addItem: (id: string) => void
-    initData: (list: DataItem[]) => void
+    initData: (list: DateItem[]) => void
     getNameById: (id: string) => string|undefined
 }
 
@@ -31,8 +31,8 @@ const useListStore = create<ListStore>((set, get) => ({
             createAt: date
         }
         const dateStr = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
-        const index = data.findIndex((item:DataItem) => item.date === dateStr)
-        let newDataList:DataItem[] = []
+        const index = data.findIndex((item:DateItem) => item.date === dateStr)
+        let newDataList:DateItem[] = []
         if (index === -1) {
             // 不存在该日期分组，新增
             newDataList = [
@@ -55,7 +55,7 @@ const useListStore = create<ListStore>((set, get) => ({
         const compareFn = (a: ListItem, b: ListItem) => {
             return b.createAt.getTime() - a.createAt.getTime()
         }
-        const compareFn_1 = (a: DataItem, b:DataItem) => {
+        const compareFn_1 = (a: DateItem, b:DateItem) => {
             return b.dataList[0].createAt.getTime() - a.dataList[0].createAt.getTime()
         }
         list.forEach(item => item.dataList.sort(compareFn))
@@ -63,9 +63,12 @@ const useListStore = create<ListStore>((set, get) => ({
         set({dataList: list})
     },
     getNameById: (id) => {
-        const itemList = get().dataList.filter(item => item.dataList.some(item => item.id === id)) 
-        if(!itemList || itemList.length !== 1 ) return undefined
-        return itemList[0].dataList[0].title
+        const dataList = get().dataList
+        for (const dataItem of dataList) {
+            const data = dataItem.dataList.find(item => item.id === id)
+            return data?.title
+        }
+        return undefined
     }
 }))
 

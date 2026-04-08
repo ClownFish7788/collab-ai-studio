@@ -1,21 +1,27 @@
-import { openDB } from "idb"
+import { IDBPDatabase, openDB } from "idb"
 
 const DB_NAME = 'editor-data'
 const DB_VERSION = 2
 const LIST_STORE_NAME = 'list-data'
 
+// 缓存db，避免每次调用函数时，都初始化
+let dbPromise: Promise<IDBPDatabase> | null = null
+
 // 初始化或打开数据库
 export const initDB = async () => {
-    return openDB(DB_NAME, DB_VERSION, {
-        upgrade(db) {
-            if(!db.objectStoreNames.contains(LIST_STORE_NAME)) {
-                db.createObjectStore(LIST_STORE_NAME, {
-                    keyPath: 'id',
-                    autoIncrement: true
-                })
+    if(!dbPromise) {
+        dbPromise = openDB(DB_NAME, DB_VERSION, {
+            upgrade(db) {
+                if(!db.objectStoreNames.contains(LIST_STORE_NAME)) {
+                    db.createObjectStore(LIST_STORE_NAME, {
+                        keyPath: 'id',
+                        autoIncrement: true
+                    })
+                }
             }
-        }
-    })
+        })
+    }
+    return dbPromise
 }
 
 export const addData = async (
@@ -61,8 +67,8 @@ export const getTitle = async (id: string) => {
 }
 
 export const updateTitle = async (
-    title: string,
-    id: string
+    id: string,
+    title: string
 ) => {
     const db = await initDB()
     const tx = db.transaction(LIST_STORE_NAME, 'readwrite')

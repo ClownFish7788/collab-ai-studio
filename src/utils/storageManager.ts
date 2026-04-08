@@ -24,7 +24,7 @@ const checkAndClearStorageLRU = async (currentId: string, threshold = 0.9) => {
             const sortDocs = Object.entries(registry).filter(([id]) => id !== currentId).sort((a,b) => a[1] - b[1])
             const docsToDetele = sortDocs.slice(0, 3)
             for(const [docId] of docsToDetele) {
-                indexedDB.deleteDatabase(docId)
+                indexedDB.deleteDatabase(`room-${docId}`)
                 delete registry[docId]
                 console.log(`🗑️ LRU 淘汰：已清理沉睡文档 [${docId}] 的本地缓存`)
             }

@@ -24,6 +24,8 @@ const WorkspacePage = ({
     recentActivity: 0
   })
 
+  // 获取用户名
+  const userName = localStorage.getItem('userName') || '无名氏'
   // 获取最近文档
   useEffect(() => {
     const fetchRecentDocs = async () => {
@@ -69,7 +71,7 @@ const WorkspacePage = ({
       <header className={classNames(styles.header)}>
         <div className={styles.headerLeft}>
           <h1 className={styles.title}>工作区</h1>
-          <span className={styles.subtitle}>欢迎回来，{resolvedParams.userId}</span>
+          <span className={styles.subtitle}>欢迎回来，{userName}</span>
         </div>
         <div className={styles.headerRight}>
           <button className={classNames(styles.btn, styles.primaryBtn)} onClick={handleCreate}>

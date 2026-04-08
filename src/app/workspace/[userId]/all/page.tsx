@@ -235,7 +235,7 @@ const AllPage = () => {
                             <div className={classNames(styles.date)}>{group.date}</div>
                             <div className={styles.grid}>
                                 {group.dataList.map(item => 
-                                    <DocItem id={item.id} title={item.title} key={item.id}/>
+                                    <DocItem id={item.id} title={item.title} lastModifiedDate={item.createAt} createDate={item.createAt} key={item.id}/>
                                 )}
                             </div>
                         </div>

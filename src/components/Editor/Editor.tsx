@@ -20,6 +20,7 @@ const Editor = () => {
   const id = useEditorStore(state => state.id)
   const [isLocalloaded, setIsLocalloaded] = useState(false)
 
+  // 避免indexedDB正在保存时，用户删除标签页导致数据保存失败
   useEffect(() => {
     const indexeddbProvider = new IndexeddbPersistence(id, doc)
     indexeddbProvider.on('synced', () => {
@@ -40,15 +41,18 @@ const Editor = () => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if(isSaving) {
         e.preventDefault()
-        e.returnValue = '数据正在保存，确定要离开吗？'
-        return e.returnValue
+        e.returnValue = ''
+        return ''
       }
       if(!indexeddbProvider._destroyed) {
+        // 离开前压缩indexedDB数据
         storeState(indexeddbProvider)
       }
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => {
+      doc.off('update', handleUpdate)
+      clearTimeout(timeout)
       doc.destroy()
       indexeddbProvider.destroy()
       window.removeEventListener('beforeunload', handleBeforeUnload)

@@ -7,7 +7,7 @@ import useStyleStore from "@/app/store/useStyleStore"
 import Expansion from "@/components/Expansion/Expansion"
 import { useTheme } from "@/hooks/useTheme"
 import { useEffect } from "react"
-import { nanoid } from "nanoid"
+import { useParams } from "next/navigation"
 
 const WorkspaceLayout = ({children, header}: {
     children: React.ReactNode
@@ -16,17 +16,12 @@ const WorkspaceLayout = ({children, header}: {
     const leftBarOpen = useStyleStore(state => state.leftBarOpen)
     const toggleLeftBarOpen = useStyleStore(state => state.toggleLeftBarOpen)
     const isMounted = useTheme()
-    // 查看用户是否注册
+    // 重置用户信息
+    const resolveParams = useParams()
     useEffect(() => {
-        const userId = localStorage.getItem('userId')
-        const userName = localStorage.getItem('userName')
-        if(!userId || !userName) {
-            const id = `${nanoid()}`
-            const name = `用户-${id.slice(0, 4)}`
-            localStorage.setItem('userId', id)
-            localStorage.setItem('userName', name)
-        }
-    }, [])
+        localStorage.setItem('userId', resolveParams.userId as string)
+        localStorage.setItem('userName', `用户_${resolveParams.userId?.slice(0,6)}`)
+    }, [resolveParams.userId])
     if(!isMounted) {
         return null
     }
