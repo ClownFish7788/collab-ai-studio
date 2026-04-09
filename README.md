@@ -91,3 +91,7 @@ npx prisma migrate dev --name init
     1.生成物理文件
     2.生成“快照”(历史记录)
     3.触发隐式generate
+
+middleware.ts
+    请求页面时拦截请求，并检查有无cookie，没有的话设置cookie
+    请求数据的时候，检查是否有cookie，若无则返回401

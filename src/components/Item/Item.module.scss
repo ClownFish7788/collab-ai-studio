@@ -40,7 +40,7 @@ $bg-color: rgb(235, 235, 235);
     }
     &:hover {
         background-color: var(--hover-bg);
-        color: #333333;
+        color: var(--text-color);
         .decoration {
             height: 1rem;
         }

@@ -2,7 +2,7 @@ import Modal from '../Modal'
 import styles from './InviteModal.module.scss'
 import { useState } from 'react'
 
-
+type RoleType = 'collaborator' | 'viewer'
 
 export const InviteModal = ({
     isOpen,
@@ -13,11 +13,12 @@ export const InviteModal = ({
     closeFn: () => void
     workId: string
 }) => {
-    const [inviteeId, setInviteeId] = useState('')
+    const [invitedId, setInvitedId] = useState('')
     const [showCopySuccess, setShowCopySuccess] = useState(false)
     const [showRoomCopySuccess, setShowRoomCopySuccess] = useState(false)
     const [isInviting, setIsInviting] = useState(false)
     const [inviteError, setInviteError] = useState('')
+    const [role, setRole] = useState<RoleType>('collaborator') // collaborator 或 viewer
 
     // 复制自己的用户ID
     const handleCopyId = async () => {
@@ -44,7 +45,7 @@ export const InviteModal = ({
     
     // 邀请好友
     const handleInvite = async () => {
-        if (!inviteeId.trim()) {
+        if (!invitedId.trim()) {
             setInviteError('请输入好友的用户ID')
             return
         }
@@ -53,14 +54,15 @@ export const InviteModal = ({
         setInviteError('')
         
         try {
-            const response = await fetch('/api/collaborators', {
+            const url = role === 'collaborator' ? '/api/collaborators' : '/api/viewers'
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     documentId: workId,
-                    userId: inviteeId
+                    userId: invitedId
                 })
             })
             
@@ -69,7 +71,7 @@ export const InviteModal = ({
             if (result.success) {
                 alert('邀请成功！')
                 closeFn()
-                setInviteeId('')
+                setInvitedId('')
             } else {
                 setInviteError(result.error || '邀请失败，请重试')
             }
@@ -126,12 +128,12 @@ export const InviteModal = ({
                 </div>
                 <div className={styles.inviteModalBody}>
                     <div className={styles.inputGroup}>
-                        <label htmlFor="inviteeId">好友ID</label>
+                        <label htmlFor="invitedId">好友ID</label>
                         <input
                             type="text"
-                            id="inviteeId"
-                            value={inviteeId}
-                            onChange={(e) => setInviteeId(e.target.value)}
+                            id="invitedId"
+                            value={invitedId}
+                            onChange={(e) => setInvitedId(e.target.value)}
                             placeholder="请输入好友的用户ID"
                             className={styles.input}
                         />
@@ -139,11 +141,30 @@ export const InviteModal = ({
                             <span className={styles.errorMessage}>{inviteError}</span>
                         )}
                     </div>
+                    <div className={styles.roleSelection}>
+                        <label>邀请角色</label>
+                        <div className={styles.roleOptions}>
+                            <div 
+                                className={`${styles.roleOption} ${role === 'collaborator' && styles.active}`}
+                                onClick={() => setRole('collaborator')}
+                            >
+                                <div className={styles.roleRadio}></div>
+                                <span>合作者</span>
+                            </div>
+                            <div 
+                                className={`${styles.roleOption} ${role === 'viewer' && styles.active}`}
+                                onClick={() => setRole('viewer')}
+                            >
+                                <div className={styles.roleRadio}></div>
+                                <span>观众</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div className={styles.inviteModalFooter}>
                     <button 
                         className={styles.cancelButton}
-                        onClick={() => setIsModalOpen(false)}
+                        onClick={closeFn}
                     >
                         取消
                     </button>

@@ -15,7 +15,9 @@ const DocItem = ({ title, id, lastModifiedDate, createDate }: DocItemProps) => {
   const calcTime = (lastModifiedDate: Date) => {
     const now = new Date()
     const timeDefference = Math.floor((now.getTime() - lastModifiedDate.getTime()) / 60 / 60 / 24 / 1000)
-    if(timeDefference < 7) {
+    if(timeDefference < 1) {
+      return '今天'
+    }else if(timeDefference < 7) {
       return `${timeDefference}天前`
     } else if(timeDefference < 30) {
       return `${Math.floor(timeDefference / 7)}周前`

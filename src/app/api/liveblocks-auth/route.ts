@@ -10,7 +10,6 @@ const liveblocks = new Liveblocks({
 export async function POST(request: NextRequest) {
   try {
     const { room, user } = await request.json();
-    console.log("请求参数", { room, user });
     if (user.id === undefined || user.name === undefined) {
       return new NextResponse("用户信息不完整", { status: 400 });
     }
@@ -21,18 +20,20 @@ export async function POST(request: NextRequest) {
         roomId: room
       },
       include: {
-        collaborators: true
+        collaborators: true,
+        viewers: true
       }
     })
     if(!document) {
       return new NextResponse("房间不存在", { status: 404 });
     }
-    // 2.检查是否是房主或合作者
+    // 2.检查是否是房主或合作者或者观众
     const isOwner = document.ownerId === user.id
     const isCollaborator = document.collaborators.some(collaborator => collaborator.userId === user.id)
+    const isViewer = document.viewers.some(viewer => viewer.userId === user.id)
     // 3.判断是否能进入文档
-    if(!isOwner && !isCollaborator && !document.isPublic) {
-      return new NextResponse("无权限访问", { status: 403 });
+    if(!isOwner && !isCollaborator && !document.isPublic && !isViewer) {
+      return new NextResponse("抱歉，您无权访问此文档", { status: 403 });
     }
     const session = liveblocks.prepareSession(user.id, {
       userInfo: {

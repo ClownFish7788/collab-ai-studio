@@ -1,40 +1,29 @@
 .container {
-    width: 6rem;
-    border-radius: 1rem;
+    padding: 6px 12px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
-    justify-content: space-around;
-    border: 1px solid rgb(179, 179, 179);
+    gap: 8px;
+    border: 1px solid var(--border-color);
     cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: var(--bg-color);
+
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px var(--shadow-color);
+    }
+
     .init {
-        color: rgb(153, 153, 153);
+        color: #999;
     }
     .connecting {
-        color: rgb(255, 174, 0);
+        color: #ffae00;
     }
     .connected {
-        color: rgb(0, 128, 11);
+        color: #00800b;
     }
     .disconnected {
-        color: rgb(255, 0, 0);
-    }
-}
-
-.modal {
-    background-color: white;
-    height: 10rem;
-    width: 30rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-around;
-    border-radius: 3rem;
-    .prompt {
-        font-size: 2rem;
-    }
-    .btns {
-        display: flex;
-        justify-content: space-between;
-        gap: 3rem;
+        color: #ff0000;
     }
 }

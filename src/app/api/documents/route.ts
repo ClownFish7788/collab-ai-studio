@@ -41,9 +41,8 @@ export async function POST (request: NextRequest) {
             data: newDocument 
         })
     }catch (error) {
-        console.error("操作失败:", error);
         return NextResponse.json(
-            { success: false, error: "操作失败" }, 
+            { success: false, error: "操作失败" + error }, 
             { status: 500 }
         );
     }

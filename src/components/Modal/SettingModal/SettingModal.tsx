@@ -84,7 +84,7 @@ const SettingModal = ({open, closeFn}: Props) => {
                                 <span className={classNames(styles.settingLabel)}>邮件通知</span>
                                 <ThemeToggle 
                                     checked={emailNotifications} 
-                                    onChange={setEmailNotifications} 
+                                    onChange={() => setEmailNotifications(pre => !pre)} 
                                     isThemeToggle={false}
                                 />
                             </div>
@@ -92,7 +92,7 @@ const SettingModal = ({open, closeFn}: Props) => {
                                 <span className={classNames(styles.settingLabel)}>应用通知</span>
                                 <ThemeToggle 
                                     checked={appNotifications} 
-                                    onChange={setAppNotifications} 
+                                    onChange={() => setAppNotifications(pre => !pre)} 
                                     isThemeToggle={false}
                                 />
                             </div>

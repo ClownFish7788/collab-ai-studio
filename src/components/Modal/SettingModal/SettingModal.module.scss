@@ -40,20 +40,20 @@
 
             &:hover {
                 background-color: var(--hover-bg);
-                color: #333333;
+                color: var(--text-color);
 
                 svg {
-                    fill: #333333;
-                    color: #333333;
+                    fill: var(--text-color);
+                    color: var(--text-color);
                 }
 
                 div {
-                    color: #333333;
+                    color: var(--text-color);
                 }
             }
 
             &.active {
-                background-color: var(--primary-color);
+                background-color: var(--hover-bg);
                 color: var(--text-color);
 
                 svg {
@@ -67,15 +67,15 @@
 
                 &:hover {
                     background-color: var(--hover-bg);
-                    color: #333333;
+                    color: var(--text-color);
 
                     svg {
-                        fill: #333333;
-                        color: #333333;
+                        fill: var(--text-color);
+                        color: var(--text-color);
                     }
 
                     div {
-                        color: #333333;
+                        color: var(--text-color);
                     }
                 }
             }

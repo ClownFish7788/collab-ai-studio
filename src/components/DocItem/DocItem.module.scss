@@ -31,7 +31,7 @@ $font-color: rgb(197, 197, 197);
         .lastModifiedDate,
         .collection,
         .more {
-            color: #333333;
+            color: var(--text-color);
         }
     }
 }

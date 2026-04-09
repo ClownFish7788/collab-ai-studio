@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import styles from './NetworkStatus.module.scss'
-import Modal from '../Modal/Modal'
 import AddButton from '../AddButton/AddButton'
 import useNetworkStore from '@/app/store/useNetworkStore'
+import { NetworkStatusModal } from '../Modal/NetworkStatusModal/NetworkStatusModal'
 
 const statusObj = {
     'initial': {
@@ -36,26 +36,22 @@ export const NetworkStatus = () => {
     const handleClick = () => {
         setIsOpenModal(pre => !pre)
     }
-    const changeNetworkStatus = () => {
-        toggleIsOpenNetwork(!isOpenNetwork)
-        closeFn()
-    }
     const closeFn = () => {
         setIsOpenModal(false)
+    }
+    const handleToggleNetwork = () => {
+        toggleIsOpenNetwork(!isOpenNetwork)
     }
     return (
         <div className={styles.container} onClick={handleClick}>
             <span className={statusObj[status].class}>●</span>
             <span>{statusObj[status].content}</span>
-            <Modal isOpen={isOpenModal} closeFn={closeFn} shadow>
-                <div className={styles.modal}>
-                    <div className={styles.prompt}>是否{isOpenNetwork ? "关闭" : "开启"}实时编辑</div>
-                    <div className={styles.btns}>
-                        <AddButton msg={'确定'} handleClick={() => changeNetworkStatus()}/>
-                        <AddButton msg={'取消'} handleClick={closeFn}/>
-                    </div>
-                </div>
-            </Modal>
+            <NetworkStatusModal 
+                isOpen={isOpenModal} 
+                closeFn={closeFn}
+                isOpenNetwork={isOpenNetwork}
+                onToggleNetwork={handleToggleNetwork}
+            />
         </div>
     )
 }

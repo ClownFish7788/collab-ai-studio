@@ -11,6 +11,9 @@ import { getYjsProviderForRoom } from '@liveblocks/yjs'
 import { useRoom } from '@liveblocks/react'
 import { useOptimizedTldrawSync } from '@/hooks/useOptimizedTldrawSync'
 import useStyleStore from '@/app/store/useStyleStore'
+import { nanoid } from 'nanoid'
+import { randomHexColor } from '@/utils/randomColor'
+import useEditorStore from '@/app/store/useEditorStore'
 
 const DrawEditor = () => {
     const [tldrawRef, setTldrawRef] = useState<null | Editor>(null)
@@ -19,11 +22,12 @@ const DrawEditor = () => {
     const yDoc = yProvider.getYDoc()
     const storeWithStatus = useYjsStore(yDoc, yProvider, {
         user: {
-            id: "user-123",
-            name: "ClownFish",
-            color: "blue"
+            id: localStorage.getItem('userId') || nanoid(),
+            name: localStorage.getItem('userName') || '用户-a',
+            color: randomHexColor()
         }
     })
+    const role = useEditorStore(state => state.role)
 
     // 同时拖动多组件
     useOptimizedTldrawSync(tldrawRef, yDoc, yProvider)
@@ -45,6 +49,7 @@ const DrawEditor = () => {
                 store={storeWithStatus.store}
                 onMount={(editor) => {
                     editor.user.updateUserPreferences({ locale: 'zh-cn' })
+                    editor.updateInstanceState({isReadonly: role === 'viewer'})
                     createDocShape(editor, () => {})
                     setTldrawRef(editor)
                     // const cleanup = editor.store.listen(() => {
@@ -54,6 +59,7 @@ const DrawEditor = () => {
                     // editor.store.loadStoreSnapshot(mydata)
                     // return cleanup
                 }}
+                
                 // snapshot={mydata}
             ></Tldraw>
         </div>

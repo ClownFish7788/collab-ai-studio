@@ -24,9 +24,11 @@ const TiptapEditor = ({doc, provider}: {
 }) => {
     const { id, updateTitle } = useEditorStore(state => state)
     const title = useEditorStore(state => state.title)
+    const role = useEditorStore(state => state.role)
     const isOpenNetwork = useNetworkStore(state => state.isOpenNetwork)
     const inpRef = useRef<HTMLInputElement | null>(null)
     const editor = useEditor({
+        editable: role !== 'viewer',
         extensions: [
             StarterKit.configure({
                 history: false
@@ -40,7 +42,7 @@ const TiptapEditor = ({doc, provider}: {
             CustomCursor.configure({
                 awareness: provider.awareness,
                 user: {
-                    name: "CLownFish",
+                    name: localStorage.getItem('userName') || '他人',
                     color: '#ff5252'
                 }
             })

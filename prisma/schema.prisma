@@ -19,6 +19,7 @@ model Document {
   ownerId       String
   isPublic      Boolean  @default(false)
   collaborators Collaborator[]
+  viewers       Viewers[]
   createdAt     DateTime @default(now())      // 创建时间，自动设置为当前时间
   updatedAt     DateTime @updatedAt           // 更新时间，每次修改自动更新
 }
@@ -32,3 +33,11 @@ model Collaborator {
   @@unique([documentId, userId])
 }
 
+model Viewers {
+  id         String @id @default(cuid())
+  userId     String
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+
+  @@unique([documentId, userId])
+}

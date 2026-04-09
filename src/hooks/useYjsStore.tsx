@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoom } from "@liveblocks/react";
 import { LiveblocksYjsProvider } from "@liveblocks/yjs";
 import { YKeyValue } from "y-utility/y-keyvalue";
@@ -71,6 +71,12 @@ export function useYjsStore(yDoc: Y.Doc, yProvider: LiveblocksYjsProvider, {
   const [storeWithStatus, setStoreWithStatus] = useState<TLStoreWithStatus>({
     status: "loading",
   });
+
+  const localStateField = useCallback(() => {
+    throttle(() => {
+      yProvider.awareness.setLocalStateField("presence", null)
+    }, 50)
+  }, [yProvider])
 
   useEffect(() => {
     setStoreWithStatus({ status: "loading" });
@@ -182,9 +188,7 @@ export function useYjsStore(yDoc: Y.Doc, yProvider: LiveblocksYjsProvider, {
           const presence = presenceDerivation.get() ?? null;
 
           if(!presence) {
-            throttle(() => {
-              yProvider.awareness.setLocalStateField("presence", null);
-            }, 50)
+            localStateField()
           }
           let safePresence = presence
           // 在选中大量元素进行拖拽时，通过拦截 presence 的选中id传送，以达到其他用户无法感知的目的
@@ -255,7 +259,7 @@ export function useYjsStore(yDoc: Y.Doc, yProvider: LiveblocksYjsProvider, {
       unsubs.forEach((fn) => fn());
       unsubs.length = 0;
     };
-  }, [yProvider, yDoc, store, yStore, indexDbProvider, room, user]);
+  }, [yProvider, yDoc, store, yStore, indexDbProvider, room, user, localStateField]);
 
   return storeWithStatus;
 }

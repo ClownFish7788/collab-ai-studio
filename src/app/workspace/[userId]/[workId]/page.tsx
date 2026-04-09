@@ -5,13 +5,14 @@ import classNames from "classnames"
 import React, { useCallback, useEffect, useState } from "react"
 import styles from './page.module.scss'
 import useEditorStore from "@/app/store/useEditorStore"
-import { useSearchParams } from "next/navigation"
+import { redirect, useSearchParams } from "next/navigation"
 import DrawEditor from "@/components/DrawEditor/DrawEditor"
 import { LiveblocksProvider, RoomProvider } from "@liveblocks/react"
 import { NetworkStatus } from "@/components/NetworkStatus/NetworkStatus"
 import { checkAndClearStorageLRU, updateDocumentAccessTime } from "@/utils/storageManager"
 import AddButton from "@/components/AddButton/AddButton"
 import { InviteModal } from "@/components/Modal/InviteModal/InviteModal"
+import { RoleModal } from "@/components/Modal/RoleModal/RoleModal"
 
 const EditorPage = ({
     params
@@ -30,7 +31,8 @@ const EditorPage = ({
         }
     }, [mode, hasTldrawInitialized])
     
-    const { toggleId } = useEditorStore(state => state)
+    const { toggleId, setRole, role } = useEditorStore(state => state)
+    const [isRoleModalOpen, setIsRoleModalOpen] = useState(false)
     
     useEffect(() => {
         if(resolvedParams.workId) {
@@ -65,6 +67,33 @@ const EditorPage = ({
         const data = await response.json()
         return data
     }, [])
+
+    // 检查该用户是否有资格进入
+    useEffect(() => {
+        const checkCookie = async () => {
+            try {
+                const response = await fetch('/api/entry-validations', {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        roomId: resolvedParams.workId
+                    })
+                })
+                const result = await response.json()
+                if(!result.success) {
+                    redirect('/')
+                }
+                const { role } = result.message
+                setRole(role)
+            }catch (err) {
+                console.error(err)
+                redirect('/')
+            }
+        }
+        checkCookie()
+    }, [resolvedParams.workId, setRole])
     
     return (
         <LiveblocksProvider
@@ -74,9 +103,30 @@ const EditorPage = ({
             <RoomProvider id={resolvedParams.workId}>
                 <div className={styles.wrapper}>
                     <div className={styles.status}>
-                        <AddButton msg="邀请好友" handleClick={() => setIsModalOpen(true)} />
-                        <NetworkStatus />
+                        <div className={styles.statusLeft}>
+                            <AddButton msg="邀请好友" handleClick={() => setIsModalOpen(true)} />
+                        </div>
+                        <div className={styles.statusCenter}>
+                            <div 
+                                className={classNames(styles.roleBadge, styles[`role${role?.charAt(0).toUpperCase() + role?.slice(1)}`])}
+                                onClick={() => setIsRoleModalOpen(true)}
+                            >
+                                {role === 'owner' ? '拥有者' : role === 'collaborator' ? '合作者' : role === 'viewer' ? '观众' : '未知'}
+                            </div>
+                        </div>
+                        <div className={styles.statusRight}>
+                            <NetworkStatus />
+                        </div>
                         <InviteModal workId={resolvedParams.workId} isOpen={isModalOpen} closeFn={() => setIsModalOpen(false)} />
+                        <RoleModal 
+                            isOpen={isRoleModalOpen} 
+                            closeFn={() => setIsRoleModalOpen(false)}
+                            role={role}
+                            onInviteClick={() => {
+                                setIsRoleModalOpen(false)
+                                setIsModalOpen(true)
+                            }}
+                        />
                     </div>
                     <div className={classNames(styles.container)}>
                         <div className={classNames(styles.tiptap, styles.editor, mode !== 'edgeless' && styles.active)}>

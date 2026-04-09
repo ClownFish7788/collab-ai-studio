@@ -24,12 +24,36 @@ export async function POST (request: NextRequest) {
         if(existingCollaborator) {
             return NextResponse.json({ success: false, error: "该用户已经是协作者了" }, { status: 400 })
         }
-        await prisma.collaborator.create({
-            data: {
-                documentId: targetDoc.id,
-                userId
+        const existingViewer = await prisma.viewers.findUnique({
+            where: {
+                documentId_userId: {
+                    documentId: targetDoc.id,
+                    userId
+                }
             }
         })
+        if(existingViewer) {
+            await prisma.$transaction([
+                prisma.viewers.delete({
+                    where: {
+                        id: existingViewer.id
+                    }
+                }),
+                prisma.collaborator.create({
+                    data: {
+                        documentId: targetDoc.id,
+                        userId
+                    }
+                })
+            ])
+        }else {
+            await prisma.collaborator.create({
+                data: {
+                    documentId: targetDoc.id,
+                    userId
+                }
+            })
+        }
         return NextResponse.json({ success: true, message: "邀请成功" })
      }catch(err) {
         return NextResponse.json({ success: false, error: "邀请失败" + err }, { status: 500 })
