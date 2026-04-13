@@ -1,17 +1,18 @@
 import prisma from "@/lib/prisma";
-import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 
 
 export async function POST (request: NextRequest) {
     try {
         const { roomId } = await request.json()
-        const cookieStore = await cookies()
-        const userId = cookieStore.get('userId')?.value
-        if(!userId) {
+        const session = await getServerSession(authOptions)
+        if(!session || !session.user) {
             return NextResponse.json({success: false, error: "未登录"}, {status: 401})
         }
+        const userId = session.user.id
         const targetDoc = await prisma.document.findUnique({
             where: {
                 roomId

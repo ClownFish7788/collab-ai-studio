@@ -1,5 +1,7 @@
 import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 
 /*
@@ -10,7 +12,12 @@ import { NextRequest, NextResponse } from "next/server";
 */
 export async function POST (request: NextRequest) {
     try {
-        const { documentId: roomId, userId: viewerId } = await request.json()
+        const { documentId: roomId } = await request.json()
+        const session = await getServerSession(authOptions)
+            if(!session || !session.user) {
+                return NextResponse.json({success: false, error:"用户未登录"}, {status: 401})
+            }
+            const viewerId = session.user.id
         // 检查房间是否存在
         const targetDoc = await prisma.document.findUnique({
             where: {

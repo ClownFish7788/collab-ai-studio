@@ -1,11 +1,11 @@
-import { headers } from "next/headers";
 import styles from "./page.module.css";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "./api/auth/[...nextauth]/route";
 
 export default async function Home() {
-  const headerList = await headers()
-  const userId = headerList.get('x-user-id')
-  const tragetUrl = `/workspace/${userId}`
+  const session = await getServerSession(authOptions)
+  console.log(session)
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -19,7 +19,7 @@ export default async function Home() {
           </p>
           <div className={styles.ctas}>
             {/* 需新增设置cookie功能，若有cookie就跳转至特定的页面 */}
-            <Link className={styles.primary} href={tragetUrl}>
+            <Link className={styles.primary} href='/workspace'>
               进入工作区
             </Link>
             <a className={styles.secondary} href="https://liveblocks.io" target="_blank" rel="noreferrer">

@@ -77,6 +77,20 @@ export const updateTitle = async (
     if(doc) {
         doc.title = title
         await store.put(doc)
+    }else {
+        // 没有就创建
+        await store.put({
+            id,
+            title,
+            createAt: new Date()
+        })
     }
     await tx.done
+}
+
+export const checkLocalDoc = async (id: string) => {
+    const db = await initDB()
+    const doc = await db.get(LIST_STORE_NAME, id)
+    if(!doc) return false
+    return true
 }

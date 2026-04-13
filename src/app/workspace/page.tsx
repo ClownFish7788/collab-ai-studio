@@ -1,7 +1,6 @@
 'use client'
 
 import classNames from "classnames";
-import * as React from 'react'
 import styles from './workspacePage.module.scss'
 import { FileText, LayoutGrid, List, Plus, BarChart2, Clock, Settings } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -9,13 +8,10 @@ import { nanoid } from "nanoid"
 import { addData, getList } from "@/utils/db"
 import { useEffect, useState } from "react"
 import useStyleStore from "@/app/store/useStyleStore";
+import { useUserStore } from "../store/useUserStore";
+import Image from "next/image";
 
-const WorkspacePage = ({
-  params,
-}: {
-  params: Promise<{ userId: string }>;
-}) => {
-  const resolvedParams = React.use(params)
+const WorkspacePage = () => {
   const router = useRouter()
   const [recentDocs, setRecentDocs] = useState<any[]>([])
   const [stats, setStats] = useState({
@@ -25,7 +21,8 @@ const WorkspacePage = ({
   })
 
   // 获取用户名
-  const userName = localStorage.getItem('userName') || '无名氏'
+  const userName = useUserStore(state => state.name)
+  const imgUrl = useUserStore(state => state.image)
   // 获取最近文档
   useEffect(() => {
     const fetchRecentDocs = async () => {
@@ -54,12 +51,12 @@ const WorkspacePage = ({
   const handleCreate = async () => {
     const id = nanoid(8)
     await addData('title', id)
-    router.push(`/workspace/${resolvedParams.userId}/${id}`)
+    router.push(`/workspace/${id}`)
   }
 
   // 导航到文档
   const handleNavigate = (id: string) => {
-    router.push(`/workspace/${resolvedParams.userId}/${id}`)
+    router.push(`/workspace/${id}`)
   }
 
   // 切换设置弹窗状态
@@ -71,7 +68,10 @@ const WorkspacePage = ({
       <header className={classNames(styles.header)}>
         <div className={styles.headerLeft}>
           <h1 className={styles.title}>工作区</h1>
-          <span className={styles.subtitle}>欢迎回来，{userName}</span>
+          <span className={styles.subtitle}>
+            欢迎回来，{userName}
+            {imgUrl && <Image src={'https://avatars.githubusercontent.com/u/189627607?v=4'} alt="用户头像" width={10} height={10} />}
+          </span>
         </div>
         <div className={styles.headerRight}>
           <button className={classNames(styles.btn, styles.primaryBtn)} onClick={handleCreate}>
@@ -110,7 +110,7 @@ const WorkspacePage = ({
       <section className={classNames(styles.recentSection)}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>最近文档</h2>
-          <button className={styles.viewAllBtn} onClick={() => router.push(`/workspace/${resolvedParams.userId}/all`)}>
+          <button className={styles.viewAllBtn} onClick={() => router.push(`/workspace/all`)}>
             查看全部
           </button>
         </div>
@@ -156,7 +156,7 @@ const WorkspacePage = ({
             <h3 className={styles.actionTitle}>新建</h3>
             <p className={styles.actionDesc}>创建一个新的文档</p>
           </button>
-          <button className={styles.actionCard} onClick={() => router.push(`/workspace/${resolvedParams.userId}/all`)}>
+          <button className={styles.actionCard} onClick={() => router.push(`/workspace/all`)}>
             <div className={styles.actionIcon}>
               <List size={24} />
             </div>

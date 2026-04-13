@@ -11,6 +11,8 @@ import Workspace from '@/svg/Workspace'
 import NavigationItem from '@/components/NavigationItem/NavigationItem'
 import ThemeToggle from '@/components/ThemeToggle/ThemeToggle'
 import useStyleStore from '@/app/store/useStyleStore'
+import { useUserStore } from '@/app/store/useUserStore'
+import { LoginButton, LogoutButton } from '@/components/AuthButton/AuthButton'
 
 const settingList:Navigation[] = [
     {title: 'Appearance', href: undefined, svg: <Appearance /> },
@@ -28,8 +30,23 @@ const SettingModal = ({open, closeFn}: Props) => {
     const [activeTab, setActiveTab] = useState('Appearance')
     const [emailNotifications, setEmailNotifications] = useState(true)
     const [appNotifications, setAppNotifications] = useState(true)
+    const [copySuccess, setCopySuccess] = useState(false)
     const theme = useStyleStore(state => state.theme)
     const toggleTheme = useStyleStore(state => state.toggleTheme)
+    const isLogin = useUserStore(state => state.isLogin)
+    const username = useUserStore(state => state.name)
+    const email = useUserStore(state => state.email)
+    const userId = useUserStore(state => state.id)
+    const copyId = async () => {
+        try {
+            navigator.clipboard.writeText(userId)
+            setCopySuccess(true)
+            setTimeout(() => setCopySuccess(false), 2000)
+        }catch(err) {
+            console.error(err)
+        }
+    }
+
 
     return (
         <Modal isOpen={open} shadow closeFn={closeFn}>
@@ -101,18 +118,39 @@ const SettingModal = ({open, closeFn}: Props) => {
                     {activeTab === 'Account' && (
                         <div className={classNames(styles.section)}>
                             <h2 className={classNames(styles.sectionTitle)}>账户</h2>
-                            <div className={classNames(styles.settingItem)}>
-                                <span className={classNames(styles.settingLabel)}>用户名</span>
-                                <span className={classNames(styles.settingValue)}>demo_user</span>
-                            </div>
-                            <div className={classNames(styles.settingItem)}>
-                                <span className={classNames(styles.settingLabel)}>邮箱</span>
-                                <span className={classNames(styles.settingValue)}>demo@example.com</span>
-                            </div>
-                            <div className={classNames(styles.settingItem)}>
-                                <span className={classNames(styles.settingLabel)}>修改密码</span>
-                                <button className={classNames(styles.settingButton)}>修改</button>
-                            </div>
+                            {isLogin ? (
+                                <>
+                                    <div className={classNames(styles.settingItem)}>
+                                        <span className={classNames(styles.settingLabel)}>用户名</span>
+                                        <span className={classNames(styles.settingValue)}>{username}</span>
+                                    </div>
+                                    <div className={classNames(styles.settingItem)}>
+                                        <span className={classNames(styles.settingLabel)}>邮箱</span>
+                                        <span className={classNames(styles.settingValue)}>{email}</span>
+                                    </div>
+                                    <div className={classNames(styles.settingItem)}>
+                                        <span className={classNames(styles.settingLabel)}>ID</span>
+                                        <div className={classNames(styles.idContainer)}>
+                                            <span className={classNames(styles.settingValue)}>{userId}</span>
+                                            <button 
+                                                className={classNames(styles.settingButton)}
+                                                onClick={copyId}
+                                            >
+                                                {copySuccess ? '已复制！' : '复制'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className={classNames(styles.settingItem)}>
+                                        <span className={classNames(styles.settingLabel)}>登录状态</span>
+                                        <LogoutButton />
+                                    </div>
+                                </>
+                            ) : (
+                                <div className={classNames(styles.loginPrompt)}>
+                                    <p className={classNames(styles.loginPromptText)}>登录后可体验实时多人编辑功能</p>
+                                    <LoginButton />
+                                </div>
+                            )}
                         </div>
                     )}
                     {activeTab === 'Workspace' && (

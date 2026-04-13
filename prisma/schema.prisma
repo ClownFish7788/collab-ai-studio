@@ -13,15 +13,18 @@ datasource db {
 // 3. 设计我们的数据表（模型 Model）
 // 假设我们要存一个“文档列表”
 model Document {
-  id            String   @id @default(cuid()) // 主键，自动生成唯一的 cuid
-  title         String   // 文档标题
-  roomId        String   @unique              // Liveblocks 对应的房间 ID，必须唯一
-  ownerId       String
+  id            String   @id @default(cuid())
+  title         String   
+  roomId        String   @unique              
+  ownerId       String   // 👈 这是真实的存数据库的字段
   isPublic      Boolean  @default(false)
   collaborators Collaborator[]
   viewers       Viewers[]
-  createdAt     DateTime @default(now())      // 创建时间，自动设置为当前时间
-  updatedAt     DateTime @updatedAt           // 更新时间，每次修改自动更新
+  createdAt     DateTime @default(now())      
+  updatedAt     DateTime @updatedAt           
+  
+  // 🌟 修复 1：把 fields 绑定到切实存在的 ownerId 上！
+  owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 }
 
 model Collaborator {
@@ -29,7 +32,7 @@ model Collaborator {
   userId     String 
   documentId String
   document   Document @relation(fields: [documentId], references: [id])
-
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([documentId, userId])
 }
 
@@ -38,6 +41,61 @@ model Viewers {
   userId     String
   documentId String
   document   Document @relation(fields: [documentId], references: [id])
-
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([documentId, userId])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?   
+  email         String?   @unique 
+  emailVerified DateTime?
+  image         String?   
+  
+  accounts      Account[]
+  sessions      Session[]
+
+  documents     Document[] 
+  collaborators Collaborator[]
+  viewers       Viewers[]     // 🌟 修复 2：加上这个双向关联！
+}
+
+// 2. 账号表（极其精妙的设计：用来绑定第三方账号）
+// 为什么要有这张表？因为同一个 User，他可能今天用 GitHub 登录，明天用 Google 登录。
+// 这张表就是用来记录：User A 绑定了 GitHub 的账号 ID 是 xxx。
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String  // 比如 "github", "google"
+  providerAccountId  String  // 第三方平台那边的专属 ID
+  refresh_token      String?  
+  access_token       String?  
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// 3. 会话表（记录用户当前的登录状态）
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 4. 验证令牌表（如果你以后想做“发送邮件验证码登录”，靠这张表）
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }

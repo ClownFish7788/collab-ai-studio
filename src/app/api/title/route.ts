@@ -1,10 +1,17 @@
 import prisma from "@/lib/prisma"
+import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
+import { authOptions } from "../auth/[...nextauth]/route"
 
 
 export async function POST (request: Request) {
     try {
-        const { title, id, userId } = await request.json()
+        const { title, id } = await request.json()
+        const session = await getServerSession(authOptions)
+        if(!session || !session.user) {
+            return NextResponse.json({success: false, error: "用户未登录"}, {status: 401})
+        }
+        const userId = session.user.id
         if  (!title || !id) {
             return new NextResponse("标题或id不能为空", { status: 400 })
         }

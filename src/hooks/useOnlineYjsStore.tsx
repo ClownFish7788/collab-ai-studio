@@ -22,7 +22,7 @@ import useNetworkStore from "@/app/store/useNetworkStore";
 import CustomBoradcastChannel from "@/utils/BoradcastChannelProvider";
 import toggleRealtimeEditing from "@/utils/toggleRealtimeEditing";
 
-export function useYjsStore(yDoc: Y.Doc, yProvider: LiveblocksYjsProvider, {
+export function useOnlineYjsStore(yDoc: Y.Doc, yProvider: LiveblocksYjsProvider, {
   shapeUtils = [],
   user
 }: Partial<{

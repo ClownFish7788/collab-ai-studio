@@ -1,6 +1,7 @@
 import Modal from '../Modal'
 import styles from './InviteModal.module.scss'
 import { useState } from 'react'
+import { useUserStore } from '@/app/store/useUserStore'
 
 type RoleType = 'collaborator' | 'viewer'
 
@@ -19,10 +20,9 @@ export const InviteModal = ({
     const [isInviting, setIsInviting] = useState(false)
     const [inviteError, setInviteError] = useState('')
     const [role, setRole] = useState<RoleType>('collaborator') // collaborator 或 viewer
-
+    const userId = useUserStore(state => state.id)
     // 复制自己的用户ID
     const handleCopyId = async () => {
-        const userId = localStorage.getItem('userId') || 'test-user'
         try {
             await navigator.clipboard.writeText(userId)
             setShowCopySuccess(true)
@@ -62,7 +62,6 @@ export const InviteModal = ({
                 },
                 body: JSON.stringify({
                     documentId: workId,
-                    userId: invitedId
                 })
             })
             

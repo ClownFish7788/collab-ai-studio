@@ -11,9 +11,10 @@ import useListStore from "@/app/store/useListStore"
 import { Search } from "lucide-react"
 import { nanoid } from "nanoid"
 import Modal from "@/components/Modal/Modal"
+import { useUserStore } from "@/app/store/useUserStore"
 
 const AllPage = () => {
-    const { dataList, addItem, initData } = useListStore(state => state)
+    const { dataList, initData } = useListStore(state => state)
     const [searchQuery, setSearchQuery] = useState('')
     const pathname = usePathname()
     const router = useRouter()
@@ -21,7 +22,7 @@ const AllPage = () => {
     const [roomId, setRoomId] = useState('')
     const [isJoining, setIsJoining] = useState(false)
     const [joinError, setJoinError] = useState('')
-
+    const isLogin = useUserStore(state => state.isLogin)
     // 新建文档
     const [isCreating, setIsCreating] = useState(false)
     const handleAdd = async () => {
@@ -29,21 +30,24 @@ const AllPage = () => {
         try {
             const id = nanoid()
             await addData('未命名新文档', id)
-            const response = await fetch('/api/documents', {
-                method: "POST",
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    userId: localStorage.getItem('userId') || 'test-user',
-                    roomId: id
+            if(isLogin) {
+                const response = await fetch('/api/documents', {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        roomId: id
+                    })
                 })
-            })
-            const result = await response.json()
-            if(result.success) {
-                router.push(pathname.slice(0, -3) + id)
+                const result = await response.json()
+                if(result.success) {
+                    router.push(pathname.slice(0, -3) + id)
+                }else {
+                    alert("创建文档失败")
+                }
             }else {
-                alert("创建文档失败")
+                router.push(pathname.slice(0, -3) + id)
             }
         }catch (err) {
             console.error("创建文档失败:", err)
@@ -54,6 +58,9 @@ const AllPage = () => {
     
     // 加入房间
     const handleJoinRoom = async () => {
+        if(!isLogin) {
+            alert('请先登录')
+        }
         if (!roomId.trim()) {
             setJoinError('请输入房间ID')
             return

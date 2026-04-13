@@ -29,20 +29,19 @@ const ModalType = ['SEARCH', null, 'SETTINGS'] as const
 
 const NavigationBar = () => {
     const toggleLeftBarOpen = useStyleStore(state => state.toggleLeftBarOpen)
-    const params = useParams()
     const toggleModalOpen = useStyleStore(state => state.toggleModalOpen)
     const { settingModalOpen, searchModalOpen } = useStyleStore(state => state)
 
     return (
         <div className={classNames(styles.container)}>
             <Expansion closeFn={toggleLeftBarOpen} />
-            <Link href={`/workspace/${params.userId}`} className={classNames(styles.item)}>Demo Workspace</Link>
+            <Link href={'/workspace'} className={classNames(styles.item)}>Demo Workspace</Link>
             <div className={classNames(styles.navigationContainer)}>
                 {
                     navigationList.map((item, i) => <NavigationItem 
                         title={item.title} 
                         svg={item.svg} 
-                        href={item.href && `/workspace/${params.userId}/${item.href}`}
+                        href={item.href && `/workspace/${item.href}`}
                         handleClick={() => toggleModalOpen(ModalType[i])}
                         key={i}
                     />)

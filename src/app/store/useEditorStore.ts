@@ -31,7 +31,10 @@ const useEditorStore = create<EditorStore>((set) => ({
             id: newId
         }
     }),
-    updateTitle: (newTitle) => set({title: newTitle}),
+    updateTitle: (newTitle) => {
+        set({title: newTitle})
+        console.trace('setTitle 被调用，新值为:', newTitle);
+    },
     updateDoc: (newData) => set(() => ({
         docData: newData
     })),

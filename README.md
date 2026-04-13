@@ -95,3 +95,5 @@ npx prisma migrate dev --name init
 middleware.ts
     请求页面时拦截请求，并检查有无cookie，没有的话设置cookie
     请求数据的时候，检查是否有cookie，若无则返回401
+
+使用NextAuth来做鉴权
