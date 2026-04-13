@@ -24,7 +24,7 @@ export async function POST (request: Request) {
         const isOwner = targetDoc?.ownerId === userId
         const isCollaborators = targetDoc?.collaborators.some(c => c.userId === userId)
         if(!isOwner && !isCollaborators) {
-            return new NextResponse('权限不足' + targetDoc?.ownerId +" " +userId+" " +targetDoc?.collaborators, {status: 403})
+            return new NextResponse('权限不足', {status: 403})
         }
         const updateDocument = await prisma.document.update({
             where: {roomId: id},

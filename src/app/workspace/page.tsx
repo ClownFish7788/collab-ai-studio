@@ -69,8 +69,8 @@ const WorkspacePage = () => {
         <div className={styles.headerLeft}>
           <h1 className={styles.title}>工作区</h1>
           <span className={styles.subtitle}>
-            欢迎回来，{userName}
-            {imgUrl && <Image src={'https://avatars.githubusercontent.com/u/189627607?v=4'} alt="用户头像" width={10} height={10} />}
+            欢迎回来{userName && (',' + userName)}
+            {imgUrl && <Image src={imgUrl} alt="用户头像" width={10} height={10} />}
           </span>
         </div>
         <div className={styles.headerRight}>

@@ -12,6 +12,7 @@ import { Search } from "lucide-react"
 import { nanoid } from "nanoid"
 import Modal from "@/components/Modal/Modal"
 import { useUserStore } from "@/app/store/useUserStore"
+import LoginModal from "@/components/Modal/LoginModal/LoginModal"
 
 const AllPage = () => {
     const { dataList, initData } = useListStore(state => state)
@@ -57,9 +58,10 @@ const AllPage = () => {
     }
     
     // 加入房间
+    const [isLoginModal, setIsLoginModal] = useState(false)
     const handleJoinRoom = async () => {
         if(!isLogin) {
-            alert('请先登录')
+            setIsLoginModal(true)
         }
         if (!roomId.trim()) {
             setJoinError('请输入房间ID')
@@ -220,6 +222,7 @@ const AllPage = () => {
                             </div>
                         </div>
                     </Modal>
+                    <LoginModal isOpen={isLoginModal} closeFn={() => setIsLoginModal(false)} />
                 </div>
             </header>
 

@@ -12,12 +12,12 @@ import { authOptions } from "../auth/[...nextauth]/route";
 */
 export async function POST (request: NextRequest) {
     try {
-        const { documentId: roomId } = await request.json()
+        const { documentId: roomId, userId: viewerId } = await request.json()
         const session = await getServerSession(authOptions)
-            if(!session || !session.user) {
-                return NextResponse.json({success: false, error:"用户未登录"}, {status: 401})
-            }
-            const viewerId = session.user.id
+        if(!session || !session.user) {
+            return NextResponse.json({success: false, error:"用户未登录"}, {status: 401})
+        }
+        const ownerId = session.user.id
         // 检查房间是否存在
         const targetDoc = await prisma.document.findUnique({
             where: {
@@ -31,13 +31,8 @@ export async function POST (request: NextRequest) {
         if(!targetDoc) {
             return NextResponse.json({success: false, error: '找不到该文档'}, {status: 404})
         }
-        // 检查是否有权限
-        const cookieObj = request.cookies.get('userId')
-        if(!cookieObj || !cookieObj.value) {
-            return NextResponse.json({success: false, error: "无权限"}, {status: 401})
-        }
-        const isOwner = targetDoc.ownerId !== cookieObj.value
-        if(isOwner) {
+        const isOwner = targetDoc.ownerId === ownerId
+        if(!isOwner) {
             return NextResponse.json({success: false, error: '无权限'}, {status: 403})
         }
         // 检查用户是否已经创建过viewer

@@ -6,8 +6,6 @@ import classNames from "classnames"
 import useStyleStore from "@/app/store/useStyleStore"
 import Expansion from "@/components/Expansion/Expansion"
 import { useTheme } from "@/hooks/useTheme"
-import { useEffect } from "react"
-import { useParams } from "next/navigation"
 import { Provider } from "@/components/provider/Provider"
 import { AuthSync } from "@/components/AuthSync/AuthSync"
 
@@ -18,12 +16,6 @@ const WorkspaceLayout = ({children, header}: {
     const leftBarOpen = useStyleStore(state => state.leftBarOpen)
     const toggleLeftBarOpen = useStyleStore(state => state.toggleLeftBarOpen)
     const isMounted = useTheme()
-    // 重置用户信息
-    const resolveParams = useParams()
-    useEffect(() => {
-        localStorage.setItem('userId', resolveParams.userId as string)
-        localStorage.setItem('userName', `用户_${resolveParams.userId?.slice(0,6)}`)
-    }, [resolveParams.userId])
     if(!isMounted) {
         return null
     }

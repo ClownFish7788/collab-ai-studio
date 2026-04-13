@@ -51,11 +51,12 @@ const EditorPage = ({
                         })
                     })
                     const result = await response.json()
-                    if(!result.success) {
+                    if(!result.success && !localDoc) {
                         setIsNotFound(true)
                     }
                     const { role } = result.message
                     setRole(role)
+                    return
                 }
                 if(!localDoc) {
                     setIsNotFound(true)

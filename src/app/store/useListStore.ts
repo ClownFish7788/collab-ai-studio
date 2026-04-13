@@ -64,11 +64,14 @@ const useListStore = create<ListStore>((set, get) => ({
     },
     getNameById: (id) => {
         const dataList = get().dataList
+        let title
         for (const dataItem of dataList) {
             const data = dataItem.dataList.find(item => item.id === id)
-            return data?.title
+            if(data) {
+                title = data.title
+            }
         }
-        return undefined
+        return title
     }
 }))
 

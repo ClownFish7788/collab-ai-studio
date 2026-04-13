@@ -21,6 +21,7 @@ export function useLocalYjsStore(yDoc: Y.Doc, roomId: string) {
     const unsubs: (() => void)[] = [];
 
     function handleSync() {
+      // 1. 初始化时，将 Yjs 数据载入 Tldraw
       if (yStore.yarray.length) {
         transact(() => {
           const toRemove = store.allRecords()
@@ -40,6 +41,7 @@ export function useLocalYjsStore(yDoc: Y.Doc, roomId: string) {
         });
       }
 
+      // 2. 监听 Yjs 的变化，同步到 Tldraw（解决跨标签页/远端同步）
       const handleChange = (changes: any, transaction: Y.Transaction) => {
         if (transaction.local) return;
         const toRemove: TLRecord["id"][] = [];
@@ -72,6 +74,26 @@ export function useLocalYjsStore(yDoc: Y.Doc, roomId: string) {
 
       yStore.on("change", handleChange);
       unsubs.push(() => yStore.off("change", handleChange));
+
+      // 🌟🌟 3. 【核心修复】监听 Tldraw 的变化，写回 Yjs 和本地数据库
+      unsubs.push(
+        store.listen(
+          ({ changes }) => {
+            yDoc.transact(() => {
+              Object.values(changes.added).forEach((record) => {
+                yStore.set(record.id, record);
+              });
+              Object.values(changes.updated).forEach(([_, record]) => {
+                yStore.set(record.id, record);
+              });
+              Object.values(changes.removed).forEach((record) => {
+                yStore.delete(record.id);
+              });
+            });
+          },
+          { source: 'user', scope: 'document' } // 必须指定 source: 'user'，防止死循环
+        )
+      );
 
       setStoreWithStatus({ store, status: "synced-remote", connectionStatus: "online" });
     }

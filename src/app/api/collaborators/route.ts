@@ -6,12 +6,12 @@ import { authOptions } from "../auth/[...nextauth]/route";
 
 export async function POST (request: NextRequest) {
      try {
-        const { documentId: roomId } = await request.json()
+        const { documentId: roomId, userId: collaboratorId } = await request.json()
         const session = await getServerSession(authOptions)
         if(!session || !session.user) {
             return NextResponse.json({success: false, error:"用户未登录"}, {status: 401})
         }
-        const userId = session.user.id
+        const ownerId = session.user.id
         const targetDoc = await prisma.document.findUnique({
             where: {
                 roomId
@@ -20,11 +20,14 @@ export async function POST (request: NextRequest) {
         if(!targetDoc) {
             return NextResponse.json({ success: false, error: "找不到该文档" }, { status: 404 })
         }
+        if(targetDoc.ownerId !== ownerId) {
+            return NextResponse.json({success: false, error: "用户无权限"}, {status: 403})
+        }
         const existingCollaborator = await prisma.collaborator.findUnique({
             where: {
                 documentId_userId: {
                     documentId: targetDoc.id,
-                    userId
+                    userId: collaboratorId
                 }
             }
         })
@@ -35,7 +38,7 @@ export async function POST (request: NextRequest) {
             where: {
                 documentId_userId: {
                     documentId: targetDoc.id,
-                    userId
+                    userId: collaboratorId
                 }
             }
         })
@@ -49,7 +52,7 @@ export async function POST (request: NextRequest) {
                 prisma.collaborator.create({
                     data: {
                         documentId: targetDoc.id,
-                        userId
+                        userId: collaboratorId
                     }
                 })
             ])
@@ -57,7 +60,7 @@ export async function POST (request: NextRequest) {
             await prisma.collaborator.create({
                 data: {
                     documentId: targetDoc.id,
-                    userId
+                    userId: collaboratorId
                 }
             })
         }

@@ -62,6 +62,7 @@ export const InviteModal = ({
                 },
                 body: JSON.stringify({
                     documentId: workId,
+                    userId: invitedId
                 })
             })
             
@@ -89,7 +90,7 @@ export const InviteModal = ({
                     <div className={styles.copyIdSection}>
                         <span className={styles.copyIdLabel}>我的ID:</span>
                         <div className={styles.copyIdContainer}>
-                            <span className={styles.userId}>{localStorage.getItem('userId') || 'test-user'}</span>
+                            <span className={styles.userId}>{userId}</span>
                             <button 
                                 className={styles.copyButton}
                                 onClick={handleCopyId}

@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import styles from './NotFound.module.scss'
 import { useRouter } from 'next/navigation'
+import LoginModal from '../Modal/LoginModal/LoginModal'
 
 const NotFound = () => {
     const router = useRouter()
@@ -13,6 +15,7 @@ const NotFound = () => {
     const handleCreateNew = () => {
         router.push('/workspace')
     }
+    const [isLoginModal, setIsLoginModal] = useState(false)
 
     return (
         <div className={styles.container}>
@@ -35,6 +38,13 @@ const NotFound = () => {
                     >
                         创建新文档
                     </button>
+                    <button
+                        className={styles.button}
+                        onClick={() => setIsLoginModal(true)}
+                    >
+                        登录以查看云端文档
+                    </button>
+                    <LoginModal isOpen={isLoginModal} closeFn={() => setIsLoginModal(false)} />
                 </div>
             </div>
         </div>
