@@ -1,99 +1,151 @@
-CollabAI Studio是一款多人协作的在线工具流，可使用多种工具来进行协作，并带有离线功能，用户可使用自带AI来助力工作效率
-1.界面展示
-    页面分为左右两栏，左为资源树（导航栏），右为工作区，工作区右侧自带拉伸AI聊天框（可隐藏）
-    自带 “双模式切换”，文档视图和白板视图（无限画布）
-    带有文件（PDF，图片，WORD）导出和文件下载功能
-2.智能文档编辑器
-    工作区底部自带编辑器（可向下隐藏），带有 H1/H2/H3,列表，代码块，引用
-    动态卡片插入
-    块级编辑，每一个元素都是一个块
-3.可视化AI工作流
-4.实时协同与离线功能
-    冲突解决：即使两个人同时修改同一行字，也不会互相覆盖，而是自动合并（基于 CRDT 算法）
-    离线编辑：拔掉网线，依然可以新建文档、编辑工作流。数据保存在浏览器本地（IndexedDB）
+# CollabAI Studio
 
-src
-|   app
-|   |   page
-|   |   layout
-|   |   workspace[userId]
-|   |   |   all（全部功能页面）
-|   |   |   [workId]
-|   |   |   |   page(?mode=page/edgeless)   page-文档模式  edgeless-白板模式
-|   components
-|   |   editor（无限画布）
-|   |   toolbar（底部工具栏）
-|   |   |   tools
-|   |   switch（双模式切换）
-|   |   file（文档视图）
-|   |   AIChat（AI聊天框）
-|   |   navigationBar（左侧导航栏）
-|   |   notification（弹框）
+<div align="center">
 
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Y.js](https://img.shields.io/badge/Y.js-CRDT-ff6b6b)](https://yjs.dev/)
+[![Liveblocks](https://img.shields.io/badge/Liveblocks-realtime-6366f1)](https://liveblocks.io/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+**多人实时协作在线工作台 · 离线优先 · AI 助手加持**
 
-文档模式使用Tiptap作为编辑库
-    1.Tiptap不携带默认样式和DOM结构，只提供功能逻辑，UI层完全由开发者封装
-    2.它相比于其他第三方库更适用于React框架
-    3.它基于ProseMirror，稳定性强且更加适合做协同编辑（Tiptap完美支持Y.js）
-    4.强大的Markdown支持
-Editor作为编辑组件，FontBar作为样式选择组件
+</div>
 
-白板模式使用TLDraw
-    1.性能优化：它内部混合了 Canvas 和 React 渲染
-    2.内置交互：框选、删除、连线、箭头、图片的缩放旋转，全部现成的
-    3.自定义形状：你可以定义一个 AffineCard 形状，里面放你的 Next.js 组件
+---
 
-使用idb代替原生的indexDB API
-    1.设计3个数据库 doc-文档数据 editor-画布数据 list-所有数据的id+title
+## 📖 项目简介
 
-实时编辑使用liveblocks + Y.js
-    tiptap部分(tiptap协同编辑插件基于Y.js)
-        tiptap <---> Y.js(CRDT保证数据一致性) <---> liveblocks/yjs(监听数据Y.js数据变化发送网络请求/接收) <---> liveblocks(接收网络请求并广播到同一房间的每个用户)
-        光标由于CollaborationCursor版本老旧导致无法兼容，所以使用y-tiptap底层调用并自行封装
-    tlDraw部分(将原数据结构转换为Y.js)
-        tlDraw <--->Y.js(hooks/useYjsStore转换数据结构) <---> ...(与tiptap一致)
-        光标可以考虑 Liveblocks Native Presence (类似游戏服务器的 UDP 数据包优化)
+**CollabAI Studio** 是一款基于 Web 的多人实时协作平台，支持文档编辑与无限白板两种工作模式，内置 AI 聊天助手，具备完整的离线编辑与断网恢复能力。
 
-Y.js优势
-    1.性能：
-        会将多个连续的block合并一个
-        在确保所有人都同步后，Y.js会将历史记录真正地从内存中删除
-    2.网络无关性
-        Y.js只负责将数据，不负责传输数据，Y.js提供了灵活的provider保证可以用各种方式传输数据(Uint8Array 格式的二进制数据)
-    3.生态绑定
-        Y.js现在已经与主流框架和UI库进行了深度绑定
-    4.内置了Awareness(状态感知通道)
-        将持久需要保存(y.Doc)的数据和临时性、高频、不需要永久保存的数据(用户光标位置等)进行区分，，避免内存爆炸
-        Awareness提供了一套低延迟的广播机制
+- 基于 **Y.js（CRDT）** 实现零冲突并发编辑，任意多人同时修改同一内容均可自动合并
+- 采用 **IndexedDB 离线优先** 架构，断网后仍可正常新建、编辑文档，联网后自动同步
+- 双模式编辑器：富文本块级文档（Tiptap）+ 无限画布白板（TLDraw）
+- **NextAuth** 登录鉴权，**Prisma + SQLite** 持久化存储
 
-利用broadcastChannel和y-indexeddb来实现BroadcastChannelProvider工具，在离线状态下广播和监听多tab页的doc数据更改
-    y-indexeddb在恢复网络后先进行数据覆盖，再利用liveblocks进行数据上传
-    
-自定义toggleRealtimeEditing方法取消实时编辑
+---
 
-自定义usePasteImageToTldraw来替代tldraw原生的图片复制功能
-    根据复制内容智能配对
-        网络图片URL：通过判断URL后缀来进行智能选择是否复制图片，还是建立文本框复制文字
-        本地图片：并非直接将图片转换为base64增大Y.js内存导致内存膨胀，而是上传到后端，通过后端返回的url来建立图片
-    遇到加载极慢或带有防盗链的外部图片时，tldraw可能会抛出canvas错误，而我通过new Image()来访问图片宽高
-    若遇到跨域问题，通过try...catch捕获错误，并放置“图片失效”元素提醒用户
+## ✨ 功能特性
 
-当用户鼠标选中大量元素并移动时，在移动结束前使用“相对增量”
-    1.在选中大量元素时通过广播将这些元素的id发送出去
-    2.高频(60fps)发送鼠标偏移量
-    3.在其他用户的电脑上进行“视觉欺骗”，渲染时根据id在原本的坐标上增加偏移量
-    4.当鼠标松开时才做真正的底层数据结算
+### 🤝 实时协作
+- 基于 Y.js CRDT 算法，多人并发编辑零冲突自动合并
+- Liveblocks 实时网络广播，多端光标位置实时可见
+- 白板模式批量元素移动采用"相对增量"协议，广播量降至 O(1)，多人协作流畅不卡顿
 
-    
-后端 prisma
+### 📄 文档模式（Tiptap）
+- 块级编辑，支持 H1 / H2 / H3、列表、代码块、引用、动态卡片
+- 完整 Markdown 语法支持
+- 多人光标实时同步（基于 y-tiptap 底层自定义实现）
+
+### 🎨 白板模式（TLDraw）
+- 无限画布，Canvas + React 混合渲染，性能优先
+- 内置框选、连线、箭头、图片缩放旋转等交互
+- 自定义形状组件（AffineCard）嵌入 React 组件
+- 智能图片粘贴：自动识别网络 URL / 本地图片，兼容防盗链与跨域场景
+
+### 📡 离线优先 & 多 Tab 同步
+- IndexedDB 三库设计（`doc` / `editor` / `list`），断网可完整使用
+- 自研 `BroadcastChannelProvider`，多标签页本地数据实时同步
+- 联网后自动恢复：本地数据覆盖内存 → Liveblocks 增量上传
+
+### 🤖 AI 助手
+- 右侧可拉伸 AI 聊天框，随时唤出，可隐藏
+
+### 📤 导出
+- 支持导出为 PDF、图片、Word 格式
+
+---
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Node.js >= 18
+- npm >= 9
+
+### 安装与运行
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/ClownFish7788/collab-ai-studio.git
+cd collab-ai-studio
+
+# 2. 安装依赖
+npm install
+
+# 3. 配置环境变量（复制示例文件后填入相应 Key）
+cp .env.example .env.local
+# 需要填写：DATABASE_URL、NEXTAUTH_SECRET、LIVEBLOCKS_SECRET_KEY 等
+
+# 4. 初始化数据库
 npx prisma migrate dev --name init
-    1.生成物理文件
-    2.生成“快照”(历史记录)
-    3.触发隐式generate
 
-middleware.ts
-    请求页面时拦截请求，并检查有无cookie，没有的话设置cookie
-    请求数据的时候，检查是否有cookie，若无则返回401
+# 5. 启动开发服务器
+npm run dev
+```
 
-使用NextAuth来做鉴权
+打开浏览器访问 [http://localhost:3000](http://localhost:3000)
+
+### 构建生产版本
+
+```bash
+npm run build
+npm start
+```
+
+---
+
+## 📁 项目结构
+
+```
+collab-ai-studio/
+├── prisma/
+│   ├── schema.prisma          # 数据库模型（User / Document / Collaborator）
+│   └── migrations/            # 数据库迁移历史
+├── src/
+│   ├── app/
+│   │   ├── page.tsx           # 登录 / 首页
+│   │   ├── layout.tsx         # 全局布局
+│   │   ├── api/               # Next.js API Routes（NextAuth、Liveblocks、上传等）
+│   │   └── workspace/
+│   │       ├── layout.tsx     # 工作台布局
+│   │       ├── all/           # 全部文档列表页
+│   │       └── [workId]/
+│   │           └── page.tsx   # 工作区页面（?mode=page 文档 / ?mode=edgeless 白板）
+│   ├── components/
+│   │   ├── Editor/            # TLDraw 无限画布编辑器
+│   │   ├── File/              # 文档视图（Tiptap 富文本）
+│   │   ├── FontBar/           # 文档工具栏（样式选择）
+│   │   ├── ToolBar/           # 底部工具栏
+│   │   ├── Switch/            # 文档 / 白板双模式切换
+│   │   ├── AIChat/            # AI 聊天侧边栏
+│   │   ├── NavigationBar/     # 左侧资源导航栏
+│   │   ├── NetworkStatus/     # 网络状态指示
+│   │   ├── provider/          # Liveblocks / Auth 等 Provider 封装
+│   │   └── ...
+│   ├── hooks/                 # 自定义 Hooks（useYjsStore、usePasteImageToTldraw 等）
+│   ├── lib/                   # 工具库（Prisma 客户端、IndexedDB 封装等）
+│   └── utils/                 # 通用工具函数
+├── types/                     # 全局 TypeScript 类型定义
+├── public/                    # 静态资源
+├── next.config.ts
+├── tsconfig.json
+└── package.json
+```
+
+---
+
+## 🛠️ 技术栈
+
+| 层次 | 技术 |
+|------|------|
+| 框架 | Next.js 16 · React 19 · TypeScript 5 |
+| 文档编辑器 | Tiptap（ProseMirror） |
+| 白板引擎 | TLDraw |
+| 实时协作 | Y.js（CRDT）· Liveblocks · @liveblocks/yjs |
+| 离线存储 | IndexedDB（idb）· y-indexeddb · BroadcastChannel |
+| 状态管理 | Zustand |
+| 鉴权 | NextAuth v4 |
+| 数据库 | Prisma · SQLite |
+| 样式 | Sass / SCSS |
