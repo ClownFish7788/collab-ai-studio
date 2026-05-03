@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from '../Modal'
 import styles from './SettingModal.module.scss'
 import classNames from 'classnames'
@@ -13,6 +13,7 @@ import ThemeToggle from '@/components/ThemeToggle/ThemeToggle'
 import useStyleStore from '@/app/store/useStyleStore'
 import { useUserStore } from '@/app/store/useUserStore'
 import { LoginButton, LogoutButton } from '@/components/AuthButton/AuthButton'
+import { showStorage } from '@/utils/storageManager'
 
 const settingList:Navigation[] = [
     {title: 'Appearance', href: undefined, svg: <Appearance /> },
@@ -46,7 +47,16 @@ const SettingModal = ({open, closeFn}: Props) => {
             console.error(err)
         }
     }
-
+    const [quota, setQuota] = useState<number|null|undefined>()
+    const [usage, setUsage] = useState<number|null|undefined>()
+    useEffect(() => {
+        const checkStorage = async () => {
+            const [usageGB, quotaGB] = await showStorage()
+            setUsage(usageGB)
+            setQuota(quotaGB)
+        }
+        checkStorage()
+    }, [])
 
     return (
         <Modal isOpen={open} shadow closeFn={closeFn}>
@@ -166,7 +176,7 @@ const SettingModal = ({open, closeFn}: Props) => {
                             </div>
                             <div className={classNames(styles.settingItem)}>
                                 <span className={classNames(styles.settingLabel)}>存储空间</span>
-                                <span className={classNames(styles.settingValue)}>1.2 GB / 10 GB</span>
+                                <span className={classNames(styles.settingValue)}>{usage  ? usage.toFixed(2) : '--'} GB / {quota ? quota.toFixed(2) : '--'} GB</span>
                             </div>
                         </div>
                     )}

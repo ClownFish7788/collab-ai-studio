@@ -18,7 +18,6 @@ export const checkAndClearStorageLRU = async (currentId: string, threshold = 0.9
         const estimate = await navigator.storage.estimate()
         if(!estimate.usage || !estimate.quota || estimate.quota === 0) return
         const percentage = estimate.usage / estimate.quota
-        console.log('LRU开始检查🗑️')
         if(percentage > threshold) {
             const registry: Record<string, number> = JSON.parse(localStorage.getItem(REGISTRY_KEY) || '{}')
             const sortDocs = Object.entries(registry).filter(([id]) => id !== currentId).sort((a,b) => a[1] - b[1])
@@ -26,11 +25,23 @@ export const checkAndClearStorageLRU = async (currentId: string, threshold = 0.9
             for(const [docId] of docsToDelete) {
                 indexedDB.deleteDatabase(`room-${docId}`)
                 delete registry[docId]
-                console.log(`🗑️ LRU 淘汰：已清理沉睡文档 [${docId}] 的本地缓存`)
             }
             localStorage.setItem(REGISTRY_KEY, JSON.stringify(registry))
         }
     }catch (err) {
         console.error("执行 LRU 清理失败", err)
     }
+}
+
+// 展示已用内存和所有内存空间
+export const showStorage = async () => {
+    try {
+        const estimate = await navigator.storage.estimate()
+        const usage = estimate.usage ? estimate.usage / (1024 ** 3) : null
+        const quota = estimate.quota ? estimate.quota / (1024 ** 3) : null
+        return [usage, quota]
+    }catch (err) {
+        console.error(err)
+    }
+    return [null, null]
 }
