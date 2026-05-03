@@ -10,6 +10,7 @@ import { useEffect, useState } from "react"
 import useStyleStore from "@/app/store/useStyleStore";
 import { useUserStore } from "../store/useUserStore";
 import Image from "next/image";
+import useListStore, { groupDocsForListStore } from "../store/useListStore";
 
 const WorkspacePage = () => {
   const router = useRouter()
@@ -24,11 +25,12 @@ const WorkspacePage = () => {
   const userName = useUserStore(state => state.name)
   const imgUrl = useUserStore(state => state.image)
   // 获取最近文档
+  const initData = useListStore(state => state.initData)
   useEffect(() => {
     const fetchRecentDocs = async () => {
       const data = await getList()
       if (!data) return
-      
+      initData(groupDocsForListStore(data))
       // 排序并取最近5个
       const sortedData = [...data].sort((a, b) => {
         const dateA = new Date(a.createAt).getTime()
@@ -45,7 +47,7 @@ const WorkspacePage = () => {
     }
     
     fetchRecentDocs()
-  }, [])
+  }, [initData])
 
   // 新建文档
   const handleCreate = async () => {

@@ -11,11 +11,38 @@ interface DateItem {
     dataList: ListItem[]
 }
 
+/** IndexedDB / getList 扁平记录 → initData 所需的按日分组结构 */
+export function groupDocsForListStore(
+    raw: { id: string; title: string; createAt: Date | string }[]
+): DateItem[] {
+    const sorted = [...raw].sort(
+        (a, b) =>
+            new Date(b.createAt).getTime() - new Date(a.createAt).getTime()
+    )
+    return sorted.reduce<DateItem[]>((res, curr) => {
+        const validDate = new Date(curr.createAt)
+        const dateStr = `${validDate.getFullYear()}年${validDate.getMonth() + 1}月${validDate.getDate()}日`
+        const index = res.findIndex((item) => item.date === dateStr)
+        const listItem: ListItem = {
+            id: curr.id,
+            title: curr.title,
+            createAt: validDate,
+        }
+        if (index === -1) {
+            res.push({ date: dateStr, dataList: [listItem] })
+        } else {
+            res[index].dataList.push(listItem)
+        }
+        return res
+    }, [])
+}
+
 interface ListStore {
     dataList: DateItem[]
     addItem: (id: string) => void
     initData: (list: DateItem[]) => void
     getNameById: (id: string) => string|undefined
+    getDataNum: () => number
 }
 
 const useListStore = create<ListStore>((set, get) => ({
@@ -72,6 +99,16 @@ const useListStore = create<ListStore>((set, get) => ({
             }
         }
         return title
+    },
+    getDataNum: () => {
+        const data = get().dataList
+        let num = 0
+        console.log(data)
+        data.forEach(item => {
+            num += item.dataList.length
+            console.log(num)
+        })
+        return num
     }
 }))
 

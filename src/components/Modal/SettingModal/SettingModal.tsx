@@ -14,6 +14,7 @@ import useStyleStore from '@/app/store/useStyleStore'
 import { useUserStore } from '@/app/store/useUserStore'
 import { LoginButton, LogoutButton } from '@/components/AuthButton/AuthButton'
 import { showStorage } from '@/utils/storageManager'
+import useListStore from '@/app/store/useListStore'
 
 const settingList:Navigation[] = [
     {title: 'Appearance', href: undefined, svg: <Appearance /> },
@@ -47,6 +48,14 @@ const SettingModal = ({open, closeFn}: Props) => {
             console.error(err)
         }
     }
+    const getDataNumber = useListStore(state => state.getDataNum)
+    const data = useListStore(state => state.dataList)
+    const [dataNumber, setDataNumber] = useState(0)
+    useEffect(() => {
+        const n = getDataNumber()
+        setDataNumber(n)
+        console.log(data)
+    }, [getDataNumber, data])
     const [quota, setQuota] = useState<number|null|undefined>()
     const [usage, setUsage] = useState<number|null|undefined>()
     useEffect(() => {
@@ -172,7 +181,7 @@ const SettingModal = ({open, closeFn}: Props) => {
                             </div>
                             <div className={classNames(styles.settingItem)}>
                                 <span className={classNames(styles.settingLabel)}>成员数量</span>
-                                <span className={classNames(styles.settingValue)}>1</span>
+                                <span className={classNames(styles.settingValue)}>{dataNumber}</span>
                             </div>
                             <div className={classNames(styles.settingItem)}>
                                 <span className={classNames(styles.settingLabel)}>存储空间</span>

@@ -7,7 +7,7 @@ import AddButton from "@/components/AddButton/AddButton"
 import { addData, getList } from "@/utils/db"
 import { useEffect, useState, useMemo } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import useListStore from "@/app/store/useListStore"
+import useListStore, { groupDocsForListStore } from "@/app/store/useListStore"
 import { Search } from "lucide-react"
 import { nanoid } from "nanoid"
 import Modal from "@/components/Modal/Modal"
@@ -110,33 +110,7 @@ const AllPage = () => {
         const getListData = async () => {
             const data = await getList()
             if (!data) return
-            
-            // 排序 (最新的在前面)
-            const sortedData = [...data].sort((a, b) => {
-                const dateA = new Date(a.createAt).getTime()
-                const dateB = new Date(b.createAt).getTime()
-                return dateB - dateA
-            })
-
-            const newData = sortedData.reduce((res: any[], curr: any) => {
-                const date = curr.createAt as Date
-                // 确保 date 是 Date 类型
-                const validDate = new Date(date)
-                const dateStr = `${validDate.getFullYear()}年${validDate.getMonth() + 1}月${validDate.getDate()}日`
-                
-                // Fix bug: indexOf was used with callback, now using findIndex
-                const index = res.findIndex(item => item.date === dateStr)
-                if(index === -1) {
-                    res.push({
-                        date: dateStr,
-                        dataList: [curr]
-                    })
-                }else {
-                    res[index].dataList.push(curr)
-                }
-                return res
-            }, [])
-            initData(newData)
+            initData(groupDocsForListStore(data))
         }
         getListData()
     }, [initData])
