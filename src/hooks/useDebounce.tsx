@@ -3,7 +3,7 @@
 import { useRef } from "react"
 
 const useDebounce = (func: (...args: any[]) => any, delay: number) => {
-    const timer = useRef<number | null>(null)
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
     
     return (...args: any[]) => {
         if (timer.current !== null) {
