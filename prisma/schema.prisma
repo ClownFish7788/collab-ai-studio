@@ -6,8 +6,9 @@ generator client {
 
 // 2. 数据库配置（我们将 provider 改成 sqlite，方便本地开发）
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL") 
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")  
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 // 3. 设计我们的数据表（模型 Model）
