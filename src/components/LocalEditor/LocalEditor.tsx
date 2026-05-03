@@ -49,7 +49,7 @@ export const LocalEditor = () => {
                     </div>
                     <div className={styles.statusCenter}>
                         <div 
-                            className={classNames(styles.roleBadge, styles[`role${role?.charAt(0).toUpperCase() + role?.slice(1)}`])}
+                            className={classNames(styles.roleBadge, role ? styles[`role${role.charAt(0).toUpperCase() + role.slice(1)}`] : undefined)}
                             onClick={() => setIsRoleModalOpen(true)}
                         >
                             {role === 'owner' ? '拥有者' : role === 'collaborator' ? '合作者' : role === 'viewer' ? '观众' : '未知'}

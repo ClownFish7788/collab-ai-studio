@@ -2,14 +2,15 @@
 
 import { useRef } from "react"
 
-const useDebounce = <T extends (...args: any[]) => any>(func: T, delay: number) => {
-    const timer = useRef<null | NodeJS.Timeout>(null)
-    return (...args) => {
-        if(timer.current) clearTimeout(timer.current)
-        timer.current = null
+const useDebounce = (func: (...args: any[]) => any, delay: number) => {
+    const timer = useRef<number | null>(null)
+    
+    return (...args: any[]) => {
+        if (timer.current !== null) {
+            clearTimeout(timer.current)
+        }
         timer.current = setTimeout(() => {
             func(...args)
-            timer.current = null
         }, delay)
     }
 }

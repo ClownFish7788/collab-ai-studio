@@ -16,9 +16,9 @@ interface Props {
 const SearchModal = ({open, closeFn, shadow = false}: Props) => {
     const [searchQuery, setSearchQuery] = useState('')
     const dataList = useListStore(state => state.dataList)
-    const docList: ListItem[]= dataList.reduce((acc, curr) => acc.concat(curr.dataList), [])
+    const docList: ListItem[] = dataList.reduce((acc: ListItem[], curr) => acc.concat(curr.dataList), [] as ListItem[])
 
-    const params = useParams()
+    const params = useParams<{userId: string}>()
     const router = useRouter()
 
     // 过滤搜索结果

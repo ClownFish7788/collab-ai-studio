@@ -12,7 +12,11 @@ import { Search } from "lucide-react"
 import { nanoid } from "nanoid"
 import Modal from "@/components/Modal/Modal"
 import { useUserStore } from "@/app/store/useUserStore"
-import LoginModal from "@/components/Modal/LoginModal/LoginModal"
+// import LoginModal from "@/components/Modal/LoginModal/LoginModal"
+import dynamic from "next/dynamic"
+const DynamicLoginModal = dynamic(() => import("@/components/Modal/LoginModal/LoginModal"), {
+    ssr: false
+})
 
 const AllPage = () => {
     const { dataList, initData } = useListStore(state => state)
@@ -222,7 +226,7 @@ const AllPage = () => {
                             </div>
                         </div>
                     </Modal>
-                    <LoginModal isOpen={isLoginModal} closeFn={() => setIsLoginModal(false)} />
+                    <DynamicLoginModal isOpen={isLoginModal} closeFn={() => setIsLoginModal(false)} />
                 </div>
             </header>
 
