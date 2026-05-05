@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
         pathname: '/u/**', // 允许该路径下的所有图片
       },
     ],
+  },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production'
   }
 };
 

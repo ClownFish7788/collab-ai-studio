@@ -8,6 +8,7 @@ import Expansion from "@/components/Expansion/Expansion"
 import { useTheme } from "@/hooks/useTheme"
 import { Provider } from "@/components/provider/Provider"
 import { AuthSync } from "@/components/AuthSync/AuthSync"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const WorkspaceLayout = ({children, header}: {
     children: React.ReactNode
@@ -20,8 +21,11 @@ const WorkspaceLayout = ({children, header}: {
         return null
     }
     return (
-        <Provider>
-            <AuthSync />
+        <>
+            <Provider>
+                <AuthSync />
+            </Provider>
+            <SpeedInsights />
             <div className={classNames(styles.container, !leftBarOpen && styles.close)}>
                 <div className={classNames(styles.slot)}>
                     <aside className={classNames(styles.aside)}>
@@ -38,7 +42,7 @@ const WorkspaceLayout = ({children, header}: {
                     {children}
                 </main>
             </div>
-        </Provider>
+        </>
     )
 }
 
