@@ -24,9 +24,9 @@ export const OnlineTiptapEditor = ({doc, isLocalloaded}: {
         const customProvider = new CustomBoradcastChannel(id, doc)
         setProvider(yProvider)
         yProvider.on('synced', (isSynced: boolean) => {
-        if(isSynced) {
-            console.log("☁️ 云端 Liveblocks 同步完成！")
-        }
+            if(isSynced) {
+                console.log("☁️ 云端 Liveblocks 同步完成！")
+            }
         })
 
         return () => {
