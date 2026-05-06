@@ -33,6 +33,7 @@ const LocalDrawEditor = () => {
     if(storeWithStatus.status === 'loading' && process.env.NEXT_PUBLIC_License_Key) return <div className={styles.container}>加载本地私有画板中...</div>
     return (
         <div className={styles.container}>
+            {process.env.NEXT_PUBLIC_License_Key}
             <Tldraw
                 licenseKey={process.env.NEXT_PUBLIC_License_Key}
                 store={storeWithStatus.store}
