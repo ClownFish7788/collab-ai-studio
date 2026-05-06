@@ -8,8 +8,6 @@ import EdgeLessHeader from "./mode-edgeless/page"
 
 const linkList = [
     {href: (userId:string) => `/workspace/${userId}/all`, title: '文档'},
-    {href: (userId: string) => `/workspace/${userId}/collection`, title: '精选'},
-    {href: (userId: string) => `/workspace/${userId}/tag`, title: '标签'}
 ]
 
 const PageHeader = () => {
