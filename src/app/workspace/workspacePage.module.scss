@@ -48,7 +48,7 @@
         cursor: pointer;
         transition: all 0.2s ease;
 
-        &:hover {
+        &:hover:not(:disabled) {
           background-color: var(--hover-bg);
           border-color: var(--border-color);
           color: #333333;
@@ -59,13 +59,26 @@
           color: var(--bg-color);
           border-color: var(--primary-color);
 
-          &:hover {
+          &:hover:not(:disabled) {
             background-color: var(--hover-bg);
             color: #333333;
+          }
+
+          &:disabled,
+          &:disabled:hover {
+            background-color: #d1d5db;
+            color: #6b7280;
+            border-color: #d1d5db;
+            cursor: not-allowed;
+            opacity: 0.95;
           }
         }
       }
     }
+  }
+
+  .btnSpinner {
+    animation: workspace-spin 0.85s linear infinite;
   }
 
   .statsSection {
@@ -235,9 +248,17 @@
           cursor: pointer;
           transition: all 0.2s ease;
 
-          &:hover {
+          &:hover:not(:disabled) {
             background-color: var(--hover-bg);
             color: #333333;
+          }
+
+          &:disabled,
+          &:disabled:hover {
+            background-color: #d1d5db;
+            color: #6b7280;
+            cursor: not-allowed;
+            opacity: 0.95;
           }
         }
       }
@@ -274,7 +295,7 @@
         cursor: pointer;
         transition: all 0.2s ease;
 
-        &:hover {
+        &:hover:not(:disabled) {
           background-color: var(--hover-bg);
           border-color: var(--border-color);
           transform: translateY(-2px);
@@ -287,6 +308,25 @@
 
           .actionIcon {
             color: #333333;
+          }
+        }
+
+        &:disabled,
+        &:disabled:hover {
+          opacity: 0.72;
+          cursor: not-allowed;
+          transform: none;
+          background-color: color-mix(in srgb, var(--card-bg) 88%, #9ca3af);
+          border-color: var(--border-color);
+          color: #6b7280;
+
+          .actionTitle,
+          .actionDesc {
+            color: #6b7280;
+          }
+
+          .actionIcon {
+            color: #6b7280;
           }
         }
 
@@ -316,5 +356,11 @@
         }
       }
     }
+  }
+}
+
+@keyframes workspace-spin {
+  to {
+    transform: rotate(360deg);
   }
 }

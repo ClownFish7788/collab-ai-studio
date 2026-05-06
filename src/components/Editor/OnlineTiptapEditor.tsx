@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 import * as Y from "yjs"
 import TiptapEditor from "./TiptapEditor"
 import useNetworkStore from "@/app/store/useNetworkStore"
+import { EditorLoading } from "./EditorLoading"
 
 export const OnlineTiptapEditor = ({doc, isLocalloaded}: {
     doc: Y.Doc
@@ -40,7 +41,12 @@ export const OnlineTiptapEditor = ({doc, isLocalloaded}: {
         toggleNetworkStatus(status)
     }, [status, toggleNetworkStatus])
     if(!doc || !provider) {
-        return <div>wait</div>
+        return (
+            <EditorLoading
+                title="正在连接协同"
+                description="正在初始化实时协作与云端同步，请稍候…"
+            />
+        )
     }
     return <TiptapEditor doc={doc} provider={provider} />
 }

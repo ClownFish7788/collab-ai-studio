@@ -2,7 +2,7 @@
 
 import classNames from "classnames";
 import styles from './workspacePage.module.scss'
-import { FileText, LayoutGrid, List, Plus, BarChart2, Clock, Settings } from "lucide-react"
+import { FileText, LayoutGrid, List, Plus, BarChart2, Clock, Settings, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { nanoid } from "nanoid"
 import { addData, getList } from "@/utils/db"
@@ -14,6 +14,7 @@ import useListStore, { groupDocsForListStore } from "../store/useListStore";
 
 const WorkspacePage = () => {
   const router = useRouter()
+  const [isCreating, setIsCreating] = useState(false)
   const [recentDocs, setRecentDocs] = useState<any[]>([])
   const [stats, setStats] = useState({
     totalDocs: 0,
@@ -51,9 +52,15 @@ const WorkspacePage = () => {
 
   // 新建文档
   const handleCreate = async () => {
-    const id = nanoid(8)
-    await addData('title', id)
-    router.push(`/workspace/${id}`)
+    if (isCreating) return
+    setIsCreating(true)
+    try {
+      const id = nanoid(8)
+      await addData('title', id)
+      router.push(`/workspace/${id}`)
+    } catch {
+      setIsCreating(false)
+    }
   }
 
   // 导航到文档
@@ -76,9 +83,14 @@ const WorkspacePage = () => {
           </span>
         </div>
         <div className={styles.headerRight}>
-          <button className={classNames(styles.btn, styles.primaryBtn)} onClick={handleCreate}>
-            <Plus size={16} />
-            <span>新建</span>
+          <button
+            type="button"
+            className={classNames(styles.btn, styles.primaryBtn)}
+            onClick={handleCreate}
+            disabled={isCreating}
+          >
+            {isCreating ? <Loader2 size={16} className={styles.btnSpinner} aria-hidden /> : <Plus size={16} />}
+            <span>{isCreating ? '创建中…' : '新建'}</span>
           </button>
         </div>
       </header>
@@ -139,8 +151,13 @@ const WorkspacePage = () => {
           ) : (
             <div className={styles.emptyState}>
               <p>暂无最近文档</p>
-              <button className={classNames(styles.btn, styles.primaryBtn)} onClick={handleCreate}>
-                立即创建
+              <button
+                type="button"
+                className={classNames(styles.btn, styles.primaryBtn)}
+                onClick={handleCreate}
+                disabled={isCreating}
+              >
+                {isCreating ? '创建中…' : '立即创建'}
               </button>
             </div>
           )}
@@ -151,11 +168,16 @@ const WorkspacePage = () => {
       <section className={classNames(styles.quickActions)}>
         <h2 className={styles.sectionTitle}>快速操作</h2>
         <div className={styles.actionGrid}>
-          <button className={styles.actionCard} onClick={handleCreate}>
+          <button
+            type="button"
+            className={styles.actionCard}
+            onClick={handleCreate}
+            disabled={isCreating}
+          >
             <div className={styles.actionIcon}>
-              <Plus size={24} />
+              {isCreating ? <Loader2 size={24} className={styles.btnSpinner} aria-hidden /> : <Plus size={24} />}
             </div>
-            <h3 className={styles.actionTitle}>新建</h3>
+            <h3 className={styles.actionTitle}>{isCreating ? '创建中…' : '新建'}</h3>
             <p className={styles.actionDesc}>创建一个新的文档</p>
           </button>
           <button className={styles.actionCard} onClick={() => router.push(`/workspace/all`)}>

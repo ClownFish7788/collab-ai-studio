@@ -7,6 +7,7 @@ import useEditorStore from "@/app/store/useEditorStore";
 import { IndexeddbPersistence, storeState } from "y-indexeddb"
 import { useUserStore } from "@/app/store/useUserStore";
 import { OnlineTiptapEditor } from "./OnlineTiptapEditor";
+import { EditorLoading } from "./EditorLoading";
 
 const Editor = () => {
   const [doc] = useState<Y.Doc>(() => new Y.Doc())
@@ -52,8 +53,13 @@ const Editor = () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, [id, doc])
-  if(!doc) {
-    return <div>wait</div>
+  if (!isLocalloaded) {
+    return (
+      <EditorLoading
+        title="正在加载编辑器"
+        description="正在从本地 IndexedDB 恢复文档，请稍候…"
+      />
+    )
   }
   if(isLogin) return <OnlineTiptapEditor doc={doc} isLocalloaded={isLocalloaded} />
   return <TiptapEditor doc={doc} provider={null} />
