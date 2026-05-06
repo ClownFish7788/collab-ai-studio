@@ -4,6 +4,7 @@ import { useUserStore } from "@/app/store/useUserStore"
 import { useEffect, useState } from "react"
 import LocalDrawEditor from "./LocalDrawEditor"
 import OnlineDrawEditor from "./OnlineDrawEdit"
+import { getTldrawLicense } from "@/actions/getTldrawLicense"
 
 const DrawEditor = () => {
     const isLogin = useUserStore(state => state.isLogin)
@@ -13,15 +14,22 @@ const DrawEditor = () => {
         setIsMounted(true)
     }, [])
 
-    // 避免���务器与客户端渲染不一致（水合报错）
+    const [licenseKey, setLicenseKey] = useState("")
+    useEffect(() => {
+        getTldrawLicense().then(key => {
+            setLicenseKey(key)
+        })
+    }, [])
+
+    // 避免服务器与客户端渲染不一致（水合报错）
     if (!isMounted) return null
 
     // 🌟 登录了走云端，没登录走本地
     if (isLogin) {
-        return <OnlineDrawEditor />
+        return <OnlineDrawEditor licenseKey={licenseKey} />
     }
     
-    return <LocalDrawEditor />
+    return <LocalDrawEditor licenseKey={licenseKey} />
 }
 
 export default DrawEditor

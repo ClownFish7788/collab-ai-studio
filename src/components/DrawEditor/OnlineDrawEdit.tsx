@@ -15,7 +15,9 @@ import { randomHexColor } from '@/utils/randomColor'
 import useEditorStore from '@/app/store/useEditorStore'
 import { useUserStore } from '@/app/store/useUserStore'
 
-const OnlineDrawEditor = () => {
+const OnlineDrawEditor = ({licenseKey}: {
+    licenseKey: string
+}) => {
     const [tldrawRef, setTldrawRef] = useState<null | Editor>(null)
     const room = useRoom() // 这里绝对安全！
     const yProvider = getYjsProviderForRoom(room)
@@ -46,6 +48,7 @@ const OnlineDrawEditor = () => {
     return (
         <div className={styles.container}>
             <Tldraw
+                licenseKey={licenseKey}
                 store={storeWithStatus.store}
                 onMount={(editor) => {
                     editor.user.updateUserPreferences({ locale: 'zh-cn' })

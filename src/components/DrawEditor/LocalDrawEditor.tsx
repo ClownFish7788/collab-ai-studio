@@ -11,7 +11,9 @@ import useStyleStore from '@/app/store/useStyleStore'
 import * as Y from 'yjs'
 import { useParams } from 'next/navigation'
 
-const LocalDrawEditor = () => {
+const LocalDrawEditor = ({licenseKey}: {
+    licenseKey:string
+}) => {
     const [tldrawRef, setTldrawRef] = useState<null | Editor>(null)
     const params = useParams<{workId: string}>()
     const roomId = params.workId || 'local-room'
@@ -33,9 +35,8 @@ const LocalDrawEditor = () => {
     if(storeWithStatus.status === 'loading' && process.env.NEXT_PUBLIC_License_Key) return <div className={styles.container}>加载本地私有画板中...</div>
     return (
         <div className={styles.container}>
-            {process.env.NEXT_PUBLIC_License_Key}
             <Tldraw
-                licenseKey={process.env.NEXT_PUBLIC_License_Key}
+                licenseKey={licenseKey}
                 store={storeWithStatus.store}
                 onMount={(editor) => {
                     editor.user.updateUserPreferences({ locale: 'zh-cn' })
