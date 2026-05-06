@@ -1,5 +1,8 @@
+'use client'
+
 import Modal from '../Modal'
 import styles from './RoleModal.module.scss'
+import { toast } from '@/components/Toast'
 
 export const RoleModal = ({
     isOpen,
@@ -15,7 +18,7 @@ export const RoleModal = ({
     const handleRequestAccess = () => {
         closeFn()
         // 这里可以添加请求编辑权限的逻辑
-        alert('已向房主发送编辑权限请求')
+        toast.show('已向房主发送编辑权限请求')
     }
 
     return (

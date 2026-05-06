@@ -120,11 +120,19 @@
           border-radius: 8px;
           font-size: 14px;
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
 
-          &:hover {
+          &:hover:not(:disabled) {
             background-color: var(--hover-bg);
             color: #333333;
+          }
+
+          &:disabled,
+          &:disabled:hover {
+            background-color: #d1d5db;
+            color: #6b7280;
+            cursor: not-allowed;
+            opacity: 0.95;
           }
         }
     }
@@ -249,9 +257,13 @@
       background: #2563eb;
     }
 
-    &:disabled {
-      background: #93c5fd;
+    &:disabled,
+    &:disabled:hover {
+      background: #d1d5db;
+      color: #6b7280;
       cursor: not-allowed;
+      opacity: 0.95;
+      box-shadow: none;
     }
   }
 }

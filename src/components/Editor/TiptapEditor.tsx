@@ -19,6 +19,7 @@ import useNetworkStore from "@/app/store/useNetworkStore"
 import { getTitle, updateTitle as updateTitle_db } from "@/utils/db"
 import { useUserStore } from "@/app/store/useUserStore"
 import { randomHexColor } from "@/utils/randomColor"
+import { toast } from "@/components/Toast"
 
 const TiptapEditor = ({doc, provider}: {
     doc:Y.Doc,
@@ -104,6 +105,7 @@ const TiptapEditor = ({doc, provider}: {
             }
         } catch(err) {
             console.error(err)
+            toast.show('标题同步失败，请稍后重试')
         }
     }, 500)
     const toggleNetworkStatus = useNetworkStore(state => state.toggleNetworkStatus)
@@ -117,6 +119,7 @@ const TiptapEditor = ({doc, provider}: {
                     toggleNetworkStatus('disconnected')
                 }catch (err) {
                     console.error(err)
+                    toast.show('暂停协同连接失败')
                 }
             } else {
                 provider?.unpause()

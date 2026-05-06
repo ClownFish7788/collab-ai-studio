@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { AssetRecordType, Editor, createShapeId } from "tldraw"
+import { toast } from "@/components/Toast"
 
 type GetImageSize = (src: string) => Promise<{width: number, height: number}>
 
@@ -70,6 +71,7 @@ export const usePasteImageToTldraw = (editor: Editor | null) => {
                     }])
                 } catch (err) {
                     console.error(err)
+                    toast.show('无法插入网络图片，请检查链接或跨域限制')
                 }
                 return
             }
@@ -116,6 +118,7 @@ export const usePasteImageToTldraw = (editor: Editor | null) => {
                                 }])
                             }catch (err) {
                                 console.error(err)
+                                toast.show('图片粘贴失败')
                             }
                         }
                         reader.readAsDataURL(file)

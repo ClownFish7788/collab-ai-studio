@@ -2,6 +2,7 @@ import Modal from '../Modal'
 import styles from './InviteModal.module.scss'
 import { useState } from 'react'
 import { useUserStore } from '@/app/store/useUserStore'
+import { toast } from '@/components/Toast'
 
 type RoleType = 'collaborator' | 'viewer'
 
@@ -29,6 +30,7 @@ export const InviteModal = ({
             setTimeout(() => setShowCopySuccess(false), 2000)
         } catch (err) {
             console.error('复制失败:', err)
+            toast.show('复制失败，请检查浏览器权限')
         }
     }
     
@@ -40,6 +42,7 @@ export const InviteModal = ({
             setTimeout(() => setShowRoomCopySuccess(false), 2000)
         } catch (err) {
             console.error('复制房间ID失败:', err)
+            toast.show('复制房间 ID 失败')
         }
     }
     
@@ -69,7 +72,7 @@ export const InviteModal = ({
             const result = await response.json()
             
             if (result.success) {
-                alert('邀请成功！')
+                toast.show('邀请成功！')
                 closeFn()
                 setInvitedId('')
             } else {
@@ -77,6 +80,7 @@ export const InviteModal = ({
             }
         } catch (err) {
             console.error('邀请失败:', err)
+            toast.show('邀请失败，请检查网络连接')
             setInviteError('邀请失败，请检查网络连接')
         } finally {
             setIsInviting(false)

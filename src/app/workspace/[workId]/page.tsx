@@ -8,6 +8,7 @@ import { LocalEditor } from "@/components/LocalEditor/LocalEditor"
 import { useUserStore } from "@/app/store/useUserStore"
 import { checkLocalDoc } from "@/utils/db"
 import NotFound from "@/components/NotFound/NotFound"
+import { toast } from "@/components/Toast"
 
 const EditorPage = ({
     params
@@ -63,6 +64,7 @@ const EditorPage = ({
                 }
             }catch (err) {
                 console.error(err)
+                toast.show('校验文档访问失败，请稍后重试')
                 setIsNotFound(true)
             }
         }

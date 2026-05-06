@@ -1,0 +1,63 @@
+// 固定配色，不跟随 data-theme
+$toast-bg-start: #1e3a8a; // blue-900 偏深，稳重
+$toast-bg-end: #2563eb; // blue-600
+$toast-text: #ffffff;
+$toast-border: rgba(255, 255, 255, 0.14);
+
+.root {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 99999;
+  max-width: min(380px, calc(100vw - 48px));
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, $toast-bg-start 0%, $toast-bg-end 55%, #3b82f6 100%);
+  color: $toast-text;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  box-shadow:
+    0 16px 48px rgba(30, 58, 138, 0.45),
+    0 4px 12px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border: 1px solid $toast-border;
+  /* 隔离主题变量，避免继承浅色/深色文字色 */
+  color-scheme: light;
+}
+
+.slideIn {
+  animation: toast-slide-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.slideOut {
+  animation: toast-slide-out 0.32s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(calc(100% + 48px));
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(calc(100% + 48px));
+    opacity: 0;
+  }
+}
+
+.message {
+  margin: 0;
+  word-break: break-word;
+}

@@ -15,6 +15,7 @@ import { useUserStore } from '@/app/store/useUserStore'
 import { LoginButton, LogoutButton } from '@/components/AuthButton/AuthButton'
 import { showStorage } from '@/utils/storageManager'
 import useListStore from '@/app/store/useListStore'
+import { toast } from '@/components/Toast'
 
 const settingList:Navigation[] = [
     {title: 'Appearance', href: undefined, svg: <Appearance /> },
@@ -46,6 +47,7 @@ const SettingModal = ({open, closeFn}: Props) => {
             setTimeout(() => setCopySuccess(false), 2000)
         }catch(err) {
             console.error(err)
+            toast.show('复制失败，请检查浏览器权限')
         }
     }
     const getDataNumber = useListStore(state => state.getDataNum)

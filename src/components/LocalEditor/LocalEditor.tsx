@@ -12,6 +12,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import useEditorStore from '@/app/store/useEditorStore'
 import { checkAndClearStorageLRU, updateDocumentAccessTime } from '@/utils/storageManager'
 import { useUserStore } from '@/app/store/useUserStore'
+import { toast } from '@/components/Toast'
 
 export const LocalEditor = () => {
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -45,7 +46,16 @@ export const LocalEditor = () => {
             <div className={styles.wrapper}>
                 <div className={styles.status}>
                     <div className={styles.statusLeft}>
-                        <AddButton msg="邀请好友" handleClick={() => setIsModalOpen(true)} />
+                        <AddButton
+                            msg="邀请好友"
+                            handleClick={() => {
+                                if (!isLogin) {
+                                    toast.show('登录后可邀请好友加入房间')
+                                    return
+                                }
+                                setIsModalOpen(true)
+                            }}
+                        />
                     </div>
                     <div className={styles.statusCenter}>
                         <div 
@@ -64,6 +74,10 @@ export const LocalEditor = () => {
                         closeFn={() => setIsRoleModalOpen(false)}
                         role={role}
                         onInviteClick={() => {
+                            if (!isLogin) {
+                                toast.show('登录后可邀请好友加入房间')
+                                return
+                            }
                             setIsRoleModalOpen(false)
                             setIsModalOpen(true)
                         }}

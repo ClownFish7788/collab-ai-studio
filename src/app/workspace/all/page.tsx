@@ -14,6 +14,7 @@ import Modal from "@/components/Modal/Modal"
 import { useUserStore } from "@/app/store/useUserStore"
 // import LoginModal from "@/components/Modal/LoginModal/LoginModal"
 import dynamic from "next/dynamic"
+import { toast } from "@/components/Toast"
 const DynamicLoginModal = dynamic(() => import("@/components/Modal/LoginModal/LoginModal"), {
     ssr: false
 })
@@ -49,13 +50,14 @@ const AllPage = () => {
                 if(result.success) {
                     router.push(pathname.slice(0, -3) + id)
                 }else {
-                    alert("创建文档失败")
+                    toast.show('创建文档失败')
                 }
             }else {
                 router.push(pathname.slice(0, -3) + id)
             }
         }catch (err) {
             console.error("创建文档失败:", err)
+            toast.show('创建文档失败，请稍后重试')
         }finally {
             setIsCreating(false)
         }
@@ -100,6 +102,7 @@ const AllPage = () => {
             }
         } catch (err) {
             console.error('加入房间失败:', err)
+            toast.show('加入房间失败，请检查网络连接')
             setJoinError('加入房间失败，请检查网络连接')
         } finally {
             setIsJoining(false)
@@ -160,7 +163,7 @@ const AllPage = () => {
                     </div>
 
                     {/* 新建按钮组 */}
-                    <AddButton msg="新建" handleClick={handleAdd} />
+                    <AddButton msg="新建" handleClick={handleAdd} disabled={isCreating} />
                     <AddButton msg="加入房间" handleClick={() => setIsModalOpen(true)} />
                     <Modal isOpen={isOpenModal} closeFn={() => setIsModalOpen(false)} shadow={true}>
                         <div className={styles.joinRoomModal}>
@@ -212,8 +215,13 @@ const AllPage = () => {
                         <h3>这里空空如也</h3>
                         <p>{searchQuery ? '没有找到符合条件的文档' : '开始创建你的第一个文档或白板吧'}</p>
                         {!searchQuery && (
-                            <button className={styles.createNowBtn} onClick={handleAdd}>
-                                立即创建
+                            <button
+                                type="button"
+                                className={styles.createNowBtn}
+                                onClick={handleAdd}
+                                disabled={isCreating}
+                            >
+                                {isCreating ? '创建中…' : '立即创建'}
                             </button>
                         )}
                     </div>
