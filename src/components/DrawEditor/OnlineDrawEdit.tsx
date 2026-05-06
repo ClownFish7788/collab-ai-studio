@@ -47,6 +47,8 @@ const OnlineDrawEditor = ({licenseKey}: {
 
     return (
         <div className={styles.container}>
+            {licenseKey}
+            {process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY}
             <Tldraw
                 licenseKey={licenseKey}
                 store={storeWithStatus.store}
