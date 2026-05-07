@@ -30,10 +30,10 @@ export const useInitData = () => {
                     const json = await response.json()
                     const onlineData:OnlineData[] = json.data
                     const cleanData = onlineData.map(item => {
-                        const {title, id, createdAt} = item
+                        const {title, roomId, createdAt} = item
                         return {
                             title,
-                            id,
+                            id: roomId,
                             createAt: new Date(createdAt)
                         }
                     })
