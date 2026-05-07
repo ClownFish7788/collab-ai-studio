@@ -13,8 +13,7 @@ const DrawEditor = () => {
     useEffect(() => {
         setIsMounted(true)
         getTldrawLicense().then(key => {
-            console.log(key)
-            setLicenseKey(key || "")
+            setLicenseKey(key.trim() || "")
         })
     }, [])
     // 避免服务器与客户端渲染不一致（水合报错）
