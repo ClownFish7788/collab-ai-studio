@@ -9,8 +9,8 @@ interface OnlineData {
   roomId:string
   ownerId: string
   isPublic: boolean
-  createAt: Date | string
-  updateAt: Date | string
+  createdAt: Date | string
+  updatedAt: Date | string
 }
 
 export const useInitData = () => {
@@ -30,11 +30,11 @@ export const useInitData = () => {
                     const json = await response.json()
                     const onlineData:OnlineData[] = json.data
                     const cleanData = onlineData.map(item => {
-                        const {title, id, createAt} = item
+                        const {title, id, createdAt} = item
                         return {
                             title,
                             id,
-                            createAt: new Date(createAt)
+                            createAt: new Date(createdAt)
                         }
                     })
                     data.push(...cleanData)
