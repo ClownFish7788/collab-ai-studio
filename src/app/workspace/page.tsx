@@ -12,6 +12,16 @@ import { useUserStore } from "../store/useUserStore";
 import Image from "next/image";
 import useListStore, { groupDocsForListStore } from "../store/useListStore";
 
+interface OnlineData {
+  id:string
+  title:string
+  roomId:string
+  ownerId: string
+  isPublic: boolean
+  createAt: Date | string
+  updateAt: Date | string
+}
+
 const WorkspacePage = () => {
   const router = useRouter()
   const [isCreating, setIsCreating] = useState(false)
@@ -39,7 +49,7 @@ const WorkspacePage = () => {
             credentials: "include"
           })
           const json = await response.json()
-          const onlineData = json.data
+          const onlineData:OnlineData[] = json.data
           const cleanData = onlineData.map(item => {
             const {title, id, createAt} = item
             return {
