@@ -31,8 +31,7 @@ const LocalDrawEditor = ({licenseKey}: {
         if(!tldrawRef) return
         tldrawRef.user.updateUserPreferences({ colorScheme: theme === 'dark' ? 'dark' : 'light' })
     }, [theme, tldrawRef])
-
-    if(storeWithStatus.status === 'loading' && process.env.NEXT_PUBLIC_License_Key) return <div className={styles.container}>加载本地私有画板中...</div>
+    if(storeWithStatus.status === 'loading' && licenseKey) return <div className={styles.container}>加载本地私有画板中...</div>
     return (
         <div className={styles.container}>
             <Tldraw

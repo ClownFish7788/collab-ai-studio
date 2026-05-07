@@ -9,20 +9,16 @@ import { getTldrawLicense } from "@/actions/getTldrawLicense"
 const DrawEditor = () => {
     const isLogin = useUserStore(state => state.isLogin)
     const [isMounted, setIsMounted] = useState(false)
-
+    const [licenseKey, setLicenseKey] = useState<string | null>(null)
     useEffect(() => {
         setIsMounted(true)
-    }, [])
-
-    const [licenseKey, setLicenseKey] = useState("")
-    useEffect(() => {
         getTldrawLicense().then(key => {
-            setLicenseKey(key)
+            console.log(key)
+            setLicenseKey(key || "")
         })
     }, [])
-
     // 避免服务器与客户端渲染不一致（水合报错）
-    if (!isMounted) return null
+    if (!isMounted || !licenseKey) return null
 
     // 🌟 登录了走云端，没登录走本地
     if (isLogin) {
