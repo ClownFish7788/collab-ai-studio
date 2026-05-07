@@ -4,15 +4,14 @@ import classNames from "classnames"
 import styles from './page.module.scss'
 import DocItem from "@/components/DocItem/DocItem"
 import AddButton from "@/components/AddButton/AddButton"
-import { addData, getList } from "@/utils/db"
-import { useEffect, useState, useMemo } from "react"
+import { addData } from "@/utils/db"
+import { useState, useMemo } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import useListStore, { groupDocsForListStore } from "@/app/store/useListStore"
+import useListStore from "@/app/store/useListStore"
 import { Search } from "lucide-react"
 import { nanoid } from "nanoid"
 import Modal from "@/components/Modal/Modal"
 import { useUserStore } from "@/app/store/useUserStore"
-// import LoginModal from "@/components/Modal/LoginModal/LoginModal"
 import dynamic from "next/dynamic"
 import { toast } from "@/components/Toast"
 const DynamicLoginModal = dynamic(() => import("@/components/Modal/LoginModal/LoginModal"), {
@@ -20,7 +19,7 @@ const DynamicLoginModal = dynamic(() => import("@/components/Modal/LoginModal/Lo
 })
 
 const AllPage = () => {
-    const { dataList, initData } = useListStore(state => state)
+    const { dataList } = useListStore(state => state)
     const [searchQuery, setSearchQuery] = useState('')
     const pathname = usePathname()
     const router = useRouter()
@@ -108,15 +107,6 @@ const AllPage = () => {
             setIsJoining(false)
         }
     }
-
-    useEffect(() => {
-        const getListData = async () => {
-            const data = await getList()
-            if (!data) return
-            initData(groupDocsForListStore(data))
-        }
-        getListData()
-    }, [initData])
     
     const handleNavigate = (e: React.MouseEvent) => {
         const target = e.target as HTMLElement

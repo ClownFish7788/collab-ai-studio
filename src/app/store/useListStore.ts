@@ -43,6 +43,7 @@ interface ListStore {
     initData: (list: DateItem[]) => void
     getNameById: (id: string) => string|undefined
     getDataNum: () => number
+    getItems: (n:number) => ListItem[]
 }
 
 const useListStore = create<ListStore>((set, get) => ({
@@ -109,6 +110,22 @@ const useListStore = create<ListStore>((set, get) => ({
             console.log(num)
         })
         return num
+    },
+    getItems: (n) => {
+        const dataList = get().dataList
+        const data = []
+        for (const item of dataList) {
+            const len = item.dataList.length
+            if(n - len >= 0) {
+                data.push(...item.dataList)
+                n -= len
+                if(n === 0) break
+            } else {
+                data.push(...item.dataList.slice(0, n - len))
+                break
+            }
+        }
+        return data
     }
 }))
 

@@ -5,22 +5,13 @@ import styles from './workspacePage.module.scss'
 import { FileText, LayoutGrid, List, Plus, BarChart2, Clock, Settings, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { nanoid } from "nanoid"
-import { addData, getList } from "@/utils/db"
+import { addData } from "@/utils/db"
 import { useEffect, useState } from "react"
 import useStyleStore from "@/app/store/useStyleStore";
 import { useUserStore } from "../store/useUserStore";
 import Image from "next/image";
-import useListStore, { groupDocsForListStore } from "../store/useListStore";
+import useListStore from "../store/useListStore";
 
-interface OnlineData {
-  id:string
-  title:string
-  roomId:string
-  ownerId: string
-  isPublic: boolean
-  createAt: Date | string
-  updateAt: Date | string
-}
 
 const WorkspacePage = () => {
   const router = useRouter()
@@ -36,53 +27,18 @@ const WorkspacePage = () => {
   const userName = useUserStore(state => state.name)
   const imgUrl = useUserStore(state => state.image)
   // 获取最近文档
-  const initData = useListStore(state => state.initData)
-  const isLogin = useUserStore(state => state.isLogin)
+  const getItems = useListStore(state => state.getItems)
+  const getDataNum = useListStore(state => state.getDataNum)
   useEffect(() => {
-    const fetchRecentDocs = async () => {
-      let data = await getList()
-      if (!data) return
-      if(isLogin) {
-        try {
-          const response = await fetch('/api/documents', {
-            method: "GET",
-            credentials: "include"
-          })
-          const json = await response.json()
-          const onlineData:OnlineData[] = json.data
-          const cleanData = onlineData.map(item => {
-            const {title, id, createAt} = item
-            return {
-              title,
-              id,
-              createAt
-            }
-          })
-          data = [...data, ...cleanData]
-          data = data.filter((item, i) => i === data.findIndex(it => it.id === item.id))
-        }catch (err) {
-          console.error(err)
-        }
-      }
-      console.log(data)
-      initData(groupDocsForListStore(data))
-      // 排序并取最近5个
-      const sortedData = [...data].sort((a, b) => {
-        const dateA = new Date(a.createAt).getTime()
-        const dateB = new Date(b.createAt).getTime()
-        return dateB - dateA
-      })
-      
-      setRecentDocs(sortedData.slice(0, 5))
-      setStats({
-        totalDocs: data.length,
-        totalWhiteboards: data.filter(item => item.mode === 'edgeless').length,
-        recentActivity: Math.min(data.length, 10)
-      })
-    }
-    
-    fetchRecentDocs()
-  }, [initData, isLogin])
+    const data = getItems(5)
+    setRecentDocs(data)
+    const n = getDataNum()
+    setStats({
+      totalDocs: n,
+      totalWhiteboards: n,
+      recentActivity: data.length
+    })
+  }, [getDataNum, getItems])
 
   // 新建文档
   const handleCreate = async () => {

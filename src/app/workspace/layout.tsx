@@ -9,6 +9,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { Provider } from "@/components/provider/Provider"
 import { AuthSync } from "@/components/AuthSync/AuthSync"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { useInitData } from "@/hooks/useInitData"
 
 const WorkspaceLayout = ({children, header}: {
     children: React.ReactNode
@@ -17,6 +18,8 @@ const WorkspaceLayout = ({children, header}: {
     const leftBarOpen = useStyleStore(state => state.leftBarOpen)
     const toggleLeftBarOpen = useStyleStore(state => state.toggleLeftBarOpen)
     const isMounted = useTheme()
+    // 数据初始化
+    useInitData()
     if(!isMounted) {
         return null
     }
