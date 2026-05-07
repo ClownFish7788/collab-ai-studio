@@ -56,7 +56,7 @@ export async function POST (request: NextRequest) {
 
 export async function GET (request: NextRequest) {
     try {
-        const session = await getServerSession()
+        const session = await getServerSession(authOptions)
         if(!session) {
             return NextResponse.json({success: false, error:"用户未登录"}, {status: 401})
         }
