@@ -47,7 +47,6 @@ const OnlineDrawEditor = ({licenseKey}: {
 
     return (
         <div className={styles.container}>
-            {licenseKey}
             <Tldraw
                 licenseKey={licenseKey}
                 store={storeWithStatus.store}

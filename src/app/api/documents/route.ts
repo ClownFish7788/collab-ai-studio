@@ -53,3 +53,31 @@ export async function POST (request: NextRequest) {
         );
     }
 }
+
+export async function GET (request: NextRequest) {
+    try {
+        const session = await getServerSession()
+        if(!session) {
+            return NextResponse.json({success: false, error:"用户未登录"}, {status: 401})
+        }
+        const userId = session.user.id
+        const { searchParams } = new URL(request.url)
+        const scope = searchParams.get('scope') ?? 'owner' // 'owner' / 'all'
+        const where = scope === 'all' ? 
+        {
+          OR: [
+            { ownerId: userId },
+            { collaborators: { some: { userId } } },
+            { viewers: { some: { userId } } },
+          ],
+        }
+      : { ownerId: userId }
+        const documents = await prisma.document.findMany({
+            where,
+            orderBy: { updatedAt: "desc" }
+        })
+        return NextResponse.json({ success: true, data: documents })
+    }catch (err) {
+        return NextResponse.json({success:false, error:err}, {status:500})
+    }
+}

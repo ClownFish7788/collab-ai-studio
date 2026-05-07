@@ -27,10 +27,34 @@ const WorkspacePage = () => {
   const imgUrl = useUserStore(state => state.image)
   // 获取最近文档
   const initData = useListStore(state => state.initData)
+  const isLogin = useUserStore(state => state.isLogin)
   useEffect(() => {
     const fetchRecentDocs = async () => {
-      const data = await getList()
+      let data = await getList()
       if (!data) return
+      if(isLogin) {
+        try {
+          const response = await fetch('/api/documents', {
+            method: "GET",
+            credentials: "include"
+          })
+          const json = await response.json()
+          const onlineData = json.data
+          const cleanData = onlineData.map(item => {
+            const {title, id, createAt} = item
+            return {
+              title,
+              id,
+              createAt
+            }
+          })
+          data = [...data, ...cleanData]
+          data = data.filter((item, i) => i === data.findIndex(it => it.id === item.id))
+        }catch (err) {
+          console.error(err)
+        }
+      }
+      console.log(data)
       initData(groupDocsForListStore(data))
       // 排序并取最近5个
       const sortedData = [...data].sort((a, b) => {
@@ -48,7 +72,7 @@ const WorkspacePage = () => {
     }
     
     fetchRecentDocs()
-  }, [initData])
+  }, [initData, isLogin])
 
   // 新建文档
   const handleCreate = async () => {

@@ -56,7 +56,6 @@ const SettingModal = ({open, closeFn}: Props) => {
     useEffect(() => {
         const n = getDataNumber()
         setDataNumber(n)
-        console.log(data)
     }, [getDataNumber, data])
     const [quota, setQuota] = useState<number|null|undefined>()
     const [usage, setUsage] = useState<number|null|undefined>()
