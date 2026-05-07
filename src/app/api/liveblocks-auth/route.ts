@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // 1.查询 prisma 是否存在 room
     const document = await prisma.document.findUnique({
       where: {
-        roomId: room
+        id: room
       },
       include: {
         collaborators: true,

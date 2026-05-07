@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useState } from "react"
 import useEditorStore from "@/app/store/useEditorStore"
-import { redirect } from "next/navigation"
 import { LiveblocksProvider, RoomProvider } from "@liveblocks/react"
 import { LocalEditor } from "@/components/LocalEditor/LocalEditor"
 import { useUserStore } from "@/app/store/useUserStore"

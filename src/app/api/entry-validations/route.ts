@@ -15,7 +15,7 @@ export async function POST (request: NextRequest) {
         const userId = session.user.id
         const targetDoc = await prisma.document.findUnique({
             where: {
-                roomId
+                id: roomId
             },
             include: {
                 viewers: true,
