@@ -10,6 +10,7 @@ import { Provider } from "@/components/provider/Provider"
 import { AuthSync } from "@/components/AuthSync/AuthSync"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { useInitData } from "@/hooks/useInitData"
+import { Analytics } from "@vercel/analytics/next"
 
 const WorkspaceLayout = ({children, header}: {
     children: React.ReactNode
@@ -29,6 +30,7 @@ const WorkspaceLayout = ({children, header}: {
                 <AuthSync />
             </Provider>
             <SpeedInsights />
+            <Analytics />
             <div className={classNames(styles.container, !leftBarOpen && styles.close)}>
                 <div className={classNames(styles.slot)}>
                     <aside className={classNames(styles.aside)}>

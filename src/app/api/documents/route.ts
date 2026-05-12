@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "../auth/[...nextauth]/route";
 
+// 避免缓存
+export const dynamic = 'force-dynamic'
 
 export async function POST (request: NextRequest) {
     try {
