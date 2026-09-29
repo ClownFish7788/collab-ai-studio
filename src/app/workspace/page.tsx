@@ -26,6 +26,7 @@ const WorkspacePage = () => {
   // 获取用户名
   const userName = useUserStore(state => state.name)
   const imgUrl = useUserStore(state => state.image)
+  const isLogin = useUserStore(state => state.isLogin)
   // 获取最近文档
   const getItems = useListStore(state => state.getItems)
   const getDataNum = useListStore(state => state.getDataNum)
@@ -40,15 +41,33 @@ const WorkspacePage = () => {
     })
   }, [getDataNum, getItems])
 
+  const createDocument = async (roomId: string) => {
+    if (isLogin) {
+      const response = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId })
+      })
+      const result = await response.json()
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || '创建文档失败')
+      }
+    }
+
+    await addData('title', roomId)
+  }
+
   // 新建文档
   const handleCreate = async () => {
     if (isCreating) return
     setIsCreating(true)
     try {
       const id = nanoid(8)
-      await addData('title', id)
+      await createDocument(id)
       router.push(`/workspace/${id}`)
-    } catch {
+    } catch (error) {
+      console.error('创建文档失败:', error)
+    } finally {
       setIsCreating(false)
     }
   }
