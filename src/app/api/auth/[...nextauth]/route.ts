@@ -10,6 +10,11 @@ export const authOptions: NextAuthOptions = {
     GithubProvider({
       clientId: process.env.AUTH_GITHUB_ID!,
       clientSecret: process.env.AUTH_GITHUB_SECRET!,
+      issuer: "https://github.com/login/oauth",
+      // GitHub token/userinfo 请求可能受本地网络延迟影响；openid-client 默认仅等待 3.5 秒。
+      httpOptions: {
+        timeout: 60000,
+      },
       authorization: {
         params: {
           scope: 'read:user user:email'

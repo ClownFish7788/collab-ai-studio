@@ -76,10 +76,10 @@ npm install
 
 # 3. 配置环境变量（复制示例文件后填入相应 Key）
 cp .env.example .env.local
-# 需要填写：DATABASE_URL、NEXTAUTH_SECRET、LIVEBLOCKS_SECRET_KEY 等
+# 本地开发至少需要：DATABASE_URL="file:../../dev.db"、NEXTAUTH_SECRET、LIVEBLOCKS_SECRET_KEY 等
 
 # 4. 初始化数据库
-npx prisma migrate dev --name init
+npm run prisma:migrate:sqlite -- --name init
 
 # 5. 启动开发服务器
 npm run dev
@@ -147,7 +147,7 @@ collab-ai-studio/
 | 离线存储 | IndexedDB（idb）· y-indexeddb · BroadcastChannel |
 | 状态管理 | Zustand |
 | 鉴权 | NextAuth v4 |
-| 数据库 | Prisma · SQLite |
+| 数据库 | Prisma · SQLite（开发）· PostgreSQL（生产） |
 | 样式 | Sass / SCSS |
 
 

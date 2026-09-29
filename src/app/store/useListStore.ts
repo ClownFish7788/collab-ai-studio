@@ -104,10 +104,8 @@ const useListStore = create<ListStore>((set, get) => ({
     getDataNum: () => {
         const data = get().dataList
         let num = 0
-        console.log(data)
         data.forEach(item => {
             num += item.dataList.length
-            console.log(num)
         })
         return num
     },
