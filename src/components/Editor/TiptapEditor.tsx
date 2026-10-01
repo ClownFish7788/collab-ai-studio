@@ -40,13 +40,13 @@ const TiptapEditor = ({doc, provider}: {
             StarterKit.configure({
                 history: false
             } as any), // 包含段落、加粗、斜体、标题、列表等基础功能
+            Collaboration.configure({
+                document: doc,
+                field: 'tiptap-content'
+            }),
             TextStyle,
             FontFamily,
             ...(isLogin && isMounted && provider ? [
-                Collaboration.configure({
-                    document: doc,
-                    field: 'tiptap-content'
-                }),
                 CustomCursor.configure({
                     awareness: provider.awareness,
                     user: {

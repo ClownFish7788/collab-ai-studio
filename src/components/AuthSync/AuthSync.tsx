@@ -10,7 +10,6 @@ export const AuthSync = () => {
     const setUser = useUserStore(state => state.setUserInformation)
     const setIsLogin = useUserStore(state => state.setIsLogin)
     useEffect(() => {
-        console.log(session)
         const userInfo = session.data?.user
         if(!userInfo) {
             setIsLogin(false)

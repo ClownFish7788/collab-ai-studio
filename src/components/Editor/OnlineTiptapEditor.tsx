@@ -3,7 +3,7 @@ import { useUserStore } from "@/app/store/useUserStore"
 import CustomBoradcastChannel from "@/utils/BoradcastChannelProvider"
 import { useRoom, useStatus } from "@liveblocks/react"
 import { LiveblocksYjsProvider } from "@liveblocks/yjs"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import * as Y from "yjs"
 import TiptapEditor from "./TiptapEditor"
 import useNetworkStore from "@/app/store/useNetworkStore"
@@ -18,23 +18,55 @@ export const OnlineTiptapEditor = ({doc, isLocalloaded}: {
     // 网络状况
     const status = useStatus()
     const [provider, setProvider] = useState<LiveblocksYjsProvider>()
+    const providerRef = useRef<{
+        doc: Y.Doc
+        provider: LiveblocksYjsProvider
+        customProvider: CustomBoradcastChannel
+        destroyTimer: ReturnType<typeof setTimeout> | null
+    } | null>(null)
     const id = useUserStore(state => state.id)
+    const scheduleDestroy = useCallback((entry: NonNullable<typeof providerRef.current>) => {
+        if (entry.destroyTimer) return
+        // Liveblocks destroy() also destroys the shared Y.Doc; defer so StrictMode cleanup can be canceled.
+        entry.destroyTimer = setTimeout(() => {
+            if (providerRef.current === entry) {
+                providerRef.current = null
+            }
+            entry.provider.destroy()
+            entry.customProvider.destroy()
+            entry.destroyTimer = null
+        }, 0)
+    }, [])
+
     useEffect(() => {
         if(!isLocalloaded) return
+
+        const current = providerRef.current
+        if (current?.doc === doc) {
+            if (current.destroyTimer) {
+                clearTimeout(current.destroyTimer)
+                current.destroyTimer = null
+            }
+            setProvider(current.provider)
+            return () => scheduleDestroy(current)
+        }
+
         const yProvider = new LiveblocksYjsProvider(room, doc)
         const customProvider = new CustomBoradcastChannel(id, doc)
+        const entry = { doc, provider: yProvider, customProvider, destroyTimer: null }
+        providerRef.current = entry
         setProvider(yProvider)
         yProvider.on('synced', (isSynced: boolean) => {
             if(isSynced) {
                 console.log("☁️ 云端 Liveblocks 同步完成！")
+                console.log(Y.encodeStateAsUpdate(doc))
             }
         })
 
         return () => {
-        yProvider.destroy()
-        customProvider.destroy()
+            scheduleDestroy(entry)
         }
-    }, [isLocalloaded, room, doc, id])
+    }, [isLocalloaded, room, doc, id, scheduleDestroy])
     // 更改 status 视图
     const toggleNetworkStatus = useNetworkStore(state => state.toggleNetworkStatus)
     useEffect(() => {
