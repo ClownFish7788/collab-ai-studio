@@ -34,6 +34,11 @@ const Editor = () => {
       }
     }
 
+    doc.on('update', e => {
+      console.log(e.byteLength)
+      console.log('增量：', e.byteLength, '全量：' ,Y.encodeStateAsUpdateV2(doc).byteLength)
+    })
+
     indexeddbProvider.on('synced', handleSynced)
     window.addEventListener('beforeunload', handleBeforeUnload)
 

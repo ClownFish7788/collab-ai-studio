@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type Role = 'owner' | 'collaborator' | 'viewer' | null
+export type Role = 'owner' | 'collaborator' | 'viewer' | null
 
 interface EditorStore {
     id: string

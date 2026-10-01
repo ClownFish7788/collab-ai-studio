@@ -4,10 +4,11 @@ import React, { useCallback, useEffect, useState } from "react"
 import useEditorStore from "@/app/store/useEditorStore"
 import { LiveblocksProvider, RoomProvider } from "@liveblocks/react"
 import { LocalEditor } from "@/components/LocalEditor/LocalEditor"
-import { useUserStore } from "@/app/store/useUserStore"
 import { checkLocalDoc } from "@/utils/db"
 import NotFound from "@/components/NotFound/NotFound"
 import { toast } from "@/components/Toast"
+import { useSession } from "next-auth/react"
+import { resolveRoomAccess } from "@/utils/roomAccess"
 
 const EditorPage = ({
     params
@@ -16,8 +17,8 @@ const EditorPage = ({
 }) => {
     const resolvedParams = React.use(params)
     const setRole = useEditorStore(state => state.setRole)
-    const [isMounted, setIsMounted] = useState(false)
-    const isLogin = useUserStore(state => state.isLogin)
+    const { status } = useSession()
+    const isAuthenticated = status === 'authenticated'
     // useCallback缓存authEndpoint函数
     const authEndpointFn = useCallback(async (room:string | undefined) => {
         const response = await fetch('/api/liveblocks-auth', {
@@ -36,31 +37,34 @@ const EditorPage = ({
     // 检查该用户是否有资格进入
     const [isNotFound, setIsNotFound] = useState(false)
     useEffect(() => {
+        if (status === 'loading') return
+
         const checkCookie = async () => {
-            // 还需要加上一个查找本地是否存在该文件的逻辑
             try {
-                const localDoc = await checkLocalDoc(resolvedParams.workId)
-                if(isLogin) {
-                    const response = await fetch('/api/entry-validations', {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            roomId: resolvedParams.workId
-                        })
-                    })
-                    const result = await response.json()
-                    if(!result.success && !localDoc) {
-                        setIsNotFound(true)
-                    }
-                    const { role } = result.message
-                    setRole(role)
+                if (!isAuthenticated) {
+                    const localDoc = await checkLocalDoc(resolvedParams.workId)
+                    setIsNotFound(resolveRoomAccess(false, localDoc).notFound)
                     return
                 }
-                if(!localDoc) {
+
+                const response = await fetch('/api/entry-validations', {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        roomId: resolvedParams.workId
+                    })
+                })
+                const result = await response.json()
+                const access = resolveRoomAccess(true, false, result)
+                if (access.notFound || !access.role) {
                     setIsNotFound(true)
+                    return
                 }
+
+                setIsNotFound(false)
+                setRole(access.role)
             }catch (err) {
                 console.error(err)
                 toast.show('校验文档访问失败，请稍后重试')
@@ -68,15 +72,12 @@ const EditorPage = ({
             }
         }
         checkCookie()
-    }, [resolvedParams.workId, setRole, isLogin])
+    }, [resolvedParams.workId, setRole, isAuthenticated, status])
 
-    useEffect(() => {
-        setIsMounted(true)
-    }, [])
     // 检查登录session
-    if(!isMounted) return null
+    if(status === 'loading') return null
     if(isNotFound) return <NotFound />
-    if(!isLogin) return <LocalEditor />
+    if(!isAuthenticated) return <LocalEditor />
     return (
         <LiveblocksProvider
             authEndpoint={authEndpointFn}

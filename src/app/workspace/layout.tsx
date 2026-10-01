@@ -28,25 +28,25 @@ const WorkspaceLayout = ({children, header}: {
         <>
             <Provider>
                 <AuthSync />
-            </Provider>
-            <SpeedInsights />
-            <Analytics />
-            <div className={classNames(styles.container, !leftBarOpen && styles.close)}>
-                <div className={classNames(styles.slot)}>
-                    <aside className={classNames(styles.aside)}>
-                        <NavigationBar />
-                    </aside>
+                <SpeedInsights />
+                <Analytics />
+                <div className={classNames(styles.container, !leftBarOpen && styles.close)}>
+                    <div className={classNames(styles.slot)}>
+                        <aside className={classNames(styles.aside)}>
+                            <NavigationBar />
+                        </aside>
+                    </div>
+                    <main className={classNames(styles.main)}>
+                        <header className={classNames(styles.header)}>
+                            {
+                                !leftBarOpen && <Expansion closeFn={toggleLeftBarOpen} />
+                            }
+                            {header}
+                        </header>
+                        {children}
+                    </main>
                 </div>
-                <main className={classNames(styles.main)}>
-                    <header className={classNames(styles.header)}>
-                        {
-                            !leftBarOpen && <Expansion closeFn={toggleLeftBarOpen} />
-                        }
-                        {header}
-                    </header>
-                    {children}
-                </main>
-            </div>
+            </Provider>
         </>
     )
 }
