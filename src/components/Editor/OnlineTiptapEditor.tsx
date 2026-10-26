@@ -59,7 +59,6 @@ export const OnlineTiptapEditor = ({doc, isLocalloaded}: {
         yProvider.on('synced', (isSynced: boolean) => {
             if(isSynced) {
                 console.log("☁️ 云端 Liveblocks 同步完成！")
-                console.log(Y.encodeStateAsUpdate(doc))
             }
         })
 

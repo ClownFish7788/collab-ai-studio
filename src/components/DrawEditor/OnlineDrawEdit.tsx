@@ -14,6 +14,7 @@ import useStyleStore from '@/app/store/useStyleStore'
 import { randomHexColor } from '@/utils/randomColor'
 import useEditorStore from '@/app/store/useEditorStore'
 import { useUserStore } from '@/app/store/useUserStore'
+import AIChat from '../AIChat/AIChat'
 
 const OnlineDrawEditor = ({licenseKey}: {
     licenseKey: string
@@ -48,6 +49,7 @@ const OnlineDrawEditor = ({licenseKey}: {
     return (
         <div className={styles.container}>
             <Tldraw
+                components={{ SharePanel: AIChat }}
                 licenseKey={licenseKey}
                 store={storeWithStatus.store}
                 onMount={(editor) => {

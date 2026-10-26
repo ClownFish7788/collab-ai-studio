@@ -1,0 +1,199 @@
+.launcher {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px;
+    pointer-events: auto;
+    font: inherit;
+    font-size: 13px;
+}
+
+.drawer {
+    overflow: hidden;
+    backdrop-filter: none;
+
+    .drawerContainer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: min(360px, 100%);
+        height: 100%;
+        animation: none;
+    }
+}
+
+.chat {
+    display: flex;
+    flex-direction: column;
+    width: 360px;
+    max-width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border-left: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 14px;
+    box-shadow: -8px 0 24px var(--shadow-color);
+    animation: slideIn 240ms ease-out both;
+
+    &[data-closing='true'] {
+        animation: slideOut 240ms ease-in both;
+    }
+
+    button:focus-visible,
+    textarea:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+
+    button:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+    }
+}
+
+.header,
+.headerActions,
+.title,
+.composerFooter,
+.sendButton {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header {
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.title h2 {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.clearButton {
+    display: grid;
+    place-items: center;
+    padding: 8px;
+    border: 0;
+    background: transparent;
+    color: var(--text-color);
+}
+
+.notice {
+    padding: 10px 16px;
+    background: var(--sidebar-bg);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 20px 16px;
+}
+
+.empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 100%;
+    text-align: center;
+    line-height: 1.7;
+
+    h3 {
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    p {
+        font-size: 12px;
+    }
+}
+
+.message {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 20px;
+
+    &[data-role='user'] {
+        align-items: flex-end;
+
+        .bubble {
+            background: var(--hover-bg);
+        }
+    }
+}
+
+.messageRole {
+    font-size: 12px;
+}
+
+.bubble {
+    max-width: 90%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.composer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+
+    textarea {
+        display: block;
+        width: 100%;
+        min-height: 80px;
+        max-height: 180px;
+        resize: vertical;
+        font: inherit;
+        line-height: 1.6;
+    }
+}
+
+.composerFooter {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 11px;
+}
+
+.sendButton {
+    margin-left: auto;
+    font-size: 13px;
+}
+
+.footnote {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 11px;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes slideOut {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chat,
+    .chat[data-closing='true'] {
+        animation-duration: 1ms;
+    }
+}

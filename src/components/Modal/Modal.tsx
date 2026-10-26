@@ -8,19 +8,21 @@ interface Props {
     shadow?: boolean
     closeFn: () => void
     children: React.ReactNode
+    className?: string
+    containerClassName?: string
 }
 
-const Modal = ({isOpen, shadow = false, closeFn, children}: Props) => {
+const Modal = ({isOpen, shadow = false, closeFn, children, className, containerClassName}: Props) => {
     if(!isOpen) return null
     return ReactDOM.createPortal(
         <div
-            className={classNames(styles.overlay, shadow && styles.shadow)}
-            onClick={(e) => {
+            className={classNames(styles.overlay, shadow && styles.shadow, className)}
+            onClick={() => {
                 closeFn()
             }}
         >
             <div 
-                className={classNames(styles.container)}
+                className={classNames(styles.container, containerClassName)}
                 onClick={(e) => {
                     e.stopPropagation()
                 }}
