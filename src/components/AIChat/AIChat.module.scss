@@ -181,6 +181,13 @@
     font-size: 11px;
 }
 
+.error {
+    margin-bottom: 10px;
+    color: var(--error-color);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
 @keyframes slideIn {
     from { transform: translateX(100%); }
     to { transform: translateX(0); }

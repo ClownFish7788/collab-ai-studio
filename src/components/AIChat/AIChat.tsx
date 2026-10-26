@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { Bot, Send, Trash2, X } from 'lucide-react'
+import { Bot, Send, Square, Trash2, X } from 'lucide-react'
 import Modal from '../Modal/Modal'
+import { streamChat } from './streamChat'
 import styles from './AIChat.module.scss'
 
 type ChatMessage = {
@@ -20,20 +21,52 @@ const AIChat = () => {
     const [isOpen, setIsOpen] = useState(false)
     const [isClosing, setIsClosing] = useState(false)
     const launcherRef = useRef<HTMLButtonElement>(null)
+    const requestRef = useRef<AbortController | null>(null)
+    const [isStreaming, setIsStreaming] = useState(false)
+    const [error, setError] = useState('')
+
+    useEffect(() => () => {
+        requestRef.current?.abort()
+        requestRef.current = null
+    }, [])
 
     useEffect(() => {
         const list = messageListRef.current
         if (list) list.scrollTop = list.scrollHeight
     }, [messages, isOpen])
 
-    const handleSend = (event: FormEvent<HTMLFormElement>) => {
+    const handleClose = () => {
+        requestRef.current?.abort()
+        setIsClosing(true)
+    }
+
+    const handleSend = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         const content = input.trim()
-        if (!content) return
+        if (!content || requestRef.current) return
 
-        setMessages(previous => [...previous, { id: crypto.randomUUID(), role: 'user', content }])
+        const history: ChatMessage[] = [...messages.filter(message => message.content.trim()), { id: crypto.randomUUID(), role: 'user', content }]
+        const assistantId = crypto.randomUUID()
+        const controller = new AbortController()
+        requestRef.current = controller
+        setMessages([...history, { id: assistantId, role: 'assistant', content: '' }])
         setInput('')
-        // TODO: 在这里接入模型请求，收到真实响应后追加 assistant 消息。
+        setError('')
+        setIsStreaming(true)
+        try {
+            await streamChat(history.map(({ role, content }) => ({ role, content })), controller.signal, text => {
+                setMessages(previous => previous.map(message => message.id === assistantId
+                    ? { ...message, content: message.content + text } : message))
+            })
+        } catch (error) {
+            if (!controller.signal.aborted) setError(error instanceof Error ? error.message : '对话失败，请重试')
+        } finally {
+            if (requestRef.current === controller) {
+                requestRef.current = null
+                setIsStreaming(false)
+                setMessages(previous => previous.filter(message => message.id !== assistantId || message.content))
+            }
+        }
     }
 
     // shortcut: 聊天仅保存在组件内存中，接入任务控制时按房间隔离并处理取消。
@@ -53,7 +86,7 @@ const AIChat = () => {
             </button>
             <Modal
                 isOpen={isOpen}
-                closeFn={() => setIsClosing(true)}
+                closeFn={handleClose}
                 className={styles.drawer}
                 containerClassName={styles.drawerContainer}
             >
@@ -72,7 +105,7 @@ const AIChat = () => {
                     }}
                     onKeyDown={event => {
                         event.stopPropagation()
-                        if (event.key === 'Escape') setIsClosing(true)
+                        if (event.key === 'Escape') handleClose()
                         if (event.key !== 'Tab') return
                         const controls = event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), textarea')
                         const first = controls[0]
@@ -97,41 +130,42 @@ const AIChat = () => {
                                 className={styles.clearButton}
                                 aria-label="清空聊天记录"
                                 title="清空聊天记录"
-                                disabled={messages.length === 0}
-                                onClick={() => setMessages([])}
+                                disabled={messages.length === 0 || isStreaming}
+                                onClick={() => { setMessages([]); setError('') }}
                             >
                                 <Trash2 size={16} aria-hidden="true" />
                             </button>
-                            <button type="button" className={styles.clearButton} aria-label="关闭 AI 助手" onClick={() => setIsClosing(true)}>
+                            <button type="button" className={styles.clearButton} aria-label="关闭 AI 助手" onClick={handleClose}>
                                 <X size={18} aria-hidden="true" />
                             </button>
                         </div>
                     </header>
 
-                    <p className={styles.notice}>AI 接口尚未接入，消息仅在当前页面展示。</p>
+                    <p className={styles.notice}>当前支持文字对话，暂不执行白板操作。</p>
 
                     <div ref={messageListRef} className={styles.messages} role="log" aria-label="聊天记录" aria-live="polite">
                         {messages.length === 0 ? (
                             <div className={styles.empty}>
                                 <Bot size={32} aria-hidden="true" />
-                                <h3>描述你的白板想法</h3>
-                                <p>例如：画两个圆，用箭头连接。</p>
-                                <p>修改已有内容时，请先在白板上选中对象。</p>
+                                <h3>从一个问题开始</h3>
+                                <p>例如：用一个例子解释 JavaScript 闭包。</p>
                             </div>
                         ) : messages.map(message => (
                             <article key={message.id} className={styles.message} data-role={message.role}>
                                 <span className={styles.messageRole}>{message.role === 'user' ? '你' : 'AI 助手'}</span>
-                                <p className={styles.bubble}>{message.content}</p>
+                                <p className={styles.bubble}>{message.content || '正在回复…'}</p>
                             </article>
                         ))}
                     </div>
 
                     <form className={styles.composer} onSubmit={handleSend}>
+                        {error && <p className={styles.error} role="alert">{error}</p>}
                         <textarea
                             autoFocus
                             aria-label="聊天消息"
                             aria-describedby={inputHintId}
-                            placeholder="输入你的白板需求…"
+                            placeholder="输入你的问题…"
+                            maxLength={4000}
                             rows={3}
                             value={input}
                             onChange={event => setInput(event.target.value)}
@@ -144,10 +178,13 @@ const AIChat = () => {
                         />
                         <div className={styles.composerFooter}>
                             <span id={inputHintId}>Enter 发送 · Shift + Enter 换行</span>
-                            <button type="submit" className={styles.sendButton} disabled={!input.trim()}>
+                            {isStreaming ? <button type="button" className={styles.sendButton} onClick={() => requestRef.current?.abort()}>
+                                <Square size={14} aria-hidden="true" />
+                                停止生成
+                            </button> : <button type="submit" className={styles.sendButton} disabled={!input.trim()}>
                                 <Send size={16} aria-hidden="true" />
                                 发送
-                            </button>
+                            </button>}
                         </div>
                         <p className={styles.footnote}>聊天记录刷新后清空。</p>
                     </form>
