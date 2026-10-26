@@ -242,6 +242,14 @@
     color: var(--text-color);
 }
 
+.thumbnail {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
+}
+
 @keyframes slideIn {
     from { transform: translateX(100%); }
     to { transform: translateX(0); }

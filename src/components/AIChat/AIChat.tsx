@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type ClipboardEvent, type FormEvent
 import { Bot, ImagePlus, Send, Square, Trash2, X } from 'lucide-react'
 import Image from 'next/image'
 import Modal from '../Modal/Modal'
+import ImagePreviewModal from '../Modal/ImagePreviewModal/ImagePreviewModal'
 import { streamChat } from './streamChat'
 import { IMAGE_MIME_TYPES, MAX_IMAGES_PER_MESSAGE, readImage, toMessageContent, type ImageAttachment } from '../../utils/images'
 import styles from './AIChat.module.scss'
@@ -31,6 +32,17 @@ const AIChat = () => {
     const [isReadingImages, setIsReadingImages] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const imageReadVersionRef = useRef(0)
+    const [previewImage, setPreviewImage] = useState<ImageAttachment | null>(null)
+    const previewTriggerRef = useRef<HTMLButtonElement | null>(null)
+
+    useEffect(() => {
+        if (!previewImage) previewTriggerRef.current?.focus()
+    }, [previewImage])
+
+    const openImagePreview = (image: ImageAttachment, trigger: HTMLButtonElement) => {
+        previewTriggerRef.current = trigger
+        setPreviewImage(image)
+    }
 
     useEffect(() => () => {
         requestRef.current?.abort()
@@ -147,6 +159,8 @@ const AIChat = () => {
                     role="dialog"
                     aria-modal="true"
                     aria-label="白板 AI 助手"
+                    inert={previewImage !== null}
+                    aria-hidden={previewImage ? true : undefined}
                     data-closing={isClosing}
                     onPaste={handlePaste}
                     onAnimationEnd={event => {
@@ -208,7 +222,9 @@ const AIChat = () => {
                                 <span className={styles.messageRole}>{message.role === 'user' ? '你' : 'AI 助手'}</span>
                                 {!!message.images?.length && <div className={styles.attachments}>
                                     {message.images.map(image => <figure key={image.id} className={styles.attachment}>
-                                        <Image src={image.dataUrl} alt={image.name} width={128} height={96} unoptimized />
+                                        <button type="button" className={styles.thumbnail} aria-label={`放大预览 ${image.name}`} onClick={event => openImagePreview(image, event.currentTarget)}>
+                                            <Image src={image.dataUrl} alt={image.name} width={128} height={96} unoptimized />
+                                        </button>
                                         <figcaption title={image.name}>{image.name}</figcaption>
                                     </figure>)}
                                 </div>}
@@ -221,7 +237,9 @@ const AIChat = () => {
                         {error && <p className={styles.error} role="alert">{error}</p>}
                         {!!images.length && <div className={styles.attachments} aria-label="待发送图片">
                             {images.map(image => <figure key={image.id} className={styles.attachment}>
-                                <Image src={image.dataUrl} alt={image.name} width={72} height={72} unoptimized />
+                                <button type="button" className={styles.thumbnail} aria-label={`放大预览 ${image.name}`} onClick={event => openImagePreview(image, event.currentTarget)}>
+                                    <Image src={image.dataUrl} alt={image.name} width={72} height={72} unoptimized />
+                                </button>
                                 <figcaption title={image.name}>{image.name}</figcaption>
                                 <button
                                     type="button"
@@ -283,6 +301,7 @@ const AIChat = () => {
                     </form>
                 </section>
             </Modal>
+            <ImagePreviewModal image={previewImage} closeFn={() => setPreviewImage(null)} />
         </>
     )
 }

@@ -1,0 +1,35 @@
+.overlay {
+    z-index: 100000;
+    backdrop-filter: none;
+
+    .container {
+        position: relative;
+        padding: 16px;
+        border-radius: 12px;
+        background: var(--bg-color);
+    }
+}
+
+.image {
+    position: relative;
+    width: min(1000px, calc(100vw - 64px));
+    height: min(760px, calc(100dvh - 112px));
+
+    img {
+        object-fit: contain;
+    }
+}
+
+.close {
+    display: grid;
+    place-items: center;
+    margin: 0 0 8px auto;
+    padding: 4px;
+    background: transparent;
+    color: var(--text-color);
+
+    &:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+}
