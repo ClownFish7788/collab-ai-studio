@@ -1,15 +1,18 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { Bot, Send, Square, Trash2, X } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
+import { Bot, ImagePlus, Send, Square, Trash2, X } from 'lucide-react'
+import Image from 'next/image'
 import Modal from '../Modal/Modal'
 import { streamChat } from './streamChat'
+import { IMAGE_MIME_TYPES, MAX_IMAGES_PER_MESSAGE, readImage, toMessageContent, type ImageAttachment } from '../../utils/images'
 import styles from './AIChat.module.scss'
 
 type ChatMessage = {
     id: string
     role: 'user' | 'assistant'
     content: string
+    images?: ImageAttachment[]
 }
 
 const AIChat = () => {
@@ -24,10 +27,15 @@ const AIChat = () => {
     const requestRef = useRef<AbortController | null>(null)
     const [isStreaming, setIsStreaming] = useState(false)
     const [error, setError] = useState('')
+    const [images, setImages] = useState<ImageAttachment[]>([])
+    const [isReadingImages, setIsReadingImages] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const imageReadVersionRef = useRef(0)
 
     useEffect(() => () => {
         requestRef.current?.abort()
         requestRef.current = null
+        imageReadVersionRef.current++
     }, [])
 
     useEffect(() => {
@@ -37,24 +45,67 @@ const AIChat = () => {
 
     const handleClose = () => {
         requestRef.current?.abort()
+        imageReadVersionRef.current++
+        setIsReadingImages(false)
         setIsClosing(true)
+    }
+
+    const addImages = async (files: File[]) => {
+        if (!files.length || requestRef.current || isReadingImages || isClosing) return
+        const version = ++imageReadVersionRef.current
+        setIsReadingImages(true)
+        setError('')
+        const accepted: ImageAttachment[] = [], errors: string[] = []
+        for (const file of files) {
+            if (images.length + accepted.length >= MAX_IMAGES_PER_MESSAGE) {
+                errors.push('每条消息最多上传 3 张图片')
+                break
+            }
+            try {
+                accepted.push(await readImage(file))
+            } catch (error) {
+                errors.push(error instanceof Error ? error.message : '图片读取失败')
+            }
+            if (version !== imageReadVersionRef.current) return
+        }
+        setImages(previous => [...previous, ...accepted])
+        setError(errors.join('；'))
+        setIsReadingImages(false)
+    }
+
+    const handlePaste = (event: ClipboardEvent<HTMLElement>) => {
+        // 聊天中的粘贴不能触发 document 上的画板粘贴监听。
+        event.stopPropagation()
+        const files = Array.from(event.clipboardData.items)
+            // kind 只有 file / string；图片属于 file，随后由 readImage 检查 MIME 和文件头。
+            .filter(item => item.kind === 'file')
+            .map(item => item.getAsFile())
+            .filter((file): file is File => file !== null)
+        if (files.length) {
+            event.preventDefault()
+            void addImages(files)
+        }
     }
 
     const handleSend = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         const content = input.trim()
-        if (!content || requestRef.current) return
+        if ((!content && !images.length) || requestRef.current || isReadingImages || isClosing) return
 
-        const history: ChatMessage[] = [...messages.filter(message => message.content.trim()), { id: crypto.randomUUID(), role: 'user', content }]
+        const history: ChatMessage[] = [
+            ...messages.filter(message => message.content.trim() || message.images?.length),
+            { id: crypto.randomUUID(), role: 'user', content, images },
+        ]
         const assistantId = crypto.randomUUID()
         const controller = new AbortController()
         requestRef.current = controller
         setMessages([...history, { id: assistantId, role: 'assistant', content: '' }])
         setInput('')
+        setImages([])
         setError('')
         setIsStreaming(true)
         try {
-            await streamChat(history.map(({ role, content }) => ({ role, content })), controller.signal, text => {
+            await streamChat(history.map(({ role, content, images }) => ({ role, content: toMessageContent(content, images) })), controller.signal, text => {
                 setMessages(previous => previous.map(message => message.id === assistantId
                     ? { ...message, content: message.content + text } : message))
             })
@@ -97,6 +148,7 @@ const AIChat = () => {
                     aria-modal="true"
                     aria-label="白板 AI 助手"
                     data-closing={isClosing}
+                    onPaste={handlePaste}
                     onAnimationEnd={event => {
                         if (event.target !== event.currentTarget || !isClosing) return
                         setIsOpen(false)
@@ -130,7 +182,7 @@ const AIChat = () => {
                                 className={styles.clearButton}
                                 aria-label="清空聊天记录"
                                 title="清空聊天记录"
-                                disabled={messages.length === 0 || isStreaming}
+                                disabled={messages.length === 0 || isStreaming || isReadingImages}
                                 onClick={() => { setMessages([]); setError('') }}
                             >
                                 <Trash2 size={16} aria-hidden="true" />
@@ -141,7 +193,7 @@ const AIChat = () => {
                         </div>
                     </header>
 
-                    <p className={styles.notice}>当前支持文字对话，暂不执行白板操作。</p>
+                    <p className={styles.notice}>支持文字和图片对话，暂不执行白板操作。</p>
 
                     <div ref={messageListRef} className={styles.messages} role="log" aria-label="聊天记录" aria-live="polite">
                         {messages.length === 0 ? (
@@ -149,17 +201,50 @@ const AIChat = () => {
                                 <Bot size={32} aria-hidden="true" />
                                 <h3>从一个问题开始</h3>
                                 <p>例如：用一个例子解释 JavaScript 闭包。</p>
+                                <p>也可以上传或粘贴图片，每次最多 3 张，单张小于 5MB。</p>
                             </div>
                         ) : messages.map(message => (
                             <article key={message.id} className={styles.message} data-role={message.role}>
                                 <span className={styles.messageRole}>{message.role === 'user' ? '你' : 'AI 助手'}</span>
-                                <p className={styles.bubble}>{message.content || '正在回复…'}</p>
+                                {!!message.images?.length && <div className={styles.attachments}>
+                                    {message.images.map(image => <figure key={image.id} className={styles.attachment}>
+                                        <Image src={image.dataUrl} alt={image.name} width={128} height={96} unoptimized />
+                                        <figcaption title={image.name}>{image.name}</figcaption>
+                                    </figure>)}
+                                </div>}
+                                {(message.content || message.role === 'assistant') && <p className={styles.bubble}>{message.content || '正在回复…'}</p>}
                             </article>
                         ))}
                     </div>
 
                     <form className={styles.composer} onSubmit={handleSend}>
                         {error && <p className={styles.error} role="alert">{error}</p>}
+                        {!!images.length && <div className={styles.attachments} aria-label="待发送图片">
+                            {images.map(image => <figure key={image.id} className={styles.attachment}>
+                                <Image src={image.dataUrl} alt={image.name} width={72} height={72} unoptimized />
+                                <figcaption title={image.name}>{image.name}</figcaption>
+                                <button
+                                    type="button"
+                                    className={styles.removeImage}
+                                    aria-label={`移除图片 ${image.name}`}
+                                    disabled={isReadingImages}
+                                    onClick={() => setImages(previous => previous.filter(item => item.id !== image.id))}
+                                ><X size={12} aria-hidden="true" /></button>
+                            </figure>)}
+                        </div>}
+                        {isReadingImages && <p className={styles.footnote} role="status">正在读取图片…</p>}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept={IMAGE_MIME_TYPES.join(',')}
+                            multiple
+                            hidden
+                            onChange={event => {
+                                const files = Array.from(event.target.files || [])
+                                event.target.value = ''
+                                void addImages(files)
+                            }}
+                        />
                         <textarea
                             autoFocus
                             aria-label="聊天消息"
@@ -177,11 +262,19 @@ const AIChat = () => {
                             }}
                         />
                         <div className={styles.composerFooter}>
+                            <button
+                                type="button"
+                                className={styles.uploadButton}
+                                aria-label="上传图片"
+                                title={`上传图片（${images.length}/${MAX_IMAGES_PER_MESSAGE}），单张小于 5MB`}
+                                disabled={isStreaming || isReadingImages}
+                                onClick={() => fileInputRef.current?.click()}
+                            ><ImagePlus size={18} aria-hidden="true" /></button>
                             <span id={inputHintId}>Enter 发送 · Shift + Enter 换行</span>
                             {isStreaming ? <button type="button" className={styles.sendButton} onClick={() => requestRef.current?.abort()}>
                                 <Square size={14} aria-hidden="true" />
                                 停止生成
-                            </button> : <button type="submit" className={styles.sendButton} disabled={!input.trim()}>
+                            </button> : <button type="submit" className={styles.sendButton} disabled={(!input.trim() && !images.length) || isReadingImages}>
                                 <Send size={16} aria-hidden="true" />
                                 发送
                             </button>}

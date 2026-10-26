@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
     removeConsole: process.env.NODE_ENV === 'production'
   },
   experimental: {
+    // Base64 图片及多轮历史需要超过默认 10MB 的代理缓冲，与聊天接口上限保持一致。
+    proxyClientMaxBodySize: '32mb',
     optimizePackageImports: ['package-name']
   }
 };

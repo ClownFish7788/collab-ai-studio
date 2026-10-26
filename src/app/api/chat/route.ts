@@ -1,3 +1,5 @@
+import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl, type MessageContent, type ImagePart, type TextPart } from '@/utils/images'
+
 export const maxDuration = 60
 
 // /api/chat 沿用 src/proxy.ts 的登录校验。
@@ -5,8 +7,22 @@ export const maxDuration = 60
 export async function POST(request: Request) {
     let payload: unknown
     try {
-        const body = await request.text()
-        if (body.length > 64000) return Response.json({ error: '对话过长，请清空后重试' }, { status: 400 })
+        const reader = request.body?.getReader()
+        if (!reader) return Response.json({ error: '请求不能为空' }, { status: 400 })
+        const decoder = new TextDecoder()
+        let body = '', size = 0
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            // 这里只保护请求体占用；图片数量和原始大小在下面逐张校验。
+            size += value.byteLength
+            if (size > MAX_CHAT_REQUEST_BYTES) {
+                await reader.cancel()
+                return Response.json({ error: '对话图片过多，请清空后重试' }, { status: 413 })
+            }
+            body += decoder.decode(value, { stream: true })
+        }
+        body += decoder.decode()
         payload = JSON.parse(body)
     } catch {
         return Response.json({ error: '请求格式错误' }, { status: 400 })
@@ -17,14 +33,43 @@ export async function POST(request: Request) {
         return Response.json({ error: '请提供 1～40 条聊天消息' }, { status: 400 })
     }
 
-    const messages: { role: 'user' | 'assistant'; content: string }[] = []
+    const messages: { role: 'user' | 'assistant'; content: MessageContent }[] = []
     for (const message of payload.messages) {
         if (!message || typeof message !== 'object'
-            || (message.role !== 'user' && message.role !== 'assistant')
-            || typeof message.content !== 'string' || !message.content.trim() || message.content.length > 4000) {
-            return Response.json({ error: '消息角色或内容不合法，每条消息最多 4000 字' }, { status: 400 })
+            || (message.role !== 'user' && message.role !== 'assistant')) {
+            return Response.json({ error: '消息角色不合法' }, { status: 400 })
         }
-        messages.push({ role: message.role, content: message.content })
+        if (typeof message.content === 'string') {
+            if (!message.content.trim() || message.content.length > 4000) {
+                return Response.json({ error: '每条消息须包含 1～4000 字' }, { status: 400 })
+            }
+            messages.push({ role: message.role, content: message.content })
+            continue
+        }
+        if (message.role !== 'user' || !Array.isArray(message.content) || !message.content.length) {
+            return Response.json({ error: '用户消息须包含文字或图片' }, { status: 400 })
+        }
+        const images: ImagePart[] = [], texts: TextPart[] = []
+        let textLength = 0
+        try {
+            for (const part of message.content) {
+                if (part?.type === 'image_url') {
+                    if (images.length >= MAX_IMAGES_PER_MESSAGE) throw new Error('每条消息最多上传 3 张图片')
+                    const url = part.image_url?.url
+                    validateImageDataUrl(url)
+                    images.push({ type: 'image_url', image_url: { url } })
+                } else if (part?.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+                    textLength += part.text.length
+                    if (textLength > 4000) throw new Error('每条消息最多 4000 字')
+                    texts.push({ type: 'text', text: part.text })
+                } else {
+                    throw new Error('消息只能包含文字和 Base64 图片')
+                }
+            }
+        } catch (error) {
+            return Response.json({ error: error instanceof Error ? error.message : '图片消息不合法' }, { status: 400 })
+        }
+        messages.push({ role: message.role, content: [...images, ...texts] })
     }
     if (messages[messages.length - 1].role !== 'user') {
         return Response.json({ error: '最后一条消息必须是用户消息' }, { status: 400 })
