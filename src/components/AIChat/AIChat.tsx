@@ -4,12 +4,15 @@ import { useEffect, useId, useRef, useState, type ClipboardEvent, type FormEvent
 import { Bot, ImagePlus, Send, Square, Trash2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
+import { useStore } from 'zustand'
 import Modal from '../Modal/Modal'
 import ImagePreviewModal from '../Modal/ImagePreviewModal/ImagePreviewModal'
 import SelectBoardElementsButton from '../SelectBoardElementsButton/SelectBoardElementsButton'
 import SelectedElementsAttachment from '../SelectBoardElementsButton/SelectedElementsAttachment'
-import { BoardSelectionProvider } from './BoardSelectionProvider'
+import { BoardSelectionProvider, useBoardSelectionStore } from './BoardSelectionProvider'
 import { streamChat } from '../../utils/streamChat'
+import { validateChatSnapshot } from '../../utils/chatSnapshots'
+import type { RegionSnapshot } from '../../utils/collectRegionSnapshot'
 import { IMAGE_MIME_TYPES, MAX_IMAGES_PER_MESSAGE, readImage, toMessageContent, type ImageAttachment } from '../../utils/images'
 import styles from './AIChat.module.scss'
 
@@ -18,9 +21,12 @@ type ChatMessage = {
     role: 'user' | 'assistant'
     content: string
     images?: ImageAttachment[]
+    snapshot?: RegionSnapshot
 }
 
 const AIChatPanel = () => {
+    const selectionStore = useBoardSelectionStore()
+    const hasSelection = useStore(selectionStore, state => !!state.snapshot?.shapes.length)
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const messageListRef = useRef<HTMLDivElement>(null)
@@ -108,11 +114,21 @@ const AIChatPanel = () => {
     const handleSend = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         const content = input.trim()
-        if ((!content && !images.length) || requestRef.current || isReadingImages || isClosing) return
+        const selectedSnapshot = selectionStore.getState().snapshot
+        const snapshot = selectedSnapshot?.shapes.length ? selectedSnapshot : undefined
+        if ((!content && !images.length && !snapshot) || requestRef.current || isReadingImages || isClosing) return
+        if (snapshot) {
+            try {
+                validateChatSnapshot(snapshot)
+            } catch (error) {
+                setError(error instanceof Error ? error.message : '白板快照不合法')
+                return
+            }
+        }
 
         const history: ChatMessage[] = [
-            ...messages.filter(message => message.content.trim() || message.images?.length),
-            { id: crypto.randomUUID(), role: 'user', content, images },
+            ...messages.filter(message => message.content.trim() || message.images?.length || message.snapshot?.shapes.length),
+            { id: crypto.randomUUID(), role: 'user', content, images, snapshot },
         ]
         const assistantId = crypto.randomUUID()
         const controller = new AbortController()
@@ -120,10 +136,11 @@ const AIChatPanel = () => {
         setMessages([...history, { id: assistantId, role: 'assistant', content: '' }])
         setInput('')
         setImages([])
+        selectionStore.getState().clearSnapshot()
         setError('')
         setIsStreaming(true)
         try {
-            await streamChat(history.map(({ role, content, images }) => ({ role, content: toMessageContent(content, images) })), controller.signal, text => {
+            await streamChat(history.map(({ role, content, images, snapshot }) => ({ role, content: toMessageContent(content, images), snapshot })), controller.signal, text => {
                 setMessages(previous => previous.map(message => message.id === assistantId
                     ? { ...message, content: message.content + text } : message))
             })
@@ -215,7 +232,7 @@ const AIChatPanel = () => {
                         </div>
                     </header>
 
-                    <p className={styles.notice}>支持文字和图片对话，暂不执行白板操作。</p>
+                    <p className={styles.notice}>支持文字、图片和所选白板元素对话，暂不执行白板操作。</p>
 
                     <div ref={messageListRef} className={styles.messages} role="log" aria-label="聊天记录" aria-live="polite">
                         {messages.length === 0 ? (
@@ -228,6 +245,7 @@ const AIChatPanel = () => {
                         ) : messages.map(message => (
                             <article key={message.id} className={styles.message} data-role={message.role}>
                                 <span className={styles.messageRole}>{message.role === 'user' ? '你' : 'AI 助手'}</span>
+                                {!!message.snapshot?.shapes.length && <span className={styles.messageRole}>已附加 {message.snapshot.shapes.length} 个白板元素</span>}
                                 {!!message.images?.length && <div className={styles.attachments}>
                                     {message.images.map(image => <figure key={image.id} className={styles.attachment}>
                                         <button type="button" className={styles.thumbnail} aria-label={`放大预览 ${image.name}`} onClick={event => openImagePreview(image, event.currentTarget)}>
@@ -307,7 +325,7 @@ const AIChatPanel = () => {
                             {isStreaming ? <button type="button" className={styles.sendButton} onClick={() => requestRef.current?.abort()}>
                                 <Square size={14} aria-hidden="true" />
                                 停止生成
-                            </button> : <button type="submit" className={styles.sendButton} disabled={(!input.trim() && !images.length) || isReadingImages}>
+                            </button> : <button type="submit" className={styles.sendButton} disabled={(!input.trim() && !images.length && !hasSelection) || isReadingImages}>
                                 <Send size={16} aria-hidden="true" />
                                 发送
                             </button>}

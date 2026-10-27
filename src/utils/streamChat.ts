@@ -1,14 +1,15 @@
 import { fetchEventSource, EventStreamContentType } from '@microsoft/fetch-event-source'
 import { MAX_CHAT_REQUEST_BYTES, type MessageContent } from './images'
+import type { RegionSnapshot } from './collectRegionSnapshot'
 
 export async function streamChat(
-    messages: { role: 'user' | 'assistant'; content: MessageContent }[],
+    messages: { role: 'user' | 'assistant'; content: MessageContent; snapshot?: RegionSnapshot }[],
     signal: AbortSignal,
     onDelta: (delta: string) => void,
 ) {
     signal.throwIfAborted()
     const body = JSON.stringify({ messages })
-    if (new Blob([body]).size > MAX_CHAT_REQUEST_BYTES) throw new Error('本次对话图片过多，请减少图片或清空聊天后重试')
+    if (new Blob([body]).size > MAX_CHAT_REQUEST_BYTES) throw new Error('本次对话附件过多，请减少附件或清空聊天后重试')
     let done = false
     let receivedText = false
     await fetchEventSource('/api/chat', {

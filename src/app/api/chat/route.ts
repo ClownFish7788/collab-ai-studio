@@ -1,4 +1,7 @@
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl, type MessageContent, type ImagePart, type TextPart } from '@/utils/images'
+import { appendChatSnapshot, validateChatSnapshot } from '@/utils/chatSnapshots'
+import type { RegionSnapshot } from '@/utils/collectRegionSnapshot'
+import { tldrawPrompt } from '@/prompts/tldrawPrompt'
 
 export const maxDuration = 60
 
@@ -18,7 +21,7 @@ export async function POST(request: Request) {
             size += value.byteLength
             if (size > MAX_CHAT_REQUEST_BYTES) {
                 await reader.cancel()
-                return Response.json({ error: '对话图片过多，请清空后重试' }, { status: 413 })
+                return Response.json({ error: '对话附件过多，请清空后重试' }, { status: 413 })
             }
             body += decoder.decode(value, { stream: true })
         }
@@ -33,17 +36,27 @@ export async function POST(request: Request) {
         return Response.json({ error: '请提供 1～40 条聊天消息' }, { status: 400 })
     }
 
-    const messages: { role: 'user' | 'assistant'; content: MessageContent }[] = []
+    const messages: { role: 'user' | 'assistant'; content: MessageContent; snapshot?: RegionSnapshot }[] = []
     for (const message of payload.messages) {
         if (!message || typeof message !== 'object'
             || (message.role !== 'user' && message.role !== 'assistant')) {
             return Response.json({ error: '消息角色不合法' }, { status: 400 })
         }
+        let snapshot: RegionSnapshot | undefined
+        if (message.snapshot !== undefined) {
+            try {
+                if (message.role !== 'user') throw new Error('只有用户消息可以附加白板快照')
+                validateChatSnapshot(message.snapshot)
+                snapshot = message.snapshot
+            } catch (error) {
+                return Response.json({ error: error instanceof Error ? error.message : '白板快照不合法' }, { status: 400 })
+            }
+        }
         if (typeof message.content === 'string') {
-            if (!message.content.trim() || message.content.length > 4000) {
+            if ((!message.content.trim() && !snapshot?.shapes.length) || message.content.length > 4000) {
                 return Response.json({ error: '每条消息须包含 1～4000 字' }, { status: 400 })
             }
-            messages.push({ role: message.role, content: message.content })
+            messages.push({ role: message.role, content: message.content, snapshot })
             continue
         }
         if (message.role !== 'user' || !Array.isArray(message.content) || !message.content.length) {
@@ -69,11 +82,18 @@ export async function POST(request: Request) {
         } catch (error) {
             return Response.json({ error: error instanceof Error ? error.message : '图片消息不合法' }, { status: 400 })
         }
-        messages.push({ role: message.role, content: [...images, ...texts] })
+        messages.push({ role: message.role, content: [...images, ...texts], snapshot })
     }
     if (messages[messages.length - 1].role !== 'user') {
         return Response.json({ error: '最后一条消息必须是用户消息' }, { status: 400 })
     }
+    const modelMessages = [
+        ...(messages.some(message => message.snapshot?.shapes.length) ? [{ role: 'system', content: tldrawPrompt }] : []),
+        ...messages.map(({ role, content, snapshot }) => ({
+            role,
+            content: snapshot?.shapes.length ? appendChatSnapshot(content, snapshot) : content,
+        })),
+    ]
 
     const apiKey = process.env.API_KEY?.trim()
     const model = process.env.BASE_MODEL?.trim()
@@ -86,7 +106,7 @@ export async function POST(request: Request) {
         const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model, messages, stream: true, enable_thinking: false, max_tokens: 1024 }),
+            body: JSON.stringify({ model, messages: modelMessages, stream: true, enable_thinking: false, max_tokens: 1024 }),
             signal: AbortSignal.any([request.signal, AbortSignal.timeout(60000)]),
         })
         if (!response.ok || !response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
