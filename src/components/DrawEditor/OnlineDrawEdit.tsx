@@ -1,6 +1,5 @@
 'use client'
 
-import { createDocShape } from '@/utils/drawEditor'
 import styles from './DrawEditor.module.scss'
 import { Editor, Tldraw } from 'tldraw'
 import 'tldraw/tldraw.css'
@@ -55,7 +54,6 @@ const OnlineDrawEditor = ({licenseKey}: {
                 onMount={(editor) => {
                     editor.user.updateUserPreferences({ locale: 'zh-cn' })
                     editor.updateInstanceState({isReadonly: role === 'viewer'})
-                    createDocShape(editor, () => {})
                     setTldrawRef(editor)
                 }}
             />

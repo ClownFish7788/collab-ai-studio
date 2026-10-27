@@ -1,6 +1,5 @@
 'use client'
 
-import { createDocShape } from '@/utils/drawEditor'
 import styles from './DrawEditor.module.scss'
 import { Editor, Tldraw } from 'tldraw'
 import 'tldraw/tldraw.css'
@@ -42,7 +41,6 @@ const LocalDrawEditor = ({licenseKey}: {
                 onMount={(editor) => {
                     editor.user.updateUserPreferences({ locale: 'zh-cn' })
                     editor.updateInstanceState({isReadonly: false}) // 游客自己玩，肯定是可编辑的
-                    createDocShape(editor, () => {})
                     setTldrawRef(editor)
                 }}
             />
