@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { AssetRecordType, Editor, createShapeId } from "tldraw"
+import { AssetRecordType, Editor, createShapeId, react } from "tldraw"
 import { toast } from "@/components/Toast"
 
 type GetImageSize = (src: string) => Promise<{width: number, height: number}>
@@ -32,7 +32,18 @@ const getImageSize:GetImageSize = (src) => {
 export const usePasteImageToTldraw = (editor: Editor | null) => {
     useEffect(() => {
         if(!editor) return
+        let disposed = false
+        let version = 0
+        // 本 Hook 的图片粘贴经过只读锁或页面切换后，即使解锁也不再落地。
+        const stop = react('invalidate pending board paste', () => {
+            editor.getIsReadonly()
+            editor.getCurrentPageId()
+            version++
+        })
         const handlePaste = async (e: ClipboardEvent) => {
+            const pasteVersion = version
+            const canPaste = () => !disposed && !editor.isDisposed && !editor.getIsReadonly() && version === pasteVersion
+            if (!canPaste()) return
             let w = 400, h = 400
             const items = e.clipboardData?.items
             const text = e.clipboardData?.getData('text')
@@ -42,6 +53,7 @@ export const usePasteImageToTldraw = (editor: Editor | null) => {
                 e.stopImmediatePropagation()
                 try {
                     const {width, height} = await getImageSize(text)
+                    if (!canPaste()) return
                     w = width
                     h = height
                     const assetId = AssetRecordType.createId()
@@ -87,9 +99,11 @@ export const usePasteImageToTldraw = (editor: Editor | null) => {
                         // 将图片转换为Base64编码
                         const reader = new FileReader()
                         reader.onload = async (event) => {
+                            if (!canPaste()) return
                             const base64Src = event.target?.result as string
                             try {
                                 const {width, height} = await getImageSize(base64Src)
+                                if (!canPaste()) return
                                 w = width
                                 h = height
                                 const assetId = AssetRecordType.createId()
@@ -129,6 +143,8 @@ export const usePasteImageToTldraw = (editor: Editor | null) => {
         }
         document.addEventListener('paste', handlePaste)
         return () => {
+            disposed = true
+            stop()
             document.removeEventListener('paste', handlePaste)
         }
     }, [editor])
