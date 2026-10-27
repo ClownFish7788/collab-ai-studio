@@ -6,6 +6,10 @@
     pointer-events: auto;
     font: inherit;
     font-size: 13px;
+
+    &[hidden] {
+        display: none;
+    }
 }
 
 .drawer {
@@ -20,6 +24,12 @@
         height: 100%;
         animation: none;
     }
+}
+
+// 隐藏整个遮罩，才能把鼠标和键盘交给画布；不卸载聊天内容。
+.drawer.selecting {
+    visibility: hidden;
+    pointer-events: none;
 }
 
 .chat {

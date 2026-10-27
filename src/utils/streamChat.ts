@@ -1,5 +1,5 @@
 import { fetchEventSource, EventStreamContentType } from '@microsoft/fetch-event-source'
-import { MAX_CHAT_REQUEST_BYTES, type MessageContent } from '../../utils/images'
+import { MAX_CHAT_REQUEST_BYTES, type MessageContent } from './images'
 
 export async function streamChat(
     messages: { role: 'user' | 'assistant'; content: MessageContent }[],

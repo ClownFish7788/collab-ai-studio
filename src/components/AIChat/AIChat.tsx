@@ -5,7 +5,8 @@ import { Bot, ImagePlus, Send, Square, Trash2, X } from 'lucide-react'
 import Image from 'next/image'
 import Modal from '../Modal/Modal'
 import ImagePreviewModal from '../Modal/ImagePreviewModal/ImagePreviewModal'
-import { streamChat } from './streamChat'
+import SelectBoardElementsButton from '../SelectBoardElementsButton/SelectBoardElementsButton'
+import { streamChat } from '../../utils/streamChat'
 import { IMAGE_MIME_TYPES, MAX_IMAGES_PER_MESSAGE, readImage, toMessageContent, type ImageAttachment } from '../../utils/images'
 import styles from './AIChat.module.scss'
 
@@ -24,6 +25,7 @@ const AIChat = () => {
     const panelId = useId()
     const [isOpen, setIsOpen] = useState(false)
     const [isClosing, setIsClosing] = useState(false)
+    const [isSelecting, setIsSelecting] = useState(false)
     const launcherRef = useRef<HTMLButtonElement>(null)
     const requestRef = useRef<AbortController | null>(null)
     const [isStreaming, setIsStreaming] = useState(false)
@@ -138,6 +140,7 @@ const AIChat = () => {
             <button
                 ref={launcherRef}
                 type="button"
+                hidden={isSelecting}
                 className={styles.launcher}
                 aria-label="打开 AI 助手"
                 aria-expanded={isOpen}
@@ -150,7 +153,8 @@ const AIChat = () => {
             <Modal
                 isOpen={isOpen}
                 closeFn={handleClose}
-                className={styles.drawer}
+                // 选择时只视觉隐藏遮罩与面板，保留 DOM、输入、附件和流式请求。
+                className={isSelecting ? `${styles.drawer} ${styles.selecting}` : styles.drawer}
                 containerClassName={styles.drawerContainer}
             >
                 <section
@@ -159,8 +163,8 @@ const AIChat = () => {
                     role="dialog"
                     aria-modal="true"
                     aria-label="白板 AI 助手"
-                    inert={previewImage !== null}
-                    aria-hidden={previewImage ? true : undefined}
+                    inert={previewImage !== null || isSelecting}
+                    aria-hidden={previewImage || isSelecting ? true : undefined}
                     data-closing={isClosing}
                     onPaste={handlePaste}
                     onAnimationEnd={event => {
@@ -280,6 +284,11 @@ const AIChat = () => {
                             }}
                         />
                         <div className={styles.composerFooter}>
+                            <SelectBoardElementsButton
+                                isSelecting={isSelecting}
+                                onSelectingChange={setIsSelecting}
+                                disabled={isClosing}
+                            />
                             <button
                                 type="button"
                                 className={styles.uploadButton}
