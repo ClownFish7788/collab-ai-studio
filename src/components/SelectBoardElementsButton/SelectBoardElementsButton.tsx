@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { Scan } from 'lucide-react'
 import { useEditor, useValue, type TLPageId, type TLShapeId } from 'tldraw'
 import { collectRegionSnapshot } from '../../utils/collectRegionSnapshot'
+import { useBoardSelectionStore } from '../AIChat/BoardSelectionProvider'
 import styles from './SelectBoardElementsButton.module.scss'
 
 type Props = {
@@ -25,6 +26,7 @@ type SelectionSession = {
  */
 export default function SelectBoardElementsButton({ isSelecting, onSelectingChange, disabled }: Props) {
     const editor = useEditor()
+    const selectionStore = useBoardSelectionStore()
     const buttonRef = useRef<HTMLButtonElement>(null)
     const sessionRef = useRef<SelectionSession | null>(null)
     const [error, setError] = useState('')
@@ -103,7 +105,7 @@ export default function SelectBoardElementsButton({ isSelecting, onSelectingChan
             // 外接矩形只确定范围；ID 才确定选区。过滤必须发生在参照物选择之前。
             // shortcut: 分组只收集原生选中 ID；需要组内语义时再显式展开子元素。
             const snapshot = collectRegionSnapshot(editor, region, undefined, selectedIds)
-            console.log('白板选区快照', snapshot)
+            selectionStore.getState().setSnapshot(snapshot)
             finishSelection(false)
         } catch (error) {
             // 失败时留在选取模式，允许调整后重试；不能把失败伪装成一次空选区确认。

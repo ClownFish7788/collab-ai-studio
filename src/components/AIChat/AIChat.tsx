@@ -3,9 +3,12 @@
 import { useEffect, useId, useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
 import { Bot, ImagePlus, Send, Square, Trash2, X } from 'lucide-react'
 import Image from 'next/image'
+import { useParams } from 'next/navigation'
 import Modal from '../Modal/Modal'
 import ImagePreviewModal from '../Modal/ImagePreviewModal/ImagePreviewModal'
 import SelectBoardElementsButton from '../SelectBoardElementsButton/SelectBoardElementsButton'
+import SelectedElementsAttachment from '../SelectBoardElementsButton/SelectedElementsAttachment'
+import { BoardSelectionProvider } from './BoardSelectionProvider'
 import { streamChat } from '../../utils/streamChat'
 import { IMAGE_MIME_TYPES, MAX_IMAGES_PER_MESSAGE, readImage, toMessageContent, type ImageAttachment } from '../../utils/images'
 import styles from './AIChat.module.scss'
@@ -17,7 +20,7 @@ type ChatMessage = {
     images?: ImageAttachment[]
 }
 
-const AIChat = () => {
+const AIChatPanel = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const messageListRef = useRef<HTMLDivElement>(null)
@@ -31,6 +34,7 @@ const AIChat = () => {
     const [isStreaming, setIsStreaming] = useState(false)
     const [error, setError] = useState('')
     const [images, setImages] = useState<ImageAttachment[]>([])
+    const inputRef = useRef<HTMLTextAreaElement>(null)
     const [isReadingImages, setIsReadingImages] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const imageReadVersionRef = useRef(0)
@@ -239,6 +243,7 @@ const AIChat = () => {
 
                     <form className={styles.composer} onSubmit={handleSend}>
                         {error && <p className={styles.error} role="alert">{error}</p>}
+                        <SelectedElementsAttachment onRemove={() => inputRef.current?.focus()} />
                         {!!images.length && <div className={styles.attachments} aria-label="待发送图片">
                             {images.map(image => <figure key={image.id} className={styles.attachment}>
                                 <button type="button" className={styles.thumbnail} aria-label={`放大预览 ${image.name}`} onClick={event => openImagePreview(image, event.currentTarget)}>
@@ -268,6 +273,7 @@ const AIChat = () => {
                             }}
                         />
                         <textarea
+                            ref={inputRef}
                             autoFocus
                             aria-label="聊天消息"
                             aria-describedby={inputHintId}
@@ -313,6 +319,13 @@ const AIChat = () => {
             <ImagePreviewModal image={previewImage} closeFn={() => setPreviewImage(null)} />
         </>
     )
+}
+
+const AIChat = () => {
+    const { workId } = useParams<{ workId: string }>()
+    return <BoardSelectionProvider scopeId={workId}>
+        <AIChatPanel />
+    </BoardSelectionProvider>
 }
 
 export default AIChat
