@@ -1,4 +1,7 @@
-import { Box, type BoxModel, type Editor, type TLAssetId, type TLShapeId } from 'tldraw'
+import {
+    Box, type BoxModel, type Editor, type TLAssetId, type TLShapeId,
+    type TLDefaultColorStyle, type TLDefaultFillStyle,
+} from 'tldraw'
 
 export type RegionSnapshot = {
     reference: { id: TLShapeId | null; x: number; y: number }
@@ -10,6 +13,14 @@ export type RegionSnapshot = {
         w: number
         h: number
         text: string
+        /** 原生色名：图形描边色、文本颜色或便笺背景色，具体含义由 type 决定。 */
+        color?: TLDefaultColorStyle
+        /** 图形的标签文字颜色；与图形自身的 color 分开保留。 */
+        labelColor?: TLDefaultColorStyle
+        /** 填充模式（如 none / solid），不是另一种颜色。 */
+        fill?: TLDefaultFillStyle
+        /** 元素自身的透明度，不包含父级透明度的叠乘。 */
+        opacity: number
         geo?: string
         assetId?: TLAssetId
         url?: string
@@ -50,6 +61,10 @@ export function collectRegionSnapshot(
             w: bounds.w,
             h: bounds.h,
             text: editor.getShapeUtil(shape).getText(shape) ?? '',
+            opacity: shape.opacity,
+            ...('color' in shape.props ? { color: shape.props.color } : {}),
+            ...('labelColor' in shape.props ? { labelColor: shape.props.labelColor } : {}),
+            ...('fill' in shape.props ? { fill: shape.props.fill } : {}),
             ...(shape.type === 'geo' ? { geo: shape.props.geo } : {}),
             ...('assetId' in shape.props && shape.props.assetId ? { assetId: shape.props.assetId } : {}),
             ...('url' in shape.props ? { url: shape.props.url } : {}),
