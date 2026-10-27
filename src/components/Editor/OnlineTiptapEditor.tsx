@@ -1,5 +1,4 @@
 'use client'
-import { useUserStore } from "@/app/store/useUserStore"
 import CustomBoradcastChannel from "@/utils/BoradcastChannelProvider"
 import { useRoom, useStatus } from "@liveblocks/react"
 import { LiveblocksYjsProvider } from "@liveblocks/yjs"
@@ -24,7 +23,6 @@ export const OnlineTiptapEditor = ({doc, isLocalloaded}: {
         customProvider: CustomBoradcastChannel
         destroyTimer: ReturnType<typeof setTimeout> | null
     } | null>(null)
-    const id = useUserStore(state => state.id)
     const scheduleDestroy = useCallback((entry: NonNullable<typeof providerRef.current>) => {
         if (entry.destroyTimer) return
         // Liveblocks destroy() also destroys the shared Y.Doc; defer so StrictMode cleanup can be canceled.
@@ -52,7 +50,7 @@ export const OnlineTiptapEditor = ({doc, isLocalloaded}: {
         }
 
         const yProvider = new LiveblocksYjsProvider(room, doc)
-        const customProvider = new CustomBoradcastChannel(id, doc)
+        const customProvider = new CustomBoradcastChannel(room.id, doc)
         const entry = { doc, provider: yProvider, customProvider, destroyTimer: null }
         providerRef.current = entry
         setProvider(yProvider)
@@ -65,7 +63,7 @@ export const OnlineTiptapEditor = ({doc, isLocalloaded}: {
         return () => {
             scheduleDestroy(entry)
         }
-    }, [isLocalloaded, room, doc, id, scheduleDestroy])
+    }, [isLocalloaded, room, doc, scheduleDestroy])
     // 更改 status 视图
     const toggleNetworkStatus = useNetworkStore(state => state.toggleNetworkStatus)
     useEffect(() => {

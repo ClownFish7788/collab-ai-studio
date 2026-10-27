@@ -12,6 +12,15 @@
     }
 }
 
+.draftDemo {
+    display: grid;
+    gap: 6px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    span { font-size: 12px; color: var(--text-color); opacity: 0.7; }
+    button { padding: 8px; font: inherit; cursor: pointer; color: var(--text-color); background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 6px; }
+}
+
 .drawer {
     overflow: hidden;
     backdrop-filter: none;

@@ -22,7 +22,6 @@ class CustomBoradcastChannel {
     }
     private onMessage = (event: MessageEvent) => {
         const data = event.data
-        console.log(data)
         switch (data.type) {
             case 'update':
                 Y.applyUpdate(this.doc, data.update, this)

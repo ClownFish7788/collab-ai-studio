@@ -8,12 +8,12 @@ import { useOnlineYjsStore } from '@/hooks/useOnlineYjsStore' // 🌟 注意名�
 import { usePasteImageToTldraw } from '@/hooks/usePasteImageToTldraw'
 import { getYjsProviderForRoom } from '@liveblocks/yjs'
 import { useRoom } from '@liveblocks/react'
-import { useOptimizedTldrawSync } from '@/hooks/useOptimizedTldrawSync'
 import useStyleStore from '@/app/store/useStyleStore'
 import { randomHexColor } from '@/utils/randomColor'
 import useEditorStore from '@/app/store/useEditorStore'
 import { useUserStore } from '@/app/store/useUserStore'
 import AIChat from '../AIChat/AIChat'
+import BoardDraftProvider from './BoardDraftProvider'
 
 const OnlineDrawEditor = ({licenseKey}: {
     licenseKey: string
@@ -34,7 +34,6 @@ const OnlineDrawEditor = ({licenseKey}: {
     })
     
     const role = useEditorStore(state => state.role)
-    useOptimizedTldrawSync(tldrawRef, yDoc, yProvider)
     usePasteImageToTldraw(tldrawRef)
 
     const theme = useStyleStore((state) => state.theme)
@@ -47,16 +46,18 @@ const OnlineDrawEditor = ({licenseKey}: {
 
     return (
         <div className={styles.container}>
+            <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={room.id} canEdit={role === 'owner' || role === 'collaborator'}>
             <Tldraw
                 components={{ SharePanel: AIChat }}
                 licenseKey={licenseKey}
                 store={storeWithStatus.store}
                 onMount={(editor) => {
                     editor.user.updateUserPreferences({ locale: 'zh-cn' })
-                    editor.updateInstanceState({isReadonly: role === 'viewer'})
+                    editor.updateInstanceState({isReadonly: role !== 'owner' && role !== 'collaborator'})
                     setTldrawRef(editor)
                 }}
             />
+            </BoardDraftProvider>
         </div>
     )
 }

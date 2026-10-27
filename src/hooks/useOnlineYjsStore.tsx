@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRoom } from "@liveblocks/react";
 import { LiveblocksYjsProvider } from "@liveblocks/yjs";
 import { YKeyValue } from "y-utility/y-keyvalue";
@@ -43,22 +43,16 @@ export function useOnlineYjsStore(yDoc: Y.Doc, yProvider: LiveblocksYjsProvider,
     return { yStore, indexDbProvider };
   }, [room, yDoc]);
   
-  const customProvider = useRef<CustomBoradcastChannel | null>(null)
   const isOpenNetwork = useNetworkStore(state => state.isOpenNetwork)
   const toggleNetworkStatus = useNetworkStore(state => state.toggleNetworkStatus)
 
   useEffect(() => {
-    toggleRealtimeEditing(yProvider, !isOpenNetwork, customProvider.current)
-    customProvider.current = null
+    toggleRealtimeEditing(yProvider, !isOpenNetwork, null)
     if(isOpenNetwork && user) {
-      customProvider.current = new CustomBoradcastChannel(user?.id, yDoc)
+      const channel = new CustomBoradcastChannel(room.id, yDoc)
+      return () => channel.destroy()
     }
-    return () => {
-      if(customProvider.current) {
-        customProvider.current.destroy()
-      }
-    }
-  }, [isOpenNetwork, yProvider, toggleNetworkStatus, yDoc, user])
+  }, [isOpenNetwork, yProvider, toggleNetworkStatus, yDoc, user, room.id])
 
   const [store] = useState(() => {
     return createTLStore({ shapeUtils: [...defaultShapeUtils, ...shapeUtils] });

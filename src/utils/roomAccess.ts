@@ -7,6 +7,14 @@ export type RoomValidationResult = {
   }
 }
 
+// undefined 表示校验失败且无法确认权限；null 表示服务端明确拒绝访问。
+export const getConfirmedRoomRole = (status: number, result: RoomValidationResult): Role | undefined => {
+  if (status === 401 || status === 403 || status === 404) return null
+  const role = result?.message?.role
+  if (status === 200 && result?.success && (role === 'owner' || role === 'collaborator' || role === 'viewer')) return role
+  return undefined
+}
+
 export const resolveRoomAccess = (
   authenticated: boolean,
   localDoc: boolean,

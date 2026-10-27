@@ -15,6 +15,7 @@ import { validateChatSnapshot } from '../../utils/chatSnapshots'
 import type { RegionSnapshot } from '../../utils/collectRegionSnapshot'
 import { IMAGE_MIME_TYPES, MAX_IMAGES_PER_MESSAGE, readImage, toMessageContent, type ImageAttachment } from '../../utils/images'
 import styles from './AIChat.module.scss'
+import { useBoardDraft } from '../DrawEditor/BoardDraftProvider'
 
 type ChatMessage = {
     id: string
@@ -25,6 +26,7 @@ type ChatMessage = {
 }
 
 const AIChatPanel = () => {
+    const boardDraft = useBoardDraft()
     const selectionStore = useBoardSelectionStore()
     const hasSelection = useStore(selectionStore, state => !!state.snapshot?.shapes.length)
     const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -184,8 +186,8 @@ const AIChatPanel = () => {
                     role="dialog"
                     aria-modal="true"
                     aria-label="白板 AI 助手"
-                    inert={previewImage !== null || isSelecting}
-                    aria-hidden={previewImage || isSelecting ? true : undefined}
+                    inert={previewImage !== null || isSelecting || boardDraft.active}
+                    aria-hidden={previewImage || isSelecting || boardDraft.active ? true : undefined}
                     data-closing={isClosing}
                     onPaste={handlePaste}
                     onAnimationEnd={event => {
@@ -259,6 +261,12 @@ const AIChatPanel = () => {
                         ))}
                     </div>
 
+                    <div className={styles.draftDemo}>
+                        <button type="button" disabled={!boardDraft.canStart || isStreaming || isReadingImages || isSelecting} onClick={boardDraft.startDraft}>
+                            本地演示：画圆并预览
+                        </button>
+                        <span>不调用 AI，先体验草稿确认流程</span>
+                    </div>
                     <form className={styles.composer} onSubmit={handleSend}>
                         {error && <p className={styles.error} role="alert">{error}</p>}
                         <SelectedElementsAttachment onRemove={() => inputRef.current?.focus()} />
