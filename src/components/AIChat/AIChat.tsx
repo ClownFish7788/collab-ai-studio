@@ -234,7 +234,7 @@ const AIChatPanel = () => {
                         </div>
                     </header>
 
-                    <p className={styles.notice}>支持文字、图片和所选白板元素对话，暂不执行白板操作。</p>
+                    <p className={styles.notice}>普通对话用于分析；需要 AI 新增图形时，请进入下方草稿演示。</p>
 
                     <div ref={messageListRef} className={styles.messages} role="log" aria-label="聊天记录" aria-live="polite">
                         {messages.length === 0 ? (
@@ -263,9 +263,9 @@ const AIChatPanel = () => {
 
                     <div className={styles.draftDemo}>
                         <button type="button" disabled={!boardDraft.canStart || isStreaming || isReadingImages || isSelecting} onClick={boardDraft.startDraft}>
-                            本地测试：新增 / 修改 / 删除
+                            AI 新增 / 草稿测试
                         </button>
-                        <span>用固定数据测试草稿操作，不调用 AI</span>
+                        <span>在独立草稿里体验 AI 新增，确认后应用</span>
                     </div>
                     <form className={styles.composer} onSubmit={handleSend}>
                         {error && <p className={styles.error} role="alert">{error}</p>}

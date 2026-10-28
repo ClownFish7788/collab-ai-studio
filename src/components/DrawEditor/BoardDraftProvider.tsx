@@ -31,6 +31,8 @@ import { DRAFT_SHAPE_TYPES, type DraftShapeType } from '@/utils/boardDraft'
 import { BASE_SHAPE_PROPS, SHAPE_PROPERTY_CASES, TEST_ASSETS } from '@/utils/draftShapeTestCases'
 import { runDraftPropertyTests, type PropertyTestReport } from '@/utils/draftShapePropertyTests'
 import { getConfirmedRoomRole } from '@/utils/roomAccess'
+import { createBoardToolRunner } from '@/utils/executeBoardCreateTool'
+import { streamBoardCreateRun, type CreateAgentStep } from '@/utils/streamBoardCreateRun'
 import { toast } from '@/components/Toast'
 import Modal from '../Modal/Modal'
 import styles from './BoardDraft.module.scss'
@@ -82,15 +84,27 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
     const [shapeType, setShapeType] = useState<DraftShapeType>('geo')
     const [testing, setTesting] = useState(false)
     const [testReport, setTestReport] = useState<PropertyTestReport | null>(null)
+    const [agentPrompt, setAgentPrompt] = useState('画一个蓝色的圆')
+    const [agentRunning, setAgentRunning] = useState(false)
+    const [agentSteps, setAgentSteps] = useState<CreateAgentStep[]>([])
+    const [agentText, setAgentText] = useState('')
     const draftEditorRef = useRef<Editor | null>(null)
     const activeRef = useRef<BoardDraft | null>(null)
     const requestRef = useRef<AbortController | null>(null)
+    const agentRequestRef = useRef<AbortController | null>(null)
+    const canEditRef = useRef(canEdit)
     const triggerRef = useRef<HTMLElement | null>(null)
     const theme = useStyleStore(state => state.theme)
     const mode = useSearchParams().get('mode')
 
     useEffect(
         () => {
+            canEditRef.current = canEdit
+
+            if (!canEdit) {
+                agentRequestRef.current?.abort()
+            }
+
             if (!editor || editor.isDisposed) {
                 return
             }
@@ -109,6 +123,8 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             activeRef.current = null
             requestRef.current?.abort()
             requestRef.current = null
+            agentRequestRef.current?.abort()
+            agentRequestRef.current = null
             setPreview(null)
             setReady(false)
             setApplying(false)
@@ -118,6 +134,9 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             setOperationResult('')
             setTesting(false)
             setTestReport(null)
+            setAgentRunning(false)
+            setAgentSteps([])
+            setAgentText('')
             draftEditorRef.current = null
         },
         [roomId, mode]
@@ -131,6 +150,8 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         activeRef.current = null
         requestRef.current?.abort()
         requestRef.current = null
+        agentRequestRef.current?.abort()
+        agentRequestRef.current = null
         setPreview(null)
         setReady(false)
         setApplying(false)
@@ -140,6 +161,9 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         setOperationResult('')
         setTesting(false)
         setTestReport(null)
+        setAgentRunning(false)
+        setAgentSteps([])
+        setAgentText('')
         draftEditorRef.current = null
         requestAnimationFrame(() => triggerRef.current?.isConnected && triggerRef.current.focus())
     }
@@ -183,7 +207,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
     const testOperation = (kind: 'create' | 'update' | 'delete') => {
         const draftEditor = draftEditorRef.current
 
-        if (!preview || !draftEditor || activeRef.current !== preview.draft || !ready || testing || applying || !canEdit) {
+        if (!preview || !draftEditor || activeRef.current !== preview.draft || !ready || testing || applying || agentRequestRef.current || !canEdit) {
             return
         }
 
@@ -255,7 +279,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         const draft = activeRef.current
         const draftEditor = draftEditorRef.current
 
-        if (!draft || !draftEditor || testing || applying || !ready) {
+        if (!draft || !draftEditor || testing || applying || agentRequestRef.current || !ready) {
             return
         }
 
@@ -285,10 +309,79 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         }
     }
 
+    // 前端只启动任务、接收事件和执行本地工具；模型循环由后端持有。
+    const runAgent = async () => {
+        const draft = activeRef.current
+        const draftEditor = draftEditorRef.current
+
+        if (!draft || !draftEditor || !preview || !ready || testing || applying || agentRequestRef.current || !canEdit) {
+            return
+        }
+
+        const prompt = agentPrompt.trim()
+        if (!prompt) return
+
+        const controller = new AbortController()
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(80000)])
+        const reference = { ...preview.center }
+
+        agentRequestRef.current = controller
+        setAgentRunning(true)
+        setAgentSteps([])
+        setAgentText('')
+        setError('')
+
+        const assertActive = () => {
+            signal.throwIfAborted()
+
+            if (activeRef.current !== draft || draft.status !== 'active' || draftEditorRef.current !== draftEditor || !canEditRef.current) {
+                throw new Error('任务已失效或编辑权限已改变')
+            }
+        }
+
+        const execute = createBoardToolRunner({
+            reference,
+            assertActive,
+            create: inputs => {
+                assertActive()
+                const shapes = createDraftShapes(draft, draftEditor, inputs)
+
+                setTargetId(shapes[0].id)
+                setChanges(getDraftChanges(draft))
+                setOperationResult(JSON.stringify(shapes, null, 2))
+                return shapes
+            },
+        })
+
+        try {
+            const result = await streamBoardCreateRun({ roomId, prompt, reference }, signal, execute, step => {
+                if (activeRef.current === draft && agentRequestRef.current === controller) {
+                    setAgentSteps(previous => [...previous, step])
+                }
+            })
+
+            assertActive()
+            setAgentText(result.text)
+
+            if (!result.output.ok) {
+                setError(result.output.error)
+            }
+        } catch (cause) {
+            if (activeRef.current === draft && !controller.signal.aborted) {
+                setError(cause instanceof Error ? cause.message : 'AI 新增失败，已成功的内容保留在草稿中')
+            }
+        } finally {
+            if (agentRequestRef.current === controller) {
+                agentRequestRef.current = null
+                setAgentRunning(false)
+            }
+        }
+    }
+
     const applyDraft = async () => {
         const draft = activeRef.current
 
-        if (!editor || editor.isDisposed || !draft || !ready || testing || requestRef.current) {
+        if (!editor || editor.isDisposed || !draft || !ready || testing || agentRequestRef.current || requestRef.current) {
             return
         }
 
@@ -395,7 +488,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                         return
                     }
 
-                    const buttons = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), textarea:not(:disabled)')]
+                    const buttons = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')]
                         .filter(button => !button.closest('[inert]'))
                     const first = buttons[0]
                     const last = buttons[buttons.length - 1]
@@ -416,18 +509,46 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
 
                     <div>
                         <h2>白板草稿</h2>
-                        <p>本地测试 · 修改先进入草稿，确认后应用到正式白板</p>
+                        <p>修改先进入草稿，确认后应用到正式白板</p>
                     </div>
 
                     <button
                         type="button"
                         onClick={closeDraft}
                         autoFocus
-                    >放弃草稿</button>
+                    >{agentRunning ? '停止并放弃草稿' : '放弃草稿'}</button>
 
                 </header>
 
                 <div className={styles.tests}>
+
+                    <form className={styles.agent} onSubmit={event => { event.preventDefault(); void runAgent() }}>
+                        <label htmlFor={`create-agent-${preview.draft.runId}`}>AI 新增 · 最小闭环</label>
+                        <div className={styles.testActions}>
+                            <input
+                                id={`create-agent-${preview.draft.runId}`}
+                                aria-label="AI 新增需求"
+                                value={agentPrompt}
+                                maxLength={1000}
+                                disabled={agentRunning || testing || applying || !canEdit}
+                                onChange={event => setAgentPrompt(event.target.value)}
+                            />
+                            <button type="submit" disabled={!ready || agentRunning || testing || applying || !canEdit || !agentPrompt.trim()}>
+                                {agentRunning ? 'AI 新增中…' : '让 AI 新增'}
+                            </button>
+                        </div>
+                        <p>本版新增圆/椭圆、矩形、菱形，每次最多 5 个；以进入草稿时的视口中心为参照点。</p>
+                        {agentSteps.length > 0 && <details className={styles.report} open>
+                            <summary>工具闭环记录（{agentSteps.length}/4）</summary>
+                            <ol aria-label="新增工具执行记录">
+                                {agentSteps.map(step => <li key={step.stage}>
+                                    {step.message}
+                                    {step.data && <pre>{JSON.stringify(step.data, null, 2)}</pre>}
+                                </li>)}
+                            </ol>
+                        </details>}
+                        {agentText && <p role="status" className={styles.result}>模型说明：{agentText}</p>}
+                    </form>
 
                     <div
                         className={styles.testActions}
@@ -438,7 +559,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                         <label>元素类型 <select
                             aria-label="元素类型"
                             value={shapeType}
-                            disabled={testing || applying}
+                            disabled={testing || applying || agentRunning}
                             onChange={event => setShapeType(event.target.value as DraftShapeType)}
                         >
                             {DRAFT_SHAPE_TYPES.map(type => <option key={type} value={type}>
@@ -448,19 +569,19 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
 
                         <button
                             type="button"
-                            disabled={!ready || applying || testing || !canEdit}
+                            disabled={!ready || applying || testing || agentRunning || !canEdit}
                             onClick={() => testOperation('create')}
                         >测试新增</button>
 
                         <button
                             type="button"
-                            disabled={!ready || applying || testing || !canEdit || !targetId}
+                            disabled={!ready || applying || testing || agentRunning || !canEdit || !targetId}
                             onClick={() => testOperation('update')}
                         >测试修改</button>
 
                         <button
                             type="button"
-                            disabled={!ready || applying || testing || !canEdit || !targetId}
+                            disabled={!ready || applying || testing || agentRunning || !canEdit || !targetId}
                             onClick={() => testOperation('delete')}
                         >测试删除</button>
 
@@ -468,7 +589,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
 
                     <button
                         type="button"
-                        disabled={!ready || applying || testing || !canEdit}
+                        disabled={!ready || applying || testing || agentRunning || !canEdit}
                         onClick={() => void testAllProperties()}
                     >
                         {testing ? '逐属性测试中…' : '运行全属性测试'}
@@ -538,7 +659,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                     <button
                         type="button"
                         className={styles.apply}
-                        disabled={!ready || applying || testing || !canEdit || !changes.added.length && !changes.updated.length && !changes.removed.length}
+                        disabled={!ready || applying || testing || agentRunning || !canEdit || !changes.added.length && !changes.updated.length && !changes.removed.length}
                         onClick={() => void applyDraft()}
                     >
 

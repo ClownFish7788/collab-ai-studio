@@ -88,6 +88,9 @@
 
 .tests {
     padding: 10px 16px;
+    max-height: 55%;
+    overflow: auto;
+    flex-shrink: 0;
     border-bottom: 1px solid var(--border-color);
 
     p {
@@ -150,4 +153,40 @@
     background: var(--bg-color);
     color: var(--text-color);
     font-size: 11px;
+}
+
+.agent {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+
+    > label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    input {
+        flex: 1;
+        min-width: 100px;
+        padding: 9px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-color);
+        background: var(--bg-color);
+        font: inherit;
+    }
+
+    ol {
+        margin: 8px 0;
+        padding-left: 24px;
+    }
+
+    pre {
+        margin: 4px 0 8px;
+        font-size: 11px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
 }
