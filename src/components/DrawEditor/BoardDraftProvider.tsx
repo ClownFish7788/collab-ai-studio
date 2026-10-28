@@ -362,10 +362,6 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
 
             assertActive()
             setAgentText(result.text)
-
-            if (!result.output.ok) {
-                setError(result.output.error)
-            }
         } catch (cause) {
             if (activeRef.current === draft && !controller.signal.aborted) {
                 setError(cause instanceof Error ? cause.message : 'AI 新增失败，已成功的内容保留在草稿中')

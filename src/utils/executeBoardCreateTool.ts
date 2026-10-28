@@ -2,7 +2,9 @@ import type { TLShape } from 'tldraw'
 import type { CreateDraftShapeInput } from './draftShapeOperations'
 import {
     validateCreateCall,
-    validateCreateInput,
+    parseCreateInput,
+    BoardProtocolError,
+    ERROR_CODES,
     type CreateToolOutput,
     type CreatedToolShape,
 } from './boardCreateProtocol'
@@ -35,7 +37,7 @@ export function createBoardToolRunner({ reference, assertActive, create }: {
         let output: CreateToolOutput
 
         try {
-            const input = validateCreateInput(JSON.parse(call.function.arguments))
+            const input = parseCreateInput(call.function.arguments)
             const shapes = create(input.shapes.map(shape => ({
                 type: 'geo',
                 x: reference.x + shape.x,
@@ -65,7 +67,11 @@ export function createBoardToolRunner({ reference, assertActive, create }: {
                 }),
             }
         } catch (cause) {
-            output = { ok: false, error: (cause instanceof Error ? cause.message : '新增失败').slice(0, 1000) }
+            output = {
+                ok: false,
+                error: cause instanceof BoardProtocolError ? cause.detail
+                    : { code: ERROR_CODES.EXECUTION_FAILED, message: '草稿新增执行失败，本轮不自动重放操作' },
+            }
         }
 
         results.set(call.id, { arguments: call.function.arguments, output })

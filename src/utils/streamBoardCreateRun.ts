@@ -1,5 +1,5 @@
 import {
-    validateCreateCall,
+    validateBoardCreateEvent,
     validateCreateOutput,
     type BoardCreateRequest,
     type CreateToolCall,
@@ -53,7 +53,7 @@ export async function streamBoardCreateRun(
         const decoder = new TextDecoder()
         let pending = ''
         let runId = ''
-        let executed = false
+        let localOutput: CreateToolOutput | undefined
 
         while (true) {
             const chunk = await reader.read()
@@ -67,11 +67,11 @@ export async function streamBoardCreateRun(
                 pending = pending.slice(newline + 1)
                 if (!line.trim()) continue
 
-                const event = JSON.parse(line)
+                const event = validateBoardCreateEvent(JSON.parse(line))
                 transportSignal.throwIfAborted()
 
                 if (event.type === 'started') {
-                    if (runId || typeof event.runId !== 'string' || !/^[\w-]{1,100}$/.test(event.runId)) {
+                    if (runId) {
                         throw new Error('后端任务 ID 不合法')
                     }
 
@@ -81,27 +81,31 @@ export async function streamBoardCreateRun(
                 }
 
                 if (!runId || event.runId !== runId) throw new Error('收到其他任务的事件')
-                if (event.type === 'error') throw new Error(typeof event.error === 'string' ? event.error : '后端任务失败')
+                if (event.type === 'error') throw new Error(event.error.message)
 
                 if (event.type === 'tool') {
-                    if (executed) throw new Error('收到重复的写工具事件，已停止执行')
+                    if (localOutput) throw new Error('收到重复的写工具事件，已停止执行')
 
-                    const call = validateCreateCall(event.call)
+                    const call = event.call
                     onStep({ stage: 'call', message: '② 后端请求 create_shapes，浏览器执行草稿新增', data: call })
                     const output = validateCreateOutput(execute(call))
-                    executed = true
+                    localOutput = output
                     onStep({ stage: 'result', message: '③ 提交真实结果，等待后端继续循环', data: output })
                     await post(`/api/board-create/${runId}/result`, { callId: call.id, output })
                     continue
                 }
 
                 if (event.type === 'completed') {
-                    if (!executed || typeof event.text !== 'string' || !event.text.trim() || event.text.length > 8000) {
-                        throw new Error('后端完成事件不合法')
+                    const output = event.output
+                    if (localOutput ? !localOutput.ok || !output
+                        || localOutput.shapes.length !== output.shapes.length
+                        || localOutput.shapes.some((shape, index) =>
+                            (Object.keys(shape) as (keyof typeof shape)[]).some(key => shape[key] !== output.shapes[index][key]))
+                        : output !== undefined) {
+                        throw new Error('后端完成结果与本地实际执行结果不一致')
                     }
 
-                    const output = validateCreateOutput(event.output)
-                    onStep({ stage: 'summary', message: '④ 后端已结束循环，等待用户确认' })
+                    onStep({ stage: 'summary', message: output ? '④ 后端已结束循环，等待用户确认' : '后端已结束循环，本轮未执行白板操作' })
                     return { text: event.text, output }
                 }
 

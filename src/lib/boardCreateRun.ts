@@ -1,7 +1,9 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
 import {
     validateCreateCall,
-    validateCreateInput,
+    parseCreateInput,
+    BoardProtocolError,
+    ERROR_CODES,
     validateCreateOutput,
     type BoardCreateEvent,
     type BoardCreateReply,
@@ -108,7 +110,7 @@ async function executeInBrowser(
 /**
  * 后端 Agent 循环：自己维护模型历史、调用上限、工具等待和终止条件。
  * 输入模型适配器、前端事件通道与权限复核；成功推送 completed，异常由路由转为 error 事件。
- * 最小版本预算为两次模型请求、一次新增调用；浏览器只提供执行结果，不能追加模型历史。
+ * 最多三次模型请求（含一次参数纠错）、一次实际新增；浏览器不能追加模型历史。
  */
 export async function runCreateLoop(
     run: CreateRun,
@@ -123,34 +125,46 @@ export async function runCreateLoop(
         { role: 'user', content: request.prompt },
     ]
     let output: CreateToolOutput | undefined
+    let repaired = false
 
     try {
         await emit({ type: 'started', runId: run.id })
 
-        for (let step = 0; step < 2; step++) {
+        for (let step = 0; step < 3; step++) {
             run.signal.throwIfAborted()
             await checkAccess()
             run.signal.throwIfAborted()
 
-            const reply = await model(messages, step === 0)
+            const reply = await model(messages, !output)
             run.signal.throwIfAborted()
 
             if (reply.kind === 'text') {
-                if (!output) throw new Error('模型没有调用新增工具，本次没有新增图形')
-
-                await emit({ type: 'completed', runId: run.id, text: reply.text, output })
+                await emit({ type: 'completed', runId: run.id, text: reply.text, ...(output?.ok ? { output } : {}) })
                 return
             }
-            if (step !== 0) throw new Error('后端新增工具调用次数已达上限')
+            if (output) throw new Error('后端新增工具调用次数已达上限')
 
             const call = validateCreateCall(reply.call)
-            validateCreateInput(JSON.parse(call.function.arguments))
+            try {
+                parseCreateInput(call.function.arguments)
+            } catch (cause) {
+                if (!(cause instanceof BoardProtocolError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS || repaired) throw cause
+
+                repaired = true
+                messages.push(
+                    { role: 'assistant', content: reply.content ?? null, tool_calls: [call] },
+                    { role: 'tool', tool_call_id: call.id, content: JSON.stringify({ ok: false, error: cause.detail }) },
+                )
+                continue
+            }
             // 模型请求可能耗时较长，发出写工具前再确认编辑权限。
             await checkAccess()
             run.signal.throwIfAborted()
             output = await executeInBrowser(run, call, emit, waitMs)
+            if (!output.ok) throw new BoardProtocolError(output.error)
+
             messages.push(
-                { role: 'assistant', content: null, tool_calls: [call] },
+                { role: 'assistant', content: reply.content ?? null, tool_calls: [call] },
                 { role: 'tool', tool_call_id: call.id, content: JSON.stringify(output) },
             )
         }

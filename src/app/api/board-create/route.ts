@@ -1,7 +1,7 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
-import { BoardCreateModelError, requestBoardCreateModel } from '@/lib/boardCreateModel'
+import { requestBoardCreateModel } from '@/lib/boardCreateModel'
 import { beginCreateRun, runCreateLoop } from '@/lib/boardCreateRun'
-import { validateBoardCreateRequest, type BoardCreateEvent } from '@/utils/boardCreateProtocol'
+import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/boardCreateProtocol'
 
 export const maxDuration = 60
 
@@ -65,11 +65,11 @@ export async function POST(request: Request) {
                         () => requireCreateAccess(payload.roomId, userId),
                     )
                 } catch (cause) {
-                    const error = cause instanceof BoardCreateModelError || cause instanceof CreateAccessError
-                        ? cause.message
-                        : activeRun.signal.aborted
-                            ? '任务已取消或超时，已完成的内容仅保留在草稿中'
-                            : '后端新增任务失败，已完成的内容仅保留在草稿中'
+                    const error: BoardAgentError = activeRun.signal.aborted
+                        ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时，已完成的内容仅保留在草稿中' }
+                        : cause instanceof BoardProtocolError ? cause.detail
+                            : cause instanceof CreateAccessError ? { code: ERROR_CODES.ACCESS_DENIED, message: cause.message }
+                                : { code: ERROR_CODES.TASK_FAILED, message: '后端新增任务失败，已完成的内容仅保留在草稿中' }
 
                     try { emit({ type: 'error', runId: activeRun.id, error }) } catch { /* 连接已关闭。 */ }
                 } finally {
