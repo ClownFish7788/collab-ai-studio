@@ -19,7 +19,7 @@ export async function POST(request: Request) {
         try {
             payload = validateBoardCreateRequest(await readCreatePayload(request))
         } catch {
-            return Response.json({ error: '新增请求或文字历史不合法，不能提交工具调用或结果' }, { status: 400 })
+            return Response.json({ error: '白板请求或文字历史不合法，不能提交工具调用或结果' }, { status: 400 })
         }
 
         await requireCreateAccess(payload.roomId, userId)
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
         const window = windows.get(userId) ?? { start: now, count: 0 }
         if (window.count >= 6) {
-            return Response.json({ error: '新增任务过于频繁，请稍后再试' }, { status: 429 })
+            return Response.json({ error: '白板任务过于频繁，请稍后再试' }, { status: 429 })
         }
 
         const apiKey = process.env.API_KEY?.trim()
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
                         ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时，已完成的内容仅保留在草稿中' }
                         : cause instanceof BoardProtocolError ? cause.detail
                             : cause instanceof CreateAccessError ? { code: ERROR_CODES.ACCESS_DENIED, message: cause.message }
-                                : { code: ERROR_CODES.TASK_FAILED, message: '后端新增任务失败，已完成的内容仅保留在草稿中' }
+                                : { code: ERROR_CODES.TASK_FAILED, message: '后端白板任务失败，已完成的内容仅保留在草稿中' }
 
                     try { emit({ type: 'error', runId: activeRun.id, error }) } catch { /* 连接已关闭。 */ }
                 } finally {
@@ -94,6 +94,6 @@ export async function POST(request: Request) {
             return Response.json({ error: cause.message }, { status: cause.status })
         }
 
-        return Response.json({ error: '无法启动新增任务，请检查是否已有任务在运行' }, { status: 409 })
+        return Response.json({ error: '无法启动白板任务，请检查是否已有任务在运行' }, { status: 409 })
     }
 }

@@ -18,7 +18,8 @@ export type CreateShapeParameters = {
 }
 
 export type SnapshotRange = 'viewport' | 'page'
-export type BoardToolName = 'create_shapes' | 'get_board_snapshot' | 'ask_user'
+export type BoardToolName = 'create_shapes' | 'update_shapes' | 'delete_shapes' | 'get_board_snapshot' | 'ask_user'
+export type UpdateShapeParameters = { id: string } & Partial<CreateShapeParameters>
 export type BoardToolCall = {
     id: string
     type: 'function'
@@ -54,6 +55,9 @@ export type CreateToolOutput =
     | { ok: false; error: BoardAgentError }
 
 export type CreateToolSuccess = Extract<CreateToolOutput, { ok: true }>
+export type MutationToolSuccess = CreateToolSuccess
+    | { ok: true; state: 'draft'; operation: 'update'; shapes: UpdateShapeParameters[] }
+    | { ok: true; state: 'draft'; operation: 'delete'; ids: string[] }
 
 export type SnapshotToolSuccess = {
     ok: true
@@ -63,7 +67,7 @@ export type SnapshotToolSuccess = {
     truncated: boolean
 }
 
-export type BoardToolOutput = CreateToolOutput | SnapshotToolSuccess | { ok: true; answer: string }
+export type BoardToolOutput = CreateToolOutput | MutationToolSuccess | SnapshotToolSuccess | { ok: true; answer: string }
 
 export type BoardConversationTurn = { prompt: string; reply: string }
 const MAX_CONVERSATION_TURNS = 6
@@ -91,7 +95,7 @@ export type BoardCreateReply =
 export type BoardCreateEvent =
     | { type: 'started'; runId: string }
     | { type: 'tool'; runId: string; call: BoardToolCall }
-    | { type: 'completed'; runId: string; text: string; output?: CreateToolSuccess }
+    | { type: 'completed'; runId: string; text: string; output?: MutationToolSuccess }
     | { type: 'error'; runId: string; error: BoardAgentError }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -178,6 +182,58 @@ export function parseCreateInput(argumentsText: string): { shapes: CreateShapePa
     return validateCreateInput(parseToolArguments(argumentsText))
 }
 
+const validShapeId = (id: unknown): id is string => typeof id === 'string' && /^shape:[\w-]{1,128}$/.test(id)
+
+/** 部分更新必须至少指定一个可写字段；整批校验完成前不访问 Editor，不改变省略字段。 */
+export function validateUpdateInput(value: unknown): { shapes: UpdateShapeParameters[] } {
+    const issues: NonNullable<BoardAgentError['issues']> = []
+    if (!isRecord(value) || Object.keys(value).some(key => key !== 'shapes')
+        || !Array.isArray(value.shapes) || value.shapes.length < 1 || value.shapes.length > 5) {
+        issues.push({ path: 'shapes', message: '须包含 1～5 个更新项，不能携带其他字段' })
+    } else {
+        const ids = new Set<string>()
+        value.shapes.forEach((shape, index) => {
+            const path = `shapes[${index}]`
+            if (!isRecord(shape)) { issues.push({ path, message: '更新项必须是对象' }); return }
+            if (!validShapeId(shape.id) || ids.has(shape.id)) issues.push({ path: `${path}.id`, message: '须为不重复的真实图形 ID' })
+            else ids.add(shape.id)
+            const patch = { ...shape }
+            delete patch.id
+            if (!Object.keys(patch).length) issues.push({ path, message: '至少指定一个修改字段' })
+            try {
+                // 默认值只用于复用字段约束，不会加入返回的更新数据。
+                validateCreateInput({ shapes: [{ geo: 'rectangle', x: 0, y: 0, w: 100, h: 100, color: 'black', ...patch }] })
+            } catch (cause) {
+                if (!(cause instanceof BoardProtocolError)) throw cause
+                issues.push(...(cause.detail.issues ?? []).map(issue => ({ ...issue, path: issue.path.replace('shapes[0]', path) })))
+            }
+        })
+    }
+    if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '更新参数校验失败', issues })
+    return value as { shapes: UpdateShapeParameters[] }
+}
+
+/** 更新沿用新增的几何/颜色/数值约束；不接受 parentId、type 或原生 props。 */
+export function parseUpdateInput(argumentsText: string): { shapes: UpdateShapeParameters[] } {
+    return validateUpdateInput(parseToolArguments(argumentsText))
+}
+
+/** 删除仅允许 1～5 个唯一 ID；实际存在、类型和授权由当前任务执行器复核。 */
+export function validateDeleteInput(value: unknown): { ids: string[] } {
+    if (!isRecord(value) || Object.keys(value).some(key => key !== 'ids') || !Array.isArray(value.ids)
+        || value.ids.length < 1 || value.ids.length > 5 || !value.ids.every(validShapeId)
+        || new Set(value.ids).size !== value.ids.length) {
+        throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '删除参数校验失败',
+            issues: [{ path: 'ids', message: '须为 1～5 个不重复的真实图形 ID，不能携带其他字段' }] })
+    }
+    return value as { ids: string[] }
+}
+
+/** 解析删除实参；非法 JSON 和字段问题均在执行前转为受控参数错误。 */
+export function parseDeleteInput(argumentsText: string): { ids: string[] } {
+    return validateDeleteInput(parseToolArguments(argumentsText))
+}
+
 /** 读取范围只能是任务绑定页面的视口或全页，模型不能指定其他房间、页面。 */
 export function parseSnapshotInput(argumentsText: string): { range: SnapshotRange } {
     const value = parseToolArguments(argumentsText)
@@ -208,7 +264,7 @@ export function validateBoardToolCall(value: unknown): BoardToolCall {
     fields(value.function, ['name', 'arguments'])
 
     if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 200
-        || value.type !== 'function' || !['create_shapes', 'get_board_snapshot', 'ask_user'].includes(value.function.name as string)
+        || value.type !== 'function' || !['create_shapes', 'update_shapes', 'delete_shapes', 'get_board_snapshot', 'ask_user'].includes(value.function.name as string)
         || typeof value.function.arguments !== 'string' || value.function.arguments.length > 10000) {
         throw new Error('白板工具调用格式不合法')
     }
@@ -275,6 +331,17 @@ export function validateCreateOutput(value: unknown): CreateToolOutput {
 /** 校验读取、回答或新增的结果；成功结构不能混合，错误统一使用受控诊断。 */
 export function validateBoardToolOutput(value: unknown): BoardToolOutput {
     record(value)
+    if (value.ok === true && 'operation' in value) {
+        if (value.state !== 'draft') throw new Error('写入结果须属于草稿')
+        if (value.operation === 'update') {
+            fields(value, ['ok', 'state', 'operation', 'shapes'])
+            validateUpdateInput({ shapes: value.shapes })
+        } else if (value.operation === 'delete') {
+            fields(value, ['ok', 'state', 'operation', 'ids'])
+            validateDeleteInput({ ids: value.ids })
+        } else throw new Error('未知写入结果')
+        return value as MutationToolSuccess
+    }
     if (value.ok === true && 'snapshot' in value) {
         fields(value, ['ok', 'state', 'range', 'snapshot', 'truncated'])
         if (value.state !== 'draft' || value.range !== 'viewport' && value.range !== 'page' || typeof value.truncated !== 'boolean') {
@@ -292,6 +359,37 @@ export function validateBoardToolOutput(value: unknown): BoardToolOutput {
         return value as { ok: true; answer: string }
     }
     return validateCreateOutput(value)
+}
+
+/** 完成事件只能携带真实写入成功；读取和回答不构成白板修改。 */
+export function validateMutationOutput(value: unknown): MutationToolSuccess {
+    const output = validateBoardToolOutput(value)
+    if (!output.ok || !('shapes' in output || 'ids' in output)) throw new Error('写入结果不合法')
+    return output
+}
+
+/** 各信任边界核对结果类型和更新/删除目标，避免结果冒充其他调用。 */
+export function toolOutputMatchesCall(call: BoardToolCall, output: BoardToolOutput): boolean {
+    if (!output.ok) return true
+    switch (call.function.name) {
+        case 'get_board_snapshot': return 'snapshot' in output && output.range === parseSnapshotInput(call.function.arguments).range
+        case 'ask_user': return 'answer' in output
+        case 'create_shapes': return 'shapes' in output && !('operation' in output)
+        case 'update_shapes': {
+            if (!('operation' in output) || output.operation !== 'update') return false
+            const expected = parseUpdateInput(call.function.arguments).shapes
+            return expected.length === output.shapes.length && expected.every((shape, index) => {
+                const actual = output.shapes[index]
+                return Object.keys(shape).length === Object.keys(actual).length
+                    && Object.entries(shape).every(([key, value]) => actual[key as keyof UpdateShapeParameters] === value)
+            })
+        }
+        case 'delete_shapes': {
+            if (!('operation' in output) || output.operation !== 'delete') return false
+            const expected = parseDeleteInput(call.function.arguments).ids
+            return expected.length === output.ids.length && expected.every((id, index) => id === output.ids[index])
+        }
+    }
 }
 
 /** 任务事件是浏览器的信任边界；完成不等于新增，只有实际成功时才携带 output。 */
@@ -317,9 +415,7 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
             if (typeof value.text !== 'string' || !value.text.trim() || value.text.length > 8000) {
                 throw new Error('任务完成说明不合法')
             }
-            if (value.output !== undefined && !validateCreateOutput(value.output).ok) {
-                throw new Error('任务完成事件不能携带失败结果')
-            }
+            if (value.output !== undefined) validateMutationOutput(value.output)
             break
         default:
             throw new Error('未知任务事件')

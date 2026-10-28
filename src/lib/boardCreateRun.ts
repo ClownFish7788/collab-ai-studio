@@ -3,18 +3,21 @@ import { appendChatSnapshot } from '../utils/chatSnapshots'
 import {
     validateBoardToolCall,
     parseCreateInput,
+    parseUpdateInput,
+    parseDeleteInput,
     parseSnapshotInput,
     parseAskInput,
     BoardProtocolError,
     ERROR_CODES,
     validateBoardToolOutput,
+    toolOutputMatchesCall,
     type BoardCreateEvent,
     type BoardCreateReply,
     type BoardCreateRequest,
     type BoardToolCall,
     type BoardToolOutput,
     type BoardToolName,
-    type CreateToolSuccess,
+    type MutationToolSuccess,
 } from '../utils/boardCreateProtocol'
 
 type PendingTool = {
@@ -42,7 +45,7 @@ export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSig
     signal.throwIfAborted()
 
     if ([...runs.values()].some(run => run.ownerId === ownerId && !run.signal.aborted)) {
-        throw new Error('已有运行中的新增任务')
+        throw new Error('已有运行中的白板任务')
     }
 
     const controller = new AbortController()
@@ -75,14 +78,7 @@ export function submitCreateResult(id: string, ownerId: string, callId: string, 
     if (!pending || pending.call.id !== callId) {
         throw new Error('当前任务没有等待这个工具调用')
     }
-    if (output.ok) {
-        const name = pending.call.function.name
-        if (name === 'get_board_snapshot' ? !('snapshot' in output)
-            || output.range !== parseSnapshotInput(pending.call.function.arguments).range
-            : name === 'ask_user' ? !('answer' in output) : !('shapes' in output)) {
-            throw new Error('工具结果与当前调用不匹配')
-        }
-    }
+    if (!toolOutputMatchesCall(pending.call, output)) throw new Error('工具结果与当前调用不匹配')
     if (pending.output) {
         if (JSON.stringify(pending.output) !== JSON.stringify(output)) {
             throw new Error('工具结果已提交，不能替换')
@@ -123,7 +119,7 @@ async function executeInBrowser(
 /**
  * 后端 Agent 循环：自己维护模型历史、调用上限、工具等待和终止条件。
  * 输入模型适配器、前端事件通道与权限复核；成功推送 completed，异常由路由转为 error 事件。
- * 最多六次模型请求：两次读取、一次询问、一次参数纠错、一次实际新增及总结。
+ * 最多六次模型请求：两次读取、一次询问、一次参数纠错、一次实际写入及总结。
  * 用户答案作为原调用的工具结果进入历史；跨轮仅接受校验后的文字，工具历史始终由本任务维护。
  */
 export async function runCreateLoop(
@@ -142,8 +138,9 @@ export async function runCreateLoop(
         ]),
         { role: 'user', content: request.snapshot ? appendChatSnapshot(request.prompt, request.snapshot) : request.prompt },
     ]
-    let output: CreateToolSuccess | undefined
+    let output: MutationToolSuccess | undefined
     let reference = request.snapshot ? { ...request.snapshot.reference } : undefined
+    const seenIds = new Set(request.snapshot?.shapes.map(shape => shape.id as string))
     let repaired = false
     let reads = 0
     let asks = 0
@@ -160,7 +157,10 @@ export async function runCreateLoop(
             if (!output) {
                 if (reads < 2) allowedTools.push('get_board_snapshot')
                 if (asks < 1) allowedTools.push('ask_user')
-                if (reference) allowedTools.push('create_shapes')
+                if (reference) {
+                    allowedTools.push('create_shapes')
+                    if (seenIds.size) allowedTools.push('update_shapes', 'delete_shapes')
+                }
             }
             const reply = await model(messages, allowedTools)
             run.signal.throwIfAborted()
@@ -174,7 +174,16 @@ export async function runCreateLoop(
             try {
                 if (call.function.name === 'get_board_snapshot') parseSnapshotInput(call.function.arguments)
                 else if (call.function.name === 'ask_user') parseAskInput(call.function.arguments)
-                else parseCreateInput(call.function.arguments)
+                else if (call.function.name === 'create_shapes') parseCreateInput(call.function.arguments)
+                else {
+                    const ids = call.function.name === 'update_shapes'
+                        ? parseUpdateInput(call.function.arguments).shapes.map(shape => shape.id)
+                        : parseDeleteInput(call.function.arguments).ids
+                    if (ids.some(id => !seenIds.has(id))) throw new BoardProtocolError({
+                        code: ERROR_CODES.INVALID_ARGUMENTS, message: '目标不在本任务已提供的快照中',
+                        issues: [{ path: call.function.name === 'update_shapes' ? 'shapes' : 'ids', message: '仅使用附件或本任务读取结果实际返回的 ID；不能沿用历史 ID 或编造' }],
+                    })
+                }
             } catch (cause) {
                 if (!(cause instanceof BoardProtocolError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS || repaired) throw cause
 
@@ -196,6 +205,7 @@ export async function runCreateLoop(
                     throw new Error('任务快照参照点发生变化')
                 }
                 reference ??= { ...point }
+                result.snapshot.shapes.forEach(shape => seenIds.add(shape.id))
                 reads++
             } else if ('answer' in result) asks++
             else output = result

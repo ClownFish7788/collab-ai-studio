@@ -34,6 +34,42 @@ export const boardCreateTool = {
     },
 } as const
 
+/** 仅开放基础几何的部分更新；身份、层级、旋转等原生字段不进入模型协议。 */
+export const boardUpdateTool = {
+    type: 'function',
+    function: {
+        name: 'update_shapes',
+        description: '在草稿更新 1～5 个已通过本任务附件或读取工具获得真实 ID 的基础几何。只支持页面直属、无旋转、未锁定的 ellipse/rectangle/diamond。每项至少一个修改字段；省略字段保留原值，x/y 为相对固定参照点的左上角坐标。对象不唯一先读取或询问。整批失败不执行，不提交正式白板。',
+        parameters: {
+            type: 'object', additionalProperties: false, required: ['shapes'],
+            properties: {
+                shapes: {
+                    type: 'array', minItems: 1, maxItems: 5,
+                    items: {
+                        type: 'object', additionalProperties: false, required: ['id'], minProperties: 2,
+                        properties: { id: { type: 'string', pattern: '^shape:[\\w-]{1,128}$' },
+                            ...boardCreateTool.function.parameters.properties.shapes.items.properties },
+                    },
+                },
+            },
+        },
+    },
+} as const
+
+/** 删除只接收任务已见的 ID，不能提交容器或连带删除其他类型元素。 */
+export const boardDeleteTool = {
+    type: 'function',
+    function: {
+        name: 'delete_shapes',
+        description: '在草稿删除 1～5 个已通过本任务附件或读取工具获得真实 ID 的基础几何。仅页面直属、无旋转、未锁定的 ellipse/rectangle/diamond。ids 不重复，不编造 ID；目标不明确先读取或询问。只生成待确认的删除草稿，不提交正式白板。',
+        parameters: {
+            type: 'object', additionalProperties: false, required: ['ids'],
+            properties: { ids: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true,
+                items: { type: 'string', pattern: '^shape:[\\w-]{1,128}$' } } },
+        },
+    },
+} as const
+
 /** 模型按需请求草稿上下文；范围受当前任务约束，结果明确标记是否截断。 */
 export const boardSnapshotTool = {
     type: 'function',

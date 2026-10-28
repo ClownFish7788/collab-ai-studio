@@ -1,10 +1,12 @@
+import { isEqual } from 'tldraw'
 import {
     validateBoardCreateEvent,
     validateBoardToolOutput,
+    toolOutputMatchesCall,
     type BoardCreateRequest,
     type BoardToolCall,
     type BoardToolOutput,
-    type CreateToolSuccess,
+    type MutationToolSuccess,
 } from './boardCreateProtocol'
 
 export type CreateAgentStep = {
@@ -39,7 +41,7 @@ export async function streamBoardCreateRun(
 
         if (!response.ok) {
             const error = await response.json().catch(() => null)
-            throw new Error(error?.error ?? '后端新增任务请求失败')
+            throw new Error(error?.error ?? '后端白板任务请求失败')
         }
 
         return response
@@ -55,7 +57,7 @@ export async function streamBoardCreateRun(
         const decoder = new TextDecoder()
         let pending = ''
         let runId = ''
-        let localOutput: CreateToolSuccess | undefined
+        let localOutput: MutationToolSuccess | undefined
         const callIds = new Set<string>()
         let reads = 0
         let asks = 0
@@ -98,11 +100,9 @@ export async function streamBoardCreateRun(
                     onStep({ stage: 'call', message: `后端请求 ${call.function.name}`, data: call })
                     const output = validateBoardToolOutput(await execute(call))
                     transportSignal.throwIfAborted()
+                    if (!toolOutputMatchesCall(call, output)) throw new Error('浏览器工具结果与调用不匹配')
                     if (output.ok) {
-                        if (call.function.name === 'create_shapes' && 'shapes' in output) localOutput = output
-                        else if (call.function.name === 'get_board_snapshot' && 'snapshot' in output) { /* 读取不代表修改。 */ }
-                        else if (call.function.name === 'ask_user' && 'answer' in output) { /* 回答不代表修改。 */ }
-                        else throw new Error('浏览器工具结果与调用不匹配')
+                        if ('shapes' in output || 'ids' in output) localOutput = output
                     }
                     onStep({ stage: 'result', message: '提交真实结果，等待后端继续循环', data: output })
                     await post(`/api/board-create/${runId}/result`, { callId: call.id, output })
@@ -111,11 +111,7 @@ export async function streamBoardCreateRun(
 
                 if (event.type === 'completed') {
                     const output = event.output
-                    if (localOutput ? !localOutput.ok || !output
-                        || localOutput.shapes.length !== output.shapes.length
-                        || localOutput.shapes.some((shape, index) =>
-                            (Object.keys(shape) as (keyof typeof shape)[]).some(key => shape[key] !== output.shapes[index][key]))
-                        : output !== undefined) {
+                    if (!isEqual(localOutput, output)) {
                         throw new Error('后端完成结果与本地实际执行结果不一致')
                     }
 

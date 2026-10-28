@@ -364,6 +364,8 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
 
         const execute = createBoardToolRunner({
             snapshot: preview.snapshot,
+            pageId: draft.pageId,
+            getShape: id => draftEditor.getShape(id),
             assertActive,
             read: (range, reference) => {
                 assertActive()
@@ -393,6 +395,22 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                 setOperationResult(JSON.stringify(shapes, null, 2))
                 return shapes
             },
+            update: inputs => {
+                assertActive()
+                const shapes = updateDraftShapes(draft, draftEditor, inputs)
+                setTargetId(shapes[0].id)
+                setChanges(getDraftChanges(draft))
+                setOperationResult(JSON.stringify(shapes, null, 2))
+                return shapes
+            },
+            remove: ids => {
+                assertActive()
+                const removed = deleteDraftShapes(draft, draftEditor, ids)
+                setTargetId(null)
+                setChanges(getDraftChanges(draft))
+                setOperationResult(JSON.stringify(removed, null, 2))
+                return removed
+            },
         })
 
         try {
@@ -408,7 +426,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             setAgentPrompt('')
         } catch (cause) {
             if (activeRef.current === draft && !controller.signal.aborted) {
-                setError(cause instanceof Error ? cause.message : 'AI 新增失败，已成功的内容保留在草稿中')
+                setError(cause instanceof Error ? cause.message : 'AI 白板操作失败，已成功的内容保留在草稿中')
             }
         } finally {
             if (agentRequestRef.current === controller) {
@@ -564,11 +582,11 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                 <div className={styles.tests}>
 
                     <form className={styles.agent} onSubmit={event => { event.preventDefault(); void runAgent() }}>
-                        <label htmlFor={`create-agent-${preview.draft.runId}`}>AI 白板 · 读取、询问与新增</label>
+                        <label htmlFor={`create-agent-${preview.draft.runId}`}>AI 白板 · 读取、询问与增删改</label>
                         <div className={styles.testActions}>
                             <input
                                 id={`create-agent-${preview.draft.runId}`}
-                                aria-label="AI 新增需求"
+                                aria-label="AI 白板需求"
                                 value={agentPrompt}
                                 maxLength={1000}
                                 disabled={agentRunning || testing || applying || !canEdit}
@@ -578,11 +596,11 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                                 {agentRunning ? 'AI 处理中…' : '发送需求'}
                             </button>
                         </div>
-                        <p>本版每次新增最多 5 个基础几何；{preview.snapshot ? `已附加 ${preview.snapshot.shapes.length} 个选中元素` : '未附加选区，AI 需要时通过工具读取白板'}。首份快照固定本次参照点。</p>
+                        <p>本版每个任务执行一次新增、更新或删除，最多 5 个基础几何；更新、删除仅支持页面直属、无旋转且未锁定的对象。{preview.snapshot ? `已附加 ${preview.snapshot.shapes.length} 个选中元素` : '未附加选区，AI 需要时通过工具读取白板'}。首份快照固定本次参照点。</p>
                         <p>可继续发送消息补充需求，保留最近 6 轮文字；关闭草稿后清空。</p>
                         {agentSteps.length > 0 && <details className={styles.report} open>
                             <summary>工具闭环记录（{agentSteps.length}）</summary>
-                            <ol aria-label="新增工具执行记录">
+                            <ol aria-label="白板工具执行记录">
                                 {agentSteps.map((step, index) => <li key={index}>
                                     {step.message}
                                     {step.data && <pre>{JSON.stringify(step.data, null, 2)}</pre>}
@@ -595,6 +613,8 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                                 <p className={styles.result}>AI：{turn.reply}</p>
                             </div>)}
                         </div>}
+                        {/* 模型文案不是执行凭据；折叠日志之外仍显示程序核对的本轮状态。 */}
+                        {agentSteps.at(-1)?.stage === 'summary' && <p role="status">{agentSteps.at(-1)?.message}</p>}
                     </form>
 
                     {pendingQuestion && <form className={styles.agent} onSubmit={event => {

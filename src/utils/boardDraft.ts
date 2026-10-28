@@ -33,7 +33,7 @@ export type BoardDraft = {
     pageId: TLPageId
     baseline: TLStoreSnapshot
     store: TLStore
-    /** 初始选区与本次新建对象；读取和依赖检查不扩大授权范围。 */
+    /** 明确附加选区、任务读取实际返回的对象与本次新建对象；依赖检查不扩大范围。 */
     scope: Set<TLShapeId>
     /** 新导入资产；正式白板已有资产保持不可变。 */
     assets: Set<string>

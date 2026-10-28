@@ -1,4 +1,4 @@
-import { boardCreateTool, boardSnapshotTool, boardAskTool } from './boardCreateTool'
+import { boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardAskTool } from './boardCreateTool'
 import {
     validateBoardToolCall,
     BoardProtocolError,
@@ -30,9 +30,14 @@ export async function requestBoardCreateModel(
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
         body: JSON.stringify({
             model: config.model,
-            messages,
+            // 用户回答不会建立画布参照点；每轮明确运行状态，避免模型沿用前轮工具或跳过读取。
+            messages: [...messages, { role: 'system', content: allowedTools.length
+                ? `本轮仅允许这些工具：${allowedTools.join('、')}。其他工具即使出现在历史也不能调用。本任务尚未执行任何写入，读取快照和回答不表示操作完成，历史任务的成功也不算本任务的执行。若当前用户操作已明确且信息齐全，必须实际调用对应写入工具，不能用 content 声称已新增、更新或删除。${allowedTools.includes('get_board_snapshot') && !allowedTools.includes('create_shapes')
+                    ? '当前尚未取得首份白板快照，用户回答不等于快照。继续白板操作前必须先调用 get_board_snapshot；禁止直接写入。' : ''}${allowedTools.includes('ask_user')
+                    ? '已明确的白板任务若缺少必要信息或有多个候选，必须真正调用 ask_user 等待答案；不能仅在 content 中写问题并结束。这是继续当前任务的协议要求。' : ''}`
+                : '本次工具阶段已结束。仅用普通文字说明实际结果，不再调用任何工具。' }],
             ...(allowedTools.length ? {
-                tools: [boardCreateTool, boardSnapshotTool, boardAskTool].filter(tool => allowedTools.includes(tool.function.name)),
+                tools: [boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardAskTool].filter(tool => allowedTools.includes(tool.function.name)),
             } : {}),
             tool_choice: allowedTools.length ? 'auto' : 'none',
             parallel_tool_calls: false,
