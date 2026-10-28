@@ -263,9 +263,9 @@ const AIChatPanel = () => {
 
                     <div className={styles.draftDemo}>
                         <button type="button" disabled={!boardDraft.canStart || isStreaming || isReadingImages || isSelecting} onClick={boardDraft.startDraft}>
-                            本地演示：画圆并预览
+                            本地测试：新增 / 修改 / 删除
                         </button>
-                        <span>不调用 AI，先体验草稿确认流程</span>
+                        <span>用固定数据测试草稿操作，不调用 AI</span>
                     </div>
                     <form className={styles.composer} onSubmit={handleSend}>
                         {error && <p className={styles.error} role="alert">{error}</p>}
