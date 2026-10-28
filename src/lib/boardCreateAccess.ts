@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import prisma from './prisma'
 import { authOptions } from '../app/api/auth/[...nextauth]/route'
-import { canUseBoardCreateAgent } from '../utils/boardCreateProtocol'
+import { canUseBoardCreateAgent, MAX_BOARD_PAYLOAD_BYTES } from '../utils/boardCreateProtocol'
 
 export class CreateAccessError extends Error {
     status: number
@@ -44,9 +44,9 @@ export async function readCreatePayload(request: Request): Promise<unknown> {
         if (done) break
 
         size += value.byteLength
-        if (size > 20000) {
+        if (size > MAX_BOARD_PAYLOAD_BYTES) {
             await reader.cancel()
-            throw new Error('新增请求超过 20KB')
+            throw new Error('白板任务请求或结果超过大小上限')
         }
 
         body += decoder.decode(value, { stream: true })

@@ -1,9 +1,10 @@
-import { boardCreateTool } from './boardCreateTool'
+import { boardCreateTool, boardSnapshotTool, boardAskTool } from './boardCreateTool'
 import {
-    validateCreateCall,
+    validateBoardToolCall,
     BoardProtocolError,
     ERROR_CODES,
     type BoardCreateReply,
+    type BoardToolName,
 } from '../utils/boardCreateProtocol'
 
 /** 只携带本模块生成的安全诊断，不转发上游响应正文或连接配置。 */
@@ -15,13 +16,13 @@ export class BoardCreateModelError extends BoardProtocolError {
 
 /**
  * 后端只构造模型消息，不访问前端 Editor。
- * 输入后端循环持有的历史、模型配置、停止信号及是否开放工具；输出一次模型响应。
+ * 输入任务历史、模型配置、停止信号和本轮开放工具名；只返回白名单内的一次完整调用或普通文本。
  */
 export async function requestBoardCreateModel(
     messages: readonly object[],
     config: { apiKey: string; model: string; baseUrl: string },
     signal: AbortSignal,
-    allowTools: boolean,
+    allowedTools: readonly BoardToolName[],
     fetcher: typeof fetch = fetch,
 ): Promise<BoardCreateReply> {
     const response = await fetcher(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
@@ -30,8 +31,10 @@ export async function requestBoardCreateModel(
         body: JSON.stringify({
             model: config.model,
             messages,
-            tools: [boardCreateTool],
-            tool_choice: allowTools ? 'auto' : 'none',
+            ...(allowedTools.length ? {
+                tools: [boardCreateTool, boardSnapshotTool, boardAskTool].filter(tool => allowedTools.includes(tool.function.name)),
+            } : {}),
+            tool_choice: allowedTools.length ? 'auto' : 'none',
             parallel_tool_calls: false,
             stream: false,
             enable_thinking: false,
@@ -61,23 +64,24 @@ export async function requestBoardCreateModel(
         throw new BoardCreateModelError('模型响应不完整、被拒绝或格式不合法，本轮没有执行工具')
     }
     if (choice.finish_reason === 'tool_calls') {
-        if (!allowTools || message.tool_calls?.length !== 1
+        if (!allowedTools.length || message.tool_calls?.length !== 1
             || message.content != null && (typeof message.content !== 'string' || message.content.length > 8000)) {
-            throw new BoardCreateModelError('最小闭环每次只允许一次新增工具调用')
+            throw new BoardCreateModelError('每轮只允许一个已开放的完整工具调用')
         }
 
         try {
             const raw = message.tool_calls[0]
             // 兼容服务可能附带 index 等传输元数据，只把协议允许的字段交给前端。
-            const call = validateCreateCall({
+            const call = validateBoardToolCall({
                 id: raw.id,
                 type: raw.type,
                 function: { name: raw.function?.name, arguments: raw.function?.arguments },
             })
 
+            if (!allowedTools.includes(call.function.name)) throw new Error('工具未开放')
             return { kind: 'tool', call, ...(typeof message.content === 'string' ? { content: message.content } : {}) }
         } catch {
-            throw new BoardCreateModelError('模型返回的新增工具调用格式不合法')
+            throw new BoardCreateModelError('模型返回的白板工具调用格式不合法或未开放')
         }
     }
     if (message.tool_calls?.length || typeof message.content !== 'string'

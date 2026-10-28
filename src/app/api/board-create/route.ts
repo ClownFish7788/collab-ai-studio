@@ -19,7 +19,7 @@ export async function POST(request: Request) {
         try {
             payload = validateBoardCreateRequest(await readCreatePayload(request))
         } catch {
-            return Response.json({ error: '新增请求不合法，不能提交模型历史或工具结果' }, { status: 400 })
+            return Response.json({ error: '新增请求或文字历史不合法，不能提交工具调用或结果' }, { status: 400 })
         }
 
         await requireCreateAccess(payload.roomId, userId)

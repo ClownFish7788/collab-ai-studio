@@ -10,7 +10,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> => !!value &
 const isShapeId = (value: unknown): value is string => typeof value === 'string' && value.startsWith('shape:') && value.length > 6
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 
-export function validateChatSnapshot(value: unknown): asserts value is RegionSnapshot {
+/** 校验快照数据及大小；任务的固定参照物允许不在本次读取范围内。 */
+export function validateRegionSnapshot(value: unknown): asserts value is RegionSnapshot {
     if (!isRecord(value) || !isRecord(value.reference) || !Array.isArray(value.shapes)
         || !isFiniteNumber(value.reference.x) || !isFiniteNumber(value.reference.y)) {
         throw new Error('白板快照格式不合法')
@@ -37,8 +38,16 @@ export function validateChatSnapshot(value: unknown): asserts value is RegionSna
         }
         ids.add(shape.id)
     }
-    if (ids.size !== value.shapes.length || (value.shapes.length === 0) !== (value.reference.id === null)
-        || (value.reference.id !== null && (!isShapeId(value.reference.id) || !ids.has(value.reference.id)))) {
+    if (ids.size !== value.shapes.length || value.reference.id !== null && !isShapeId(value.reference.id)) {
+        throw new Error('白板元素 ID 或参照物不合法')
+    }
+}
+
+/** 聊天选区的参照物必须来自该附件，空选区不携带参照元素。 */
+export function validateChatSnapshot(value: unknown): asserts value is RegionSnapshot {
+    validateRegionSnapshot(value)
+    if ((value.shapes.length === 0) !== (value.reference.id === null)
+        || value.reference.id !== null && !value.shapes.some(shape => shape.id === value.reference.id)) {
         throw new Error('白板元素 ID 或参照物不合法')
     }
 }

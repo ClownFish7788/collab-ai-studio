@@ -262,7 +262,8 @@ const AIChatPanel = () => {
                     </div>
 
                     <div className={styles.draftDemo}>
-                        <button type="button" disabled={!boardDraft.canStart || isStreaming || isReadingImages || isSelecting} onClick={boardDraft.startDraft}>
+                        <button type="button" disabled={!boardDraft.canStart || isStreaming || isReadingImages || isSelecting}
+                            onClick={() => boardDraft.startDraft(selectionStore.getState().snapshot ?? undefined)}>
                             AI 新增 / 草稿测试
                         </button>
                         <span>在独立草稿里体验 AI 新增，确认后应用</span>

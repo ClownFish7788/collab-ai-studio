@@ -1,21 +1,26 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
+import { appendChatSnapshot } from '../utils/chatSnapshots'
 import {
-    validateCreateCall,
+    validateBoardToolCall,
     parseCreateInput,
+    parseSnapshotInput,
+    parseAskInput,
     BoardProtocolError,
     ERROR_CODES,
-    validateCreateOutput,
+    validateBoardToolOutput,
     type BoardCreateEvent,
     type BoardCreateReply,
     type BoardCreateRequest,
-    type CreateToolCall,
-    type CreateToolOutput,
+    type BoardToolCall,
+    type BoardToolOutput,
+    type BoardToolName,
+    type CreateToolSuccess,
 } from '../utils/boardCreateProtocol'
 
 type PendingTool = {
-    callId: string
-    resolve: (output: CreateToolOutput) => void
-    output?: CreateToolOutput
+    call: BoardToolCall
+    resolve: (output: BoardToolOutput) => void
+    output?: BoardToolOutput
 }
 
 type CreateRun = {
@@ -65,10 +70,18 @@ export function getOwnedCreateRun(id: string, ownerId: string): CreateRun {
 export function submitCreateResult(id: string, ownerId: string, callId: string, value: unknown) {
     const run = getOwnedCreateRun(id, ownerId)
     const pending = run.pending
-    const output = validateCreateOutput(value)
+    const output = validateBoardToolOutput(value)
 
-    if (!pending || pending.callId !== callId) {
+    if (!pending || pending.call.id !== callId) {
         throw new Error('当前任务没有等待这个工具调用')
+    }
+    if (output.ok) {
+        const name = pending.call.function.name
+        if (name === 'get_board_snapshot' ? !('snapshot' in output)
+            || output.range !== parseSnapshotInput(pending.call.function.arguments).range
+            : name === 'ask_user' ? !('answer' in output) : !('shapes' in output)) {
+            throw new Error('工具结果与当前调用不匹配')
+        }
     }
     if (pending.output) {
         if (JSON.stringify(pending.output) !== JSON.stringify(output)) {
@@ -83,14 +96,14 @@ export function submitCreateResult(id: string, ownerId: string, callId: string, 
 
 async function executeInBrowser(
     run: CreateRun,
-    call: CreateToolCall,
+    call: BoardToolCall,
     emit: (event: BoardCreateEvent) => void | Promise<void>,
     waitMs: number,
 ) {
     run.signal.throwIfAborted()
     let rejectWait!: (error: unknown) => void
-    const promise = new Promise<CreateToolOutput>((resolve, reject) => {
-        run.pending = { callId: call.id, resolve }
+    const promise = new Promise<BoardToolOutput>((resolve, reject) => {
+        run.pending = { call, resolve }
         rejectWait = reject
     })
     const timer = setTimeout(() => rejectWait(new Error('等待浏览器工具结果超时')), waitMs)
@@ -110,43 +123,58 @@ async function executeInBrowser(
 /**
  * 后端 Agent 循环：自己维护模型历史、调用上限、工具等待和终止条件。
  * 输入模型适配器、前端事件通道与权限复核；成功推送 completed，异常由路由转为 error 事件。
- * 最多三次模型请求（含一次参数纠错）、一次实际新增；浏览器不能追加模型历史。
+ * 最多六次模型请求：两次读取、一次询问、一次参数纠错、一次实际新增及总结。
+ * 用户答案作为原调用的工具结果进入历史；跨轮仅接受校验后的文字，工具历史始终由本任务维护。
  */
 export async function runCreateLoop(
     run: CreateRun,
     request: BoardCreateRequest,
-    model: (messages: readonly object[], allowTools: boolean) => Promise<BoardCreateReply>,
+    model: (messages: readonly object[], allowedTools: readonly BoardToolName[]) => Promise<BoardCreateReply>,
     emit: (event: BoardCreateEvent) => void | Promise<void>,
     checkAccess: () => Promise<void>,
     waitMs = 15000,
 ) {
     const messages: object[] = [
         { role: 'system', content: boardCreatePrompt },
-        { role: 'user', content: request.prompt },
+        ...(request.history ?? []).flatMap(turn => [
+            { role: 'user', content: turn.prompt },
+            { role: 'assistant', content: turn.reply },
+        ]),
+        { role: 'user', content: request.snapshot ? appendChatSnapshot(request.prompt, request.snapshot) : request.prompt },
     ]
-    let output: CreateToolOutput | undefined
+    let output: CreateToolSuccess | undefined
+    let reference = request.snapshot ? { ...request.snapshot.reference } : undefined
     let repaired = false
+    let reads = 0
+    let asks = 0
 
     try {
         await emit({ type: 'started', runId: run.id })
 
-        for (let step = 0; step < 3; step++) {
+        for (let step = 0; step < 6; step++) {
             run.signal.throwIfAborted()
             await checkAccess()
             run.signal.throwIfAborted()
 
-            const reply = await model(messages, !output)
+            const allowedTools: BoardToolName[] = []
+            if (!output) {
+                if (reads < 2) allowedTools.push('get_board_snapshot')
+                if (asks < 1) allowedTools.push('ask_user')
+                if (reference) allowedTools.push('create_shapes')
+            }
+            const reply = await model(messages, allowedTools)
             run.signal.throwIfAborted()
 
             if (reply.kind === 'text') {
                 await emit({ type: 'completed', runId: run.id, text: reply.text, ...(output?.ok ? { output } : {}) })
                 return
             }
-            if (output) throw new Error('后端新增工具调用次数已达上限')
-
-            const call = validateCreateCall(reply.call)
+            const call = validateBoardToolCall(reply.call)
+            if (!allowedTools.includes(call.function.name)) throw new Error('本轮工具未开放或调用预算已用尽')
             try {
-                parseCreateInput(call.function.arguments)
+                if (call.function.name === 'get_board_snapshot') parseSnapshotInput(call.function.arguments)
+                else if (call.function.name === 'ask_user') parseAskInput(call.function.arguments)
+                else parseCreateInput(call.function.arguments)
             } catch (cause) {
                 if (!(cause instanceof BoardProtocolError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS || repaired) throw cause
 
@@ -157,15 +185,24 @@ export async function runCreateLoop(
                 )
                 continue
             }
-            // 模型请求可能耗时较长，发出写工具前再确认编辑权限。
+            // 模型请求可能耗时较长，读取、询问和写入前均再次复核任务权限。
             await checkAccess()
             run.signal.throwIfAborted()
-            output = await executeInBrowser(run, call, emit, waitMs)
-            if (!output.ok) throw new BoardProtocolError(output.error)
+            const result = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? 45000 : waitMs)
+            if (!result.ok) throw new BoardProtocolError(result.error)
+            if ('snapshot' in result) {
+                const point = result.snapshot.reference
+                if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) {
+                    throw new Error('任务快照参照点发生变化')
+                }
+                reference ??= { ...point }
+                reads++
+            } else if ('answer' in result) asks++
+            else output = result
 
             messages.push(
                 { role: 'assistant', content: reply.content ?? null, tool_calls: [call] },
-                { role: 'tool', tool_call_id: call.id, content: JSON.stringify(output) },
+                { role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) },
             )
         }
 

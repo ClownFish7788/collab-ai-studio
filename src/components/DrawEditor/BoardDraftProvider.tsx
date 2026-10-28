@@ -32,12 +32,21 @@ import { BASE_SHAPE_PROPS, SHAPE_PROPERTY_CASES, TEST_ASSETS } from '@/utils/dra
 import { runDraftPropertyTests, type PropertyTestReport } from '@/utils/draftShapePropertyTests'
 import { getConfirmedRoomRole } from '@/utils/roomAccess'
 import { createBoardToolRunner } from '@/utils/executeBoardCreateTool'
+import { captureBoardSnapshot } from '@/utils/boardAgentSnapshot'
+import { requestBoardAnswer, type BoardQuestion } from '@/utils/boardAgentQuestion'
+import { validateChatSnapshot } from '@/utils/chatSnapshots'
+import { getBoardConversationHistory, type BoardConversationTurn } from '@/utils/boardCreateProtocol'
+import type { RegionSnapshot } from '@/utils/collectRegionSnapshot'
 import { streamBoardCreateRun, type CreateAgentStep } from '@/utils/streamBoardCreateRun'
 import { toast } from '@/components/Toast'
 import Modal from '../Modal/Modal'
 import styles from './BoardDraft.module.scss'
 
-const BoardDraftContext = createContext({
+const BoardDraftContext = createContext<{
+    active: boolean
+    canStart: boolean
+    startDraft: (snapshot?: RegionSnapshot) => void
+}>({
     active: false,
     canStart: false,
     startDraft: () => { }
@@ -53,6 +62,7 @@ const EMPTY_CHANGES: DraftChanges = {
 
 type Preview = {
     draft: BoardDraft
+    snapshot?: RegionSnapshot
     camera: {
         x: number
         y: number
@@ -87,7 +97,9 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
     const [agentPrompt, setAgentPrompt] = useState('画一个蓝色的圆')
     const [agentRunning, setAgentRunning] = useState(false)
     const [agentSteps, setAgentSteps] = useState<CreateAgentStep[]>([])
-    const [agentText, setAgentText] = useState('')
+    const [agentHistory, setAgentHistory] = useState<BoardConversationTurn[]>([])
+    const [pendingQuestion, setPendingQuestion] = useState<BoardQuestion | null>(null)
+    const [agentAnswer, setAgentAnswer] = useState('')
     const draftEditorRef = useRef<Editor | null>(null)
     const activeRef = useRef<BoardDraft | null>(null)
     const requestRef = useRef<AbortController | null>(null)
@@ -136,7 +148,9 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             setTestReport(null)
             setAgentRunning(false)
             setAgentSteps([])
-            setAgentText('')
+            setAgentHistory([])
+            setPendingQuestion(null)
+            setAgentAnswer('')
             draftEditorRef.current = null
         },
         [roomId, mode]
@@ -163,19 +177,26 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         setTestReport(null)
         setAgentRunning(false)
         setAgentSteps([])
-        setAgentText('')
+        setAgentHistory([])
+        setPendingQuestion(null)
+        setAgentAnswer('')
         draftEditorRef.current = null
         requestAnimationFrame(() => triggerRef.current?.isConnected && triggerRef.current.focus())
     }
 
-    const startDraft = () => {
+    /** 只绑定用户明确附加的快照；原生选区未确认上传时不自动读取或授予范围。 */
+    const startDraft = (attachment?: RegionSnapshot) => {
         if (!editor || editor.isDisposed || !canEdit || activeRef.current || mode !== 'edgeless') {
             return
         }
 
         try {
             editor.complete()
-            const selectedIds = editor.getSelectedShapeIds()
+            if (attachment) validateChatSnapshot(attachment)
+            const snapshot = attachment ? structuredClone(attachment) : undefined
+            const selectedIds = snapshot?.shapes.map(shape => shape.id) ?? []
+            const pageIds = editor.getCurrentPageShapeIds()
+            if (selectedIds.some(id => !pageIds.has(id))) throw new Error('附加选区已失效或不在当前页面，请重新选择')
             const draft = createBoardDraft(editor.store, editor.getCurrentPageId(), selectedIds)
             const { x, y, z } = editor.getCamera()
             const { x: centerX, y: centerY } = editor.getViewportPageBounds().center
@@ -191,6 +212,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             setOperationResult('')
             setPreview({
                 draft,
+                snapshot,
                 camera: {
                     x,
                     y,
@@ -322,26 +344,46 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         if (!prompt) return
 
         const controller = new AbortController()
-        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(80000)])
-        const reference = { ...preview.center }
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(55000)])
 
         agentRequestRef.current = controller
         setAgentRunning(true)
         setAgentSteps([])
-        setAgentText('')
+        setPendingQuestion(null)
+        setAgentAnswer('')
         setError('')
 
         const assertActive = () => {
             signal.throwIfAborted()
 
-            if (activeRef.current !== draft || draft.status !== 'active' || draftEditorRef.current !== draftEditor || !canEditRef.current) {
+            if (activeRef.current !== draft || draft.status !== 'active' || draftEditorRef.current !== draftEditor
+                || draftEditor.isDisposed || draftEditor.getCurrentPageId() !== draft.pageId || !canEditRef.current) {
                 throw new Error('任务已失效或编辑权限已改变')
             }
         }
 
         const execute = createBoardToolRunner({
-            reference,
+            snapshot: preview.snapshot,
             assertActive,
+            read: (range, reference) => {
+                assertActive()
+                return captureBoardSnapshot(draftEditor, range, reference)
+            },
+            authorize: ids => {
+                assertActive()
+                ids.forEach(id => draft.scope.add(id))
+            },
+            // 只接受当前界面的真实提交；取消/超时会清理等待，迟到答案不能唤醒下一任务。
+            ask: question => {
+                assertActive()
+                setAgentAnswer('')
+                return requestBoardAnswer(question, signal, pending => {
+                    if (agentRequestRef.current === controller) setPendingQuestion(pending)
+                }, reason => {
+                    if (agentRequestRef.current === controller) setError(reason.message)
+                    controller.abort(reason)
+                })
+            },
             create: inputs => {
                 assertActive()
                 const shapes = createDraftShapes(draft, draftEditor, inputs)
@@ -354,14 +396,16 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         })
 
         try {
-            const result = await streamBoardCreateRun({ roomId, prompt, reference }, signal, execute, step => {
+            const result = await streamBoardCreateRun({ roomId, prompt, history: getBoardConversationHistory(agentHistory),
+                ...(preview.snapshot ? { snapshot: preview.snapshot } : {}) }, signal, execute, step => {
                 if (activeRef.current === draft && agentRequestRef.current === controller) {
                     setAgentSteps(previous => [...previous, step])
                 }
             })
 
             assertActive()
-            setAgentText(result.text)
+            setAgentHistory(previous => [...previous, { prompt, reply: result.text }].slice(-6))
+            setAgentPrompt('')
         } catch (cause) {
             if (activeRef.current === draft && !controller.signal.aborted) {
                 setError(cause instanceof Error ? cause.message : 'AI 新增失败，已成功的内容保留在草稿中')
@@ -370,6 +414,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             if (agentRequestRef.current === controller) {
                 agentRequestRef.current = null
                 setAgentRunning(false)
+                setPendingQuestion(null)
             }
         }
     }
@@ -519,7 +564,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                 <div className={styles.tests}>
 
                     <form className={styles.agent} onSubmit={event => { event.preventDefault(); void runAgent() }}>
-                        <label htmlFor={`create-agent-${preview.draft.runId}`}>AI 新增 · 最小闭环</label>
+                        <label htmlFor={`create-agent-${preview.draft.runId}`}>AI 白板 · 读取、询问与新增</label>
                         <div className={styles.testActions}>
                             <input
                                 id={`create-agent-${preview.draft.runId}`}
@@ -530,21 +575,48 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                                 onChange={event => setAgentPrompt(event.target.value)}
                             />
                             <button type="submit" disabled={!ready || agentRunning || testing || applying || !canEdit || !agentPrompt.trim()}>
-                                {agentRunning ? 'AI 新增中…' : '让 AI 新增'}
+                                {agentRunning ? 'AI 处理中…' : '发送需求'}
                             </button>
                         </div>
-                        <p>本版新增圆/椭圆、矩形、菱形，每次最多 5 个；以进入草稿时的视口中心为参照点。</p>
+                        <p>本版每次新增最多 5 个基础几何；{preview.snapshot ? `已附加 ${preview.snapshot.shapes.length} 个选中元素` : '未附加选区，AI 需要时通过工具读取白板'}。首份快照固定本次参照点。</p>
+                        <p>可继续发送消息补充需求，保留最近 6 轮文字；关闭草稿后清空。</p>
                         {agentSteps.length > 0 && <details className={styles.report} open>
-                            <summary>工具闭环记录（{agentSteps.length}/4）</summary>
+                            <summary>工具闭环记录（{agentSteps.length}）</summary>
                             <ol aria-label="新增工具执行记录">
-                                {agentSteps.map(step => <li key={step.stage}>
+                                {agentSteps.map((step, index) => <li key={index}>
                                     {step.message}
                                     {step.data && <pre>{JSON.stringify(step.data, null, 2)}</pre>}
                                 </li>)}
                             </ol>
                         </details>}
-                        {agentText && <p role="status" className={styles.result}>模型说明：{agentText}</p>}
+                        {agentHistory.length > 0 && <div role="log" aria-label="白板 AI 对话记录" aria-live="polite">
+                            {agentHistory.map((turn, index) => <div key={index}>
+                                <p className={styles.result}>你：{turn.prompt}</p>
+                                <p className={styles.result}>AI：{turn.reply}</p>
+                            </div>)}
+                        </div>}
                     </form>
+
+                    {pendingQuestion && <form className={styles.agent} onSubmit={event => {
+                        event.preventDefault()
+                        pendingQuestion.submit(agentAnswer)
+                    }}>
+                        <label htmlFor={`agent-answer-${preview.draft.runId}`}>AI 需要你确认</label>
+                        <p role="status">{pendingQuestion.text}</p>
+                        <p>请在任务有效期内回答；本次等待最多 45 秒。</p>
+                        <div className={styles.testActions}>
+                            <input
+                                id={`agent-answer-${preview.draft.runId}`}
+                                aria-label="回答 AI 的问题"
+                                value={agentAnswer}
+                                maxLength={1000}
+                                autoFocus
+                                disabled={!canEdit}
+                                onChange={event => setAgentAnswer(event.target.value)}
+                            />
+                            <button type="submit" disabled={!canEdit || !agentAnswer.trim()}>回答并继续</button>
+                        </div>
+                    </form>}
 
                     <div
                         className={styles.testActions}

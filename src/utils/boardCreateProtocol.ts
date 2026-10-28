@@ -1,4 +1,9 @@
-/** 新增闭环的共享 JSON 协议；服务端声明工具，浏览器和服务端分别验证收到的数据。 */
+import type { RegionSnapshot } from './collectRegionSnapshot'
+import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from './chatSnapshots'
+
+/** 工具共享协议；启动请求和工具结果为快照预留相同的传输空间。 */
+export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_SNAPSHOT_BYTES + 20000
+export const MAX_BOARD_SNAPSHOT_SHAPES = 30
 export const CREATE_GEOS = ['ellipse', 'rectangle', 'diamond'] as const
 export const CREATE_COLORS = ['black', 'blue', 'red', 'green'] as const
 
@@ -12,10 +17,12 @@ export type CreateShapeParameters = {
     color: typeof CREATE_COLORS[number]
 }
 
-export type CreateToolCall = {
+export type SnapshotRange = 'viewport' | 'page'
+export type BoardToolName = 'create_shapes' | 'get_board_snapshot' | 'ask_user'
+export type BoardToolCall = {
     id: string
     type: 'function'
-    function: { name: 'create_shapes'; arguments: string }
+    function: { name: BoardToolName; arguments: string }
 }
 
 export type CreatedToolShape = CreateShapeParameters & { id: string; type: 'geo' }
@@ -48,20 +55,42 @@ export type CreateToolOutput =
 
 export type CreateToolSuccess = Extract<CreateToolOutput, { ok: true }>
 
+export type SnapshotToolSuccess = {
+    ok: true
+    state: 'draft'
+    range: SnapshotRange
+    snapshot: RegionSnapshot
+    truncated: boolean
+}
+
+export type BoardToolOutput = CreateToolOutput | SnapshotToolSuccess | { ok: true; answer: string }
+
+export type BoardConversationTurn = { prompt: string; reply: string }
+const MAX_CONVERSATION_TURNS = 6
+const MAX_CONVERSATION_BYTES = 16 * 1024
+
+/** 回传上下文仅保留有界完整轮次；界面可继续展示未回传的超长回复。 */
+export function getBoardConversationHistory(history: readonly BoardConversationTurn[]): BoardConversationTurn[] {
+    const next = history.slice(-MAX_CONVERSATION_TURNS)
+    while (new TextEncoder().encode(JSON.stringify(next)).byteLength > MAX_CONVERSATION_BYTES) next.shift()
+    return next
+}
+
 export type BoardCreateRequest = {
     roomId: string
     prompt: string
-    reference: { x: number; y: number }
+    snapshot?: RegionSnapshot
+    history?: BoardConversationTurn[]
 }
 
 export type BoardCreateReply =
-    | { kind: 'tool'; call: CreateToolCall; content?: string }
+    | { kind: 'tool'; call: BoardToolCall; content?: string }
     | { kind: 'text'; text: string }
 
 /** 后端推送完整事件；前端只处理事件，不决定是否继续调用模型。 */
 export type BoardCreateEvent =
     | { type: 'started'; runId: string }
-    | { type: 'tool'; runId: string; call: CreateToolCall }
+    | { type: 'tool'; runId: string; call: BoardToolCall }
     | { type: 'completed'; runId: string; text: string; output?: CreateToolSuccess }
     | { type: 'error'; runId: string; error: BoardAgentError }
 
@@ -131,7 +160,7 @@ export function validateCreateInput(value: unknown): { shapes: CreateShapeParame
 }
 
 /** JSON 语法错误仍可归属到已识别的调用；只反馈固定诊断，不转发解析器中的输入片段。 */
-export function parseCreateInput(argumentsText: string): { shapes: CreateShapeParameters[] } {
+function parseToolArguments(argumentsText: string): unknown {
     let value: unknown
     try {
         value = JSON.parse(argumentsText)
@@ -141,23 +170,50 @@ export function parseCreateInput(argumentsText: string): { shapes: CreateShapePa
             issues: [{ path: 'arguments', message: '请返回符合工具定义的 JSON 对象' }],
         })
     }
-    return validateCreateInput(value)
+    return value
+}
+
+/** 解析新增实参，语法和字段错误均在产生任何图形前返回。 */
+export function parseCreateInput(argumentsText: string): { shapes: CreateShapeParameters[] } {
+    return validateCreateInput(parseToolArguments(argumentsText))
+}
+
+/** 读取范围只能是任务绑定页面的视口或全页，模型不能指定其他房间、页面。 */
+export function parseSnapshotInput(argumentsText: string): { range: SnapshotRange } {
+    const value = parseToolArguments(argumentsText)
+    if (!isRecord(value) || Object.keys(value).some(key => key !== 'range')
+        || value.range !== 'viewport' && value.range !== 'page') {
+        throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '快照读取范围不合法',
+            issues: [{ path: 'range', message: '必须为 viewport 或 page，且不能携带其他字段' }] })
+    }
+    return value as { range: SnapshotRange }
+}
+
+/** 询问工具只提交问题，不允许模型把答案伪装成用户输入。 */
+export function parseAskInput(argumentsText: string): { question: string } {
+    const value = parseToolArguments(argumentsText)
+    if (!isRecord(value) || Object.keys(value).some(key => key !== 'question')
+        || typeof value.question !== 'string' || !value.question.trim() || value.question.length > 1000) {
+        throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '询问参数不合法',
+            issues: [{ path: 'question', message: '须为 1～1000 字的问题，且不能携带其他字段' }] })
+    }
+    return value as { question: string }
 }
 
 /** 校验完整 tool_call；流式分片或未知工具不进入本地执行器。 */
-export function validateCreateCall(value: unknown): CreateToolCall {
+export function validateBoardToolCall(value: unknown): BoardToolCall {
     record(value)
     record(value.function)
     fields(value, ['id', 'type', 'function'])
     fields(value.function, ['name', 'arguments'])
 
     if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 200
-        || value.type !== 'function' || value.function.name !== 'create_shapes'
+        || value.type !== 'function' || !['create_shapes', 'get_board_snapshot', 'ask_user'].includes(value.function.name as string)
         || typeof value.function.arguments !== 'string' || value.function.arguments.length > 10000) {
-        throw new Error('新增工具调用格式不合法')
+        throw new Error('白板工具调用格式不合法')
     }
 
-    return value as CreateToolCall
+    return value as BoardToolCall
 }
 
 export function validateBoardAgentError(value: unknown): BoardAgentError {
@@ -216,6 +272,28 @@ export function validateCreateOutput(value: unknown): CreateToolOutput {
     return value as CreateToolOutput
 }
 
+/** 校验读取、回答或新增的结果；成功结构不能混合，错误统一使用受控诊断。 */
+export function validateBoardToolOutput(value: unknown): BoardToolOutput {
+    record(value)
+    if (value.ok === true && 'snapshot' in value) {
+        fields(value, ['ok', 'state', 'range', 'snapshot', 'truncated'])
+        if (value.state !== 'draft' || value.range !== 'viewport' && value.range !== 'page' || typeof value.truncated !== 'boolean') {
+            throw new Error('快照结果不合法')
+        }
+        validateRegionSnapshot(value.snapshot)
+        if (value.snapshot.shapes.length > MAX_BOARD_SNAPSHOT_SHAPES) throw new Error('快照结果超过元素上限')
+        return value as SnapshotToolSuccess
+    }
+    if (value.ok === true && 'answer' in value) {
+        fields(value, ['ok', 'answer'])
+        if (typeof value.answer !== 'string' || !value.answer.trim() || value.answer.length > 1000) {
+            throw new Error('用户回答不合法')
+        }
+        return value as { ok: true; answer: string }
+    }
+    return validateCreateOutput(value)
+}
+
 /** 任务事件是浏览器的信任边界；完成不等于新增，只有实际成功时才携带 output。 */
 export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
     record(value)
@@ -228,7 +306,7 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
             break
         case 'tool':
             fields(value, ['type', 'runId', 'call'])
-            validateCreateCall(value.call)
+            validateBoardToolCall(value.call)
             break
         case 'error':
             fields(value, ['type', 'runId', 'error'])
@@ -249,23 +327,38 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
     return value as BoardCreateEvent
 }
 
-/** 启动任务只接收需求和参照点；消息历史、工具清单和后续轮次全部由后端持有。 */
+/** 仅允许有界文字历史；角色由后端固定，不接受客户端工具调用或执行凭据。 */
+function validateConversationHistory(value: unknown): asserts value is BoardConversationTurn[] {
+    if (!Array.isArray(value) || value.length > MAX_CONVERSATION_TURNS
+        || new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_CONVERSATION_BYTES) {
+        throw new Error('白板对话历史超过上限或格式不合法')
+    }
+    for (const turn of value) {
+        record(turn)
+        fields(turn, ['prompt', 'reply'])
+        if (typeof turn.prompt !== 'string' || !turn.prompt.trim() || turn.prompt.length > 1000
+            || typeof turn.reply !== 'string' || !turn.reply.trim() || turn.reply.length > 8000) {
+            throw new Error('白板对话历史须为有效需求和回复')
+        }
+    }
+}
+
+/** 只接收当前需求、有界文字历史及明确附加选区；无附件时不隐式采集元素。 */
 export function validateBoardCreateRequest(value: unknown): BoardCreateRequest {
     record(value)
-    fields(value, ['roomId', 'prompt', 'reference'])
-    record(value.reference)
-    fields(value.reference, ['x', 'y'])
+    fields(value, ['roomId', 'prompt', 'snapshot', 'history'])
+    if (value.snapshot !== undefined) validateChatSnapshot(value.snapshot)
+    if (value.history !== undefined) validateConversationHistory(value.history)
 
     if (typeof value.roomId !== 'string' || !value.roomId.trim() || value.roomId.length > 128
-        || typeof value.prompt !== 'string' || !value.prompt.trim() || value.prompt.length > 1000
-        || !number(value.reference.x, -1e8, 1e8) || !number(value.reference.y, -1e8, 1e8)) {
-        throw new Error('房间、需求或参照点不合法')
+        || typeof value.prompt !== 'string' || !value.prompt.trim() || value.prompt.length > 1000) {
+        throw new Error('房间或需求不合法')
     }
 
     return value as BoardCreateRequest
 }
 
-export function validateCreateResultRequest(value: unknown): { callId: string; output: CreateToolOutput } {
+export function validateCreateResultRequest(value: unknown): { callId: string; output: BoardToolOutput } {
     record(value)
     fields(value, ['callId', 'output'])
 
@@ -273,7 +366,7 @@ export function validateCreateResultRequest(value: unknown): { callId: string; o
         throw new Error('工具调用 ID 不合法')
     }
 
-    return { callId: value.callId, output: validateCreateOutput(value.output) }
+    return { callId: value.callId, output: validateBoardToolOutput(value.output) }
 }
 
 /** 只使用数据库查询结果作授权依据；客户端的角色字段没有授予权限的作用。 */
