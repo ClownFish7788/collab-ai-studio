@@ -8,6 +8,8 @@ export async function proxy (request: NextRequest) {
         const pathname = request.nextUrl.pathname
         const isAPIRequest = pathname.startsWith('/api')
         const response = NextResponse.next()
+        // 后台记录 API 使用独立密码会话，每条路由自行校验；不能要求普通用户的 NextAuth 登录。
+        if (pathname === '/api/admin/agent-traces' || pathname.startsWith('/api/admin/agent-traces/')) return response
         // 登录api放行
         if(pathname.startsWith('/api/auth')) {
             return response
