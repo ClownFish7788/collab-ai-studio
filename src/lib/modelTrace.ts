@@ -129,6 +129,7 @@ export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch =
         }
         const reader = response.body.getReader()
         const collector = new ModelCollector(!!response.headers.get('content-type')?.includes('text/event-stream'))
+        let cancelled = false
         let finishing: Promise<void> | undefined
         const finish = (cancelled: boolean) => finishing ??= (async () => {
             const summary = collector.finish(cancelled)
@@ -139,14 +140,16 @@ export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch =
             async pull(controller) {
                 try {
                     const chunk = await reader.read()
-                    if (chunk.done) { await finish(false); controller.close() }
+                    if (chunk.done) { await finish(cancelled); controller.close() }
                     else { collector.push(chunk.value); controller.enqueue(chunk.value) }
                 } catch (cause) {
-                    await finish(!!init?.signal?.aborted)
+                    await finish(cancelled || !!init?.signal?.aborted)
                     controller.error(cause)
                 }
             },
             async cancel(reason) {
+                // cancel() 会把正在预读的 read() 唤醒为 done，必须先标记取消，避免抢先写成失败。
+                cancelled = true
                 try { await reader.cancel(reason) } finally { await finish(true) }
             },
         }), { status: response.status, statusText: response.statusText, headers: response.headers })

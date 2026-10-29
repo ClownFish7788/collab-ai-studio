@@ -48,6 +48,8 @@ test('cancelled and incomplete responses retain partial content with an honest s
     const fetcher = observeModelFetch(async (...args) => events.push(args), fixtureFetch(raw, true), async end => ends.push(end))
     const reader = (await fetcher('https://fixture.invalid', init)).body.getReader()
     for (let i = 0; i < Math.ceil(Buffer.byteLength(raw) / 7); i++) await reader.read()
+    // Let stream prefetch enter its pending read before cancellation resolves that read as done.
+    await new Promise(setImmediate)
     await reader.cancel()
     assert.equal(events.find(e => e[0] === 'model_response')[1].content, 'partial')
     assert.equal(ends[0].status, 'cancelled')
