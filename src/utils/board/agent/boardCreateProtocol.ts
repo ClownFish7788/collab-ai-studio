@@ -1,3 +1,7 @@
+import { defaultShapeSchemas } from '@tldraw/tlschema'
+import { isEqual } from '@tldraw/utils'
+import { DRAFT_SHAPE_TYPES, DERIVED_SHAPE_PROPS, type DraftShapeType } from '../draft/draftShapeSchema'
+import type { CreateDraftShapeInput } from '../draft/draftShapeOperations'
 import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
 import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } from '../../chat/images'
@@ -5,29 +9,18 @@ import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } 
 /** 工具结果的快照传输上限；启动请求另外使用图文请求上限。 */
 export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_SNAPSHOT_BYTES + 20000
 export const MAX_BOARD_SNAPSHOT_SHAPES = 30
-export const CREATE_GEOS = ['ellipse', 'rectangle', 'diamond'] as const
-export const CREATE_COLORS = ['black', 'blue', 'red', 'green'] as const
-
-export type CreateShapeParameters = {
-    geo: typeof CREATE_GEOS[number]
-    /** 相对任务固定参照点的页面坐标，表示未旋转图形左上角。 */
-    x: number
-    y: number
-    w: number
-    h: number
-    color: typeof CREATE_COLORS[number]
-}
+export type CreateShapeParameters = Pick<CreateDraftShapeInput, 'type' | 'x' | 'y' | 'props' | 'children'>
 
 export type SnapshotRange = 'viewport' | 'page'
 export type BoardToolName = 'create_shapes' | 'update_shapes' | 'delete_shapes' | 'get_board_snapshot' | 'ask_user'
-export type UpdateShapeParameters = { id: string } & Partial<CreateShapeParameters>
+export type UpdateShapeParameters = { id: string; type: DraftShapeType } & Partial<Pick<CreateShapeParameters, 'x' | 'y' | 'props'>>
 export type BoardToolCall = {
     id: string
     type: 'function'
     function: { name: BoardToolName; arguments: string }
 }
 
-export type CreatedToolShape = CreateShapeParameters & { id: string; type: 'geo' }
+export type CreatedToolShape = CreateShapeParameters & { id: string }
 
 export enum ERROR_CODES {
     INVALID_ARGUMENTS = 'INVALID_ARGUMENTS',
@@ -122,48 +115,80 @@ function number(value: unknown, min: number, max: number) {
     return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
 }
 
-/** 输入未知 JSON；验证全部新增参数后返回有类型的数据，不分配 ID、不修改白板。 */
-export function validateCreateInput(value: unknown): { shapes: CreateShapeParameters[] } {
-    const issues: NonNullable<BoardAgentError['issues']> = []
+function json(value: unknown, depth = 0): boolean {
+    if (depth > 30) return false
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
+    if (typeof value === 'number') return Number.isFinite(value)
+    if (Array.isArray(value)) return value.every(item => json(item, depth + 1))
+    return isRecord(value) && Object.values(value).every(item => json(item, depth + 1))
+}
 
-    if (!isRecord(value)) {
-        issues.push({ path: 'arguments', message: '参数必须是对象' })
+/** 两端使用同一套原生属性校验；模型不能写身份字段或原生排版派生属性。 */
+function validateShapes(value: unknown, update: boolean) {
+    const issues: NonNullable<BoardAgentError['issues']> = []
+    if (!isRecord(value) || Object.keys(value).some(key => key !== 'shapes')
+        || !Array.isArray(value.shapes) || value.shapes.length < 1 || value.shapes.length > 5) {
+        issues.push({ path: 'shapes', message: '须包含 1～5 个元素，不能携带其他字段' })
     } else {
-        if (Object.keys(value).some(key => key !== 'shapes')) {
-            issues.push({ path: 'arguments', message: '参数包含未开放的字段' })
-        }
-        if (!Array.isArray(value.shapes) || value.shapes.length < 1 || value.shapes.length > 5) {
-            issues.push({ path: 'shapes', message: '每次新增须包含 1～5 个图形' })
-        } else {
-            value.shapes.forEach((shape, index) => {
-                const path = `shapes[${index}]`
-                if (!isRecord(shape)) {
-                    issues.push({ path, message: '图形参数必须是对象' })
-                    return
+        const ids = new Set<string>()
+        const groupedChildren = new Set<string>()
+        value.shapes.forEach((shape, index) => {
+            const path = `shapes[${index}]`
+            if (!isRecord(shape)) { issues.push({ path, message: '元素参数必须是对象' }); return }
+            const allowed = update ? ['id', 'type', 'x', 'y', 'props'] : ['type', 'x', 'y', 'props', 'children']
+            if (Object.keys(shape).some(key => !allowed.includes(key))) issues.push({ path, message: '包含未开放的字段' })
+            if (update) {
+                if (!validShapeId(shape.id) || ids.has(shape.id)) issues.push({ path: `${path}.id`, message: '须为不重复的真实元素 ID' })
+                else ids.add(shape.id)
+                if (shape.x === undefined && shape.y === undefined && (!isRecord(shape.props) || !Object.keys(shape.props).length)) {
+                    issues.push({ path, message: '至少指定一个坐标或属性修改' })
                 }
-                if (Object.keys(shape).some(key => !['geo', 'x', 'y', 'w', 'h', 'color'].includes(key))) {
-                    issues.push({ path, message: '图形包含未开放的字段' })
+            }
+            for (const key of ['x', 'y'] as const) {
+                if ((!update || key in shape) && !number(shape[key], -10000, 10000)) {
+                    issues.push({ path: `${path}.${key}`, message: '必须是 -10000～10000 之间的有限数字' })
                 }
-                if (!(CREATE_GEOS as readonly unknown[]).includes(shape.geo)) {
-                    issues.push({ path: `${path}.geo`, message: '必须为 ellipse、rectangle 或 diamond' })
-                }
-                if (!(CREATE_COLORS as readonly unknown[]).includes(shape.color)) {
-                    issues.push({ path: `${path}.color`, message: '必须为 black、blue、red 或 green' })
-                }
-                for (const key of ['x', 'y', 'w', 'h'] as const) {
-                    const [min, max] = key === 'x' || key === 'y' ? [-10000, 10000] : [1, 2000]
-                    if (!number(shape[key], min, max)) {
-                        issues.push({ path: `${path}.${key}`, message: `必须是 ${min}～${max} 之间的有限数字` })
+            }
+            if (!(DRAFT_SHAPE_TYPES as readonly unknown[]).includes(shape.type)) {
+                issues.push({ path: `${path}.type`, message: '须为受支持的 tldraw 元素类型' }); return
+            }
+            const type = shape.type as DraftShapeType
+            if (!update && (type === 'group' || 'children' in shape)) {
+                if (type !== 'group' || !Array.isArray(shape.children) || shape.children.length < 2 || shape.children.length > 30
+                    || !shape.children.every(validShapeId) || new Set(shape.children).size !== shape.children.length) {
+                    issues.push({ path: `${path}.children`, message: '只有 group 可提供 children，须为 2～30 个已读取且不重复的 ID' })
+                } else {
+                    for (const id of shape.children as string[]) {
+                        if (groupedChildren.has(id)) issues.push({ path: `${path}.children`, message: '同一批次的多个分组不能复用子元素' })
+                        groupedChildren.add(id)
                     }
                 }
-            })
-        }
+            }
+            if ('props' in shape) {
+                if (!isRecord(shape.props) || !json(shape.props)) {
+                    issues.push({ path: `${path}.props`, message: '属性须为有限数值组成的合法 JSON 对象，嵌套最多 30 层' }); return
+                }
+                const validators = defaultShapeSchemas[type].props as Record<string, { validate(value: unknown): unknown }>
+                for (const [key, prop] of Object.entries(shape.props)) {
+                    try {
+                        if (!Object.hasOwn(validators, key) || DERIVED_SHAPE_PROPS[type]?.includes(key)) throw new Error()
+                        validators[key].validate(prop)
+                        if (['w', 'h'].includes(key) && !number(prop, 1, 2000)) throw new Error()
+                        if (key === 'url' && prop !== '' && (typeof prop !== 'string' || !/^https?:\/\//i.test(prop))) throw new Error()
+                    } catch {
+                        issues.push({ path: `${path}.props`, message: '包含该类型不支持、只读或取值不合法的属性' })
+                    }
+                }
+            }
+        })
     }
+    if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS,
+        message: update ? '更新参数校验失败' : '新增参数校验失败', issues: issues.slice(0, 40) })
+}
 
-    if (issues.length) {
-        throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '新增参数校验失败', issues })
-    }
-
+/** 验证整批新增参数，不分配 ID、不修改白板。 */
+export function validateCreateInput(value: unknown): { shapes: CreateShapeParameters[] } {
+    validateShapes(value, false)
     return value as { shapes: CreateShapeParameters[] }
 }
 
@@ -190,34 +215,11 @@ const validShapeId = (id: unknown): id is string => typeof id === 'string' && /^
 
 /** 部分更新必须至少指定一个可写字段；整批校验完成前不访问 Editor，不改变省略字段。 */
 export function validateUpdateInput(value: unknown): { shapes: UpdateShapeParameters[] } {
-    const issues: NonNullable<BoardAgentError['issues']> = []
-    if (!isRecord(value) || Object.keys(value).some(key => key !== 'shapes')
-        || !Array.isArray(value.shapes) || value.shapes.length < 1 || value.shapes.length > 5) {
-        issues.push({ path: 'shapes', message: '须包含 1～5 个更新项，不能携带其他字段' })
-    } else {
-        const ids = new Set<string>()
-        value.shapes.forEach((shape, index) => {
-            const path = `shapes[${index}]`
-            if (!isRecord(shape)) { issues.push({ path, message: '更新项必须是对象' }); return }
-            if (!validShapeId(shape.id) || ids.has(shape.id)) issues.push({ path: `${path}.id`, message: '须为不重复的真实图形 ID' })
-            else ids.add(shape.id)
-            const patch = { ...shape }
-            delete patch.id
-            if (!Object.keys(patch).length) issues.push({ path, message: '至少指定一个修改字段' })
-            try {
-                // 默认值只用于复用字段约束，不会加入返回的更新数据。
-                validateCreateInput({ shapes: [{ geo: 'rectangle', x: 0, y: 0, w: 100, h: 100, color: 'black', ...patch }] })
-            } catch (cause) {
-                if (!(cause instanceof BoardProtocolError)) throw cause
-                issues.push(...(cause.detail.issues ?? []).map(issue => ({ ...issue, path: issue.path.replace('shapes[0]', path) })))
-            }
-        })
-    }
-    if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '更新参数校验失败', issues })
+    validateShapes(value, true)
     return value as { shapes: UpdateShapeParameters[] }
 }
 
-/** 更新沿用新增的几何/颜色/数值约束；不接受 parentId、type 或原生 props。 */
+/** type 用于校验目标类型，不允许把已有元素转换成另一种类型。 */
 export function parseUpdateInput(argumentsText: string): { shapes: UpdateShapeParameters[] } {
     return validateUpdateInput(parseToolArguments(argumentsText))
 }
@@ -318,9 +320,9 @@ export function validateCreateOutput(value: unknown): CreateToolOutput {
     const ids = new Set<string>()
     const shapes = value.shapes.map(shape => {
         record(shape)
-        const { id, type, ...parameters } = shape
+        const { id, ...parameters } = shape
 
-        if (typeof id !== 'string' || !/^shape:[\w-]{1,128}$/.test(id) || type !== 'geo' || ids.has(id)) {
+        if (!validShapeId(id) || ids.has(id)) {
             throw new Error('工具结果须包含不重复的真实图形 ID')
         }
 
@@ -378,15 +380,16 @@ export function toolOutputMatchesCall(call: BoardToolCall, output: BoardToolOutp
     switch (call.function.name) {
         case 'get_board_snapshot': return 'snapshot' in output && output.range === parseSnapshotInput(call.function.arguments).range
         case 'ask_user': return 'answer' in output
-        case 'create_shapes': return 'shapes' in output && !('operation' in output)
+        case 'create_shapes': {
+            if (!('shapes' in output) || 'operation' in output) return false
+            const expected = parseCreateInput(call.function.arguments).shapes
+            return expected.length === output.shapes.length && expected.every((shape, index) =>
+                isEqual({ ...shape, id: output.shapes[index].id }, output.shapes[index]))
+        }
         case 'update_shapes': {
             if (!('operation' in output) || output.operation !== 'update') return false
             const expected = parseUpdateInput(call.function.arguments).shapes
-            return expected.length === output.shapes.length && expected.every((shape, index) => {
-                const actual = output.shapes[index]
-                return Object.keys(shape).length === Object.keys(actual).length
-                    && Object.entries(shape).every(([key, value]) => actual[key as keyof UpdateShapeParameters] === value)
-            })
+            return isEqual(expected, output.shapes)
         }
         case 'delete_shapes': {
             if (!('operation' in output) || output.operation !== 'delete') return false

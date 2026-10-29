@@ -28,6 +28,10 @@ export function captureBoardSnapshot(editor: Editor, range: SnapshotRange, refer
             shapes: shapes.map(shape => ({ ...shape,
                 x: shape.x + collected.reference.x - point.x,
                 y: shape.y + collected.reference.y - point.y,
+                ...(shape.origin ? { origin: {
+                    x: shape.origin.x + collected.reference.x - point.x,
+                    y: shape.origin.y + collected.reference.y - point.y,
+                } } : {}),
             })),
         }
         if (encoder.encode(JSON.stringify(snapshot)).byteLength <= MAX_CHAT_SNAPSHOT_BYTES) break

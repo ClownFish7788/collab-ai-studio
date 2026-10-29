@@ -1,11 +1,13 @@
 import type { TLShape, TLShapeId } from 'tldraw'
+import { isEqual } from '@tldraw/utils'
+import { DRAFT_SHAPE_TYPES } from '../draft/draftShapeSchema'
 import type { CreateDraftShapeInput, UpdateDraftShapeInput } from '../draft/draftShapeOperations'
 import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
 import { validateChatSnapshot } from '../snapshot/chatSnapshots'
 import {
     validateBoardToolCall, validateBoardToolOutput, parseCreateInput, parseSnapshotInput, parseAskInput, parseUpdateInput, parseDeleteInput,
-    BoardProtocolError, ERROR_CODES, CREATE_GEOS,
-    type BoardToolOutput, type SnapshotRange, type SnapshotToolSuccess, type CreatedToolShape,
+    BoardProtocolError, ERROR_CODES,
+    type BoardToolOutput, type SnapshotRange, type SnapshotToolSuccess,
 } from './boardCreateProtocol'
 
 /**
@@ -34,10 +36,9 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
     const checkTargets = (ids: readonly string[]) => {
         for (const id of ids) {
             const target = getShape(id as TLShapeId)
-            if (!seenIds.has(id as TLShapeId) || !target || target.id !== id || target.type !== 'geo'
-                || !(CREATE_GEOS as readonly string[]).includes(target.props.geo)
+            if (!seenIds.has(id as TLShapeId) || !target || target.id !== id || !DRAFT_SHAPE_TYPES.includes(target.type)
                 || target.parentId !== pageId || target.rotation !== 0 || target.isLocked) {
-                throw new Error('目标须为已读取、未锁定、无旋转的页面直属基础几何')
+                throw new Error('目标须为已读取、未锁定、无旋转的页面直属元素')
             }
         }
     }
@@ -93,12 +94,15 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
                     const point = reference
                     if (!point) throw new Error('更新前须取得快照参照点')
                     checkTargets(patches.map(patch => patch.id))
-                    const inputs = patches.map(({ id, x, y, ...props }) => ({
-                        id: id as TLShapeId,
-                        ...(x !== undefined ? { x: point.x + x } : {}),
-                        ...(y !== undefined ? { y: point.y + y } : {}),
-                        ...(Object.keys(props).length ? { props } : {}),
-                    }))
+                    const inputs = patches.map(({ id, type, x, y, props }) => {
+                        if (getShape(id as TLShapeId)?.type !== type) throw new Error('更新不能改变元素类型')
+                        return {
+                            id: id as TLShapeId,
+                            ...(x !== undefined ? { x: point.x + x } : {}),
+                            ...(y !== undefined ? { y: point.y + y } : {}),
+                            ...(props !== undefined ? { props } : {}),
+                        }
+                    })
                     assertActive()
                     invoked = true
                     const updated = update(inputs)
@@ -106,10 +110,10 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
                     const shapes = patches.map((patch, index) => {
                         const actual = updated[index]
                         const input = inputs[index]
-                        if (actual.id !== patch.id || actual.type !== 'geo'
+                        if (actual.id !== patch.id || actual.type !== patch.type
                             || input.x !== undefined && actual.x !== input.x
                             || input.y !== undefined && actual.y !== input.y
-                            || Object.entries(input.props ?? {}).some(([key, value]) => actual.props[key as keyof typeof actual.props] !== value)) {
+                            || Object.entries(input.props ?? {}).some(([key, value]) => !isEqual((actual.props as Record<string, unknown>)[key], value))) {
                             throw new Error('更新结果与请求不一致')
                         }
                         // 仅回报实际核对过的字段；省略字段不受本次工具参数限制。
@@ -121,21 +125,22 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
                 const input = parseCreateInput(call.function.arguments)
                 const point = reference
                 if (!point) throw new Error('首次新增前须取得快照参照点')
+                input.shapes.forEach(shape => { if (shape.children) checkTargets(shape.children) })
+                assertActive()
                 invoked = true
-                const shapes = create(input.shapes.map(shape => ({
-                    type: 'geo', x: point.x + shape.x, y: point.y + shape.y,
-                    props: { geo: shape.geo, w: shape.w, h: shape.h, color: shape.color },
-                })))
+                const inputs = input.shapes.map(shape => ({ ...shape, x: point.x + shape.x, y: point.y + shape.y } as CreateDraftShapeInput))
+                const shapes = create(inputs)
+                if (shapes.length !== inputs.length) throw new Error('新增数量不匹配')
                 return validateBoardToolOutput({
                     ok: true, state: 'draft',
                     shapes: shapes.map((shape, index) => {
-                        if (shape.type !== 'geo') throw new Error('新增结果类型与工具不一致')
-                        return {
-                            id: shape.id, type: 'geo', geo: shape.props.geo,
-                            // 底层核对绝对位置，保留原输入相对值避免浮点加减抵消误差。
-                            x: input.shapes[index].x, y: input.shapes[index].y,
-                            w: shape.props.w, h: shape.props.h, color: shape.props.color,
-                        } as CreatedToolShape
+                        const requested = inputs[index]
+                        if (shape.type !== requested.type || shape.x !== requested.x || shape.y !== requested.y
+                            || Object.entries(requested.props ?? {}).some(([key, value]) => !isEqual((shape.props as Record<string, unknown>)[key], value))) {
+                            throw new Error('新增结果与请求不一致')
+                        }
+                        // 只回报已核对的输入字段，不把原生派生属性当作可写参数。
+                        return { ...input.shapes[index], id: shape.id }
                     }),
                 })
             } catch (cause) {

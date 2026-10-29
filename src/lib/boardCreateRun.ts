@@ -179,7 +179,13 @@ export async function runCreateLoop(
             try {
                 if (call.function.name === 'get_board_snapshot') parseSnapshotInput(call.function.arguments)
                 else if (call.function.name === 'ask_user') parseAskInput(call.function.arguments)
-                else if (call.function.name === 'create_shapes') parseCreateInput(call.function.arguments)
+                else if (call.function.name === 'create_shapes') {
+                    const { shapes } = parseCreateInput(call.function.arguments)
+                    if (shapes.some(shape => shape.children?.some(id => !seenIds.has(id)))) throw new BoardProtocolError({
+                        code: ERROR_CODES.INVALID_ARGUMENTS, message: '分组子对象不在本任务已提供的快照中',
+                        issues: [{ path: 'shapes', message: 'children 只能使用附件或本任务读取结果实际返回的 ID' }],
+                    })
+                }
                 else {
                     const ids = call.function.name === 'update_shapes'
                         ? parseUpdateInput(call.function.arguments).shapes.map(shape => shape.id)

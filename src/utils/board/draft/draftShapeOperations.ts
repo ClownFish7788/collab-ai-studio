@@ -23,12 +23,8 @@ import {
     type DraftShapeType
 } from './boardDraft'
 
-/** 四个排版派生属性可读不可写；文字 autoSize=true 时的 w 另外按条件校验。 */
-export const DERIVED_SHAPE_PROPS: Record<string, readonly string[]> = {
-    geo: ['growY'],
-    note: ['growY', 'fontSizeAdjustment'],
-    bookmark: ['h']
-}
+import { DERIVED_SHAPE_PROPS } from './draftShapeSchema'
+export { DERIVED_SHAPE_PROPS } from './draftShapeSchema'
 
 type CommonInput = {
     /** 相对父对象坐标；parentId 省略时父对象为当前页面，不是屏幕像素。 */
@@ -210,7 +206,7 @@ function validate(
         const validators = (editor.getShapeUtil(type as DraftShapeType).constructor as unknown as { props: Record<string, { validate(value: unknown): unknown }> }).props
 
         for (const [key, value] of Object.entries(input.props)) {
-            if (!own(validators, key) || DERIVED_SHAPE_PROPS[type]?.includes(key)) {
+            if (!own(validators, key) || DERIVED_SHAPE_PROPS[type as DraftShapeType]?.includes(key)) {
                 throw new Error(`${type}.${key} 未开放或由原生派生`)
             }
 
