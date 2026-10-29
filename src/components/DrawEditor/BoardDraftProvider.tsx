@@ -12,7 +12,8 @@ import { createBoardToolRunner } from '@/utils/board/agent/executeBoardCreateToo
 import { captureBoardSnapshot } from '@/utils/board/agent/boardAgentSnapshot'
 import { requestBoardAnswer, type BoardQuestion } from '@/utils/board/agent/boardAgentQuestion'
 import { validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
-import type { BoardCreateRequest } from '@/utils/board/agent/boardCreateProtocol'
+import { BoardProtocolError, ERROR_CODES, type BoardCreateRequest } from '@/utils/board/agent/boardCreateProtocol'
+import { reportAgentOperation } from '@/utils/agent-traces/client'
 import { streamBoardCreateRun, type CreateAgentStep } from '@/utils/board/agent/streamBoardCreateRun'
 import { toast } from '@/components/Toast'
 import styles from './BoardDraft.module.scss'
@@ -72,6 +73,8 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         setLauncherHosts(previous => previous[kind] === host ? previous : { ...previous, [kind]: host })
     }, [])
     const activeRef = useRef<BoardDraft | null>(null)
+    // 草稿可以跨多条消息累积，应用/放弃时通知所有参与过的后端任务。
+    const draftTraceIds = useRef(new Map<string, Set<string>>())
     const draftEditorRef = useRef<Editor | null>(null)
     const mountWaitRef = useRef<{ id: string; resolve: (editor: Editor) => void } | null>(null)
     const agentRef = useRef<AbortController | null>(null)
@@ -94,21 +97,38 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
     useLayoutEffect(() => () => {
         agentRef.current?.abort(); agentRef.current = null
         applyRef.current?.abort(); applyRef.current = null
-        if (activeRef.current) discardBoardDraft(activeRef.current)
+        if (activeRef.current) {
+            const draft = activeRef.current
+            try {
+                discardBoardDraft(draft)
+                for (const id of draftTraceIds.current.get(draft.runId) ?? []) void reportAgentOperation(id, 'draft_discard', 'cancelled')
+            } catch (cause) {
+                for (const id of draftTraceIds.current.get(draft.runId) ?? []) void reportAgentOperation(id, 'draft_discard', 'error', cause)
+            }
+        }
+        draftTraceIds.current.clear()
         activeRef.current = null; draftEditorRef.current = null; mountWaitRef.current = null
         setPreview(null); setReady(false); setRunning(false); setApplying(false)
         setChanges(EMPTY_CHANGES); setQuestion(null); setError(''); setResolutions({})
     }, [roomId, mode])
 
     const clearPreview = () => {
+        if (activeRef.current) draftTraceIds.current.delete(activeRef.current.runId)
         activeRef.current = null; draftEditorRef.current = null
         setPreview(null); setReady(false); setChanges(EMPTY_CHANGES); setError('')
     }
     const discard = () => {
         agentRef.current?.abort(); applyRef.current?.abort()
         const draft = activeRef.current
-        if (draft) { discardBoardDraft(draft); setResolutions(previous => ({ ...previous, [draft.runId]: 'discarded' })) }
-        clearPreview()
+        const ids = [...(draft ? draftTraceIds.current.get(draft.runId) ?? [] : [])]
+        try {
+            if (draft) { discardBoardDraft(draft); setResolutions(previous => ({ ...previous, [draft.runId]: 'discarded' })) }
+            for (const id of ids) void reportAgentOperation(id, 'draft_discard', 'success')
+            clearPreview()
+        } catch (cause) {
+            for (const id of ids) void reportAgentOperation(id, 'draft_discard', 'error', cause)
+            setError(cause instanceof Error ? cause.message : '放弃草稿失败')
+        }
     }
 
     /** 一次消息对应一次后端任务；首个白板工具惰性创建草稿，等待挂载也受同一停止信号控制。 */
@@ -121,6 +141,13 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         const pageId = editor.getCurrentPageId()
         let draft = activeRef.current
         let draftEditor = draftEditorRef.current
+        let traceId: string | undefined
+        const linkTrace = () => {
+            if (!draft || !traceId) return
+            const ids = draftTraceIds.current.get(draft.runId) ?? new Set<string>()
+            ids.add(traceId)
+            draftTraceIds.current.set(draft.runId, ids)
+        }
         agentRef.current = controller
         setRunning(true); setQuestion(null); setError('')
         const assertActive = () => {
@@ -139,6 +166,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                 draft = createBoardDraft(editor.store, pageId, ids)
                 activeRef.current = draft
             }
+            linkTrace()
             const currentDraft = draft
             draftEditor = await new Promise<Editor>((resolve, reject) => {
                 const onAbort = () => {
@@ -179,14 +207,20 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                 if (call.function.name !== 'ask_user') await ensureEditor()
                 assertActive()
                 return execute(call)
-            }, step => { assertActive(); onStep(step) })
+            }, step => { assertActive(); if (step.runId) { traceId = step.runId; linkTrace() }; onStep(step) })
             assertActive()
             return { ...result, ...(draft ? { draftId: draft.runId } : {}) }
         } finally {
             if (agentRef.current === controller) {
                 agentRef.current = null; setRunning(false); setQuestion(null)
                 if (draft && activeRef.current === draft && !hasChanges(getDraftChanges(draft))) {
-                    discardBoardDraft(draft)
+                    try {
+                        discardBoardDraft(draft)
+                        for (const id of draftTraceIds.current.get(draft.runId) ?? []) void reportAgentOperation(id, 'draft_discard', 'success')
+                    } catch (cause) {
+                        for (const id of draftTraceIds.current.get(draft.runId) ?? []) void reportAgentOperation(id, 'draft_discard', 'error', cause)
+                        throw cause
+                    }
                     const id = draft.runId
                     setResolutions(previous => ({ ...previous, [id]: 'unchanged' }))
                     clearPreview()
@@ -201,8 +235,12 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         if (!editor || editor.isDisposed || !draft || !ready || agentRef.current || applyRef.current) return
         const controller = new AbortController()
         applyRef.current = controller; setApplying(true); setError('')
+        const ids = [...(draftTraceIds.current.get(draft.runId) ?? [])]
+        const began = Date.now()
+        let outcome: 'success' | 'error' | 'cancelled' = 'cancelled'
+        let failure: unknown
         try {
-            if (!canEditRef.current) throw new Error('当前没有白板编辑权限')
+            if (!canEditRef.current) throw new BoardProtocolError({ code: ERROR_CODES.ACCESS_DENIED, message: '当前没有白板编辑权限' })
             if (!local) {
                 const response = await fetch('/api/entry-validations', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId }),
@@ -211,7 +249,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                 const role = getConfirmedRoomRole(response.status, await response.json())
                 if (activeRef.current !== draft || controller.signal.aborted) return
                 if (role !== undefined) useEditorStore.getState().setRole(role)
-                if (role !== 'owner' && role !== 'collaborator') throw new Error('编辑权限已失效，无法应用草稿')
+                if (role !== 'owner' && role !== 'collaborator') throw new BoardProtocolError({ code: ERROR_CODES.ACCESS_DENIED, message: '编辑权限已失效，无法应用草稿' })
             }
             if (activeRef.current !== draft || controller.signal.aborted) return
             if (!canEditRef.current || editor.getCurrentPageId() !== draft.pageId) throw new Error('当前页面或编辑权限已改变')
@@ -221,9 +259,13 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             setResolutions(previous => ({ ...previous, [draft.runId]: 'applied' }))
             clearPreview()
             toast.show(`已应用：新增 ${summary.added}，修改 ${summary.updated}，删除 ${summary.removed}`)
+            outcome = 'success'
         } catch (cause) {
+            failure = cause
+            outcome = controller.signal.aborted ? 'cancelled' : 'error'
             if (activeRef.current === draft && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : '应用失败，草稿已保留')
         } finally {
+            for (const id of ids) void reportAgentOperation(id, 'draft_apply', outcome, failure, Date.now() - began)
             if (applyRef.current === controller) { applyRef.current = null; setApplying(false) }
         }
     }

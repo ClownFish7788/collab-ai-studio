@@ -14,7 +14,7 @@ const operationCategories: Record<string, ErrorCategory> = {
     tool_execute: 'tool', result_submit: 'protocol', stream_receive: 'protocol', draft_apply: 'draft', draft_discard: 'draft', storage: 'storage',
 }
 const protocolCategories: Record<string, ErrorCategory> = {
-    INVALID_ARGUMENTS: 'validation', INVALID_MODEL_RESPONSE: 'model', EXECUTION_FAILED: 'tool', ACCESS_DENIED: 'permission', TASK_INACTIVE: 'cancelled',
+    INVALID_ARGUMENTS: 'validation', INVALID_MODEL_RESPONSE: 'model', EXECUTION_FAILED: 'tool', ACCESS_DENIED: 'permission', TASK_INACTIVE: 'cancelled', TASK_FAILED: 'internal',
 }
 
 /** 分类依赖稳定的阶段和错误码，不根据可能变化的提示文案猜测原因。 */
@@ -24,12 +24,13 @@ export function classifyTraceError(cause: unknown, context: { operation: string;
     const detail = Object.keys(object(original.detail)).length ? object(original.detail) : original
     const reason = object(context.signal?.reason)
     const code = typeof detail.code === 'string' ? detail.code : typeof root.code === 'string' ? root.code : undefined
+    const httpStatus = context.httpStatus ?? (code && /^HTTP_\d{3}$/.test(code) ? Number(code.slice(5)) : undefined)
     let category: ErrorCategory = operationCategories[context.operation] ?? 'internal'
     if (code && protocolCategories[code]) category = protocolCategories[code]
     if (typeof detail.category === 'string' && Object.hasOwn(errorCategories, detail.category)) category = detail.category as ErrorCategory
     if (typeof original.name === 'string' && original.name.startsWith('Prisma') || code && /^P\d{4}$/.test(code)) category = 'storage'
-    if (context.httpStatus === 429) category = 'rate_limit'
-    else if (context.httpStatus === 401 || context.httpStatus === 403) category = context.operation === 'model_fetch' ? 'configuration' : context.httpStatus === 401 ? 'authentication' : 'permission'
+    if (httpStatus === 429) category = 'rate_limit'
+    else if (httpStatus === 401 || httpStatus === 403) category = context.operation === 'model_fetch' ? 'configuration' : httpStatus === 401 ? 'authentication' : 'permission'
     if (original.name === 'TimeoutError' || reason.name === 'TimeoutError') category = 'timeout'
     else if (original.name === 'AbortError' || context.signal?.aborted) category = 'cancelled'
     return {

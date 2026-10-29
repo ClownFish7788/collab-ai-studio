@@ -1,9 +1,12 @@
 import { isEqual } from 'tldraw'
 import { MAX_CHAT_REQUEST_BYTES } from '../../chat/images'
+import { reportAgentOperation } from '../../agent-traces/client'
 import {
     validateBoardCreateEvent,
     validateBoardToolOutput,
     toolOutputMatchesCall,
+    BoardProtocolError,
+    ERROR_CODES,
     type BoardCreateRequest,
     type BoardToolCall,
     type BoardToolOutput,
@@ -14,6 +17,7 @@ export type CreateAgentStep = {
     stage: 'request' | 'call' | 'result' | 'summary' | 'text'
     message: string
     data?: BoardToolCall | BoardToolOutput
+    runId?: string
 }
 
 /**
@@ -31,6 +35,9 @@ export async function streamBoardCreateRun(
     const controller = new AbortController()
     const transportSignal = AbortSignal.any([signal, controller.signal])
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    let traceId: string | undefined
+    let runId = ''
+    const began = Date.now()
 
     const post = async (url: string, body: object) => {
         transportSignal.throwIfAborted()
@@ -38,11 +45,12 @@ export async function streamBoardCreateRun(
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body), signal: transportSignal,
         })
+        traceId ??= response.headers.get('X-Agent-Trace-Id') ?? undefined
         transportSignal.throwIfAborted()
 
         if (!response.ok) {
             const error = await response.json().catch(() => null)
-            throw new Error(error?.error ?? '后端白板任务请求失败')
+            throw Object.assign(new Error(error?.error ?? '后端白板任务请求失败'), { code: `HTTP_${response.status}` })
         }
 
         return response
@@ -58,7 +66,6 @@ export async function streamBoardCreateRun(
         reader = response.body.getReader()
         const decoder = new TextDecoder()
         let pending = ''
-        let runId = ''
         let localOutput: MutationToolSuccess | undefined
         const callIds = new Set<string>()
         let reads = 0
@@ -86,12 +93,14 @@ export async function streamBoardCreateRun(
                     }
 
                     runId = event.runId
-                    onStep({ stage: 'request', message: '① 后端已启动 Agent，正在调用模型' })
+                    if (traceId && traceId !== runId) throw new Error('任务 ID 与响应标识不一致')
+                    traceId = runId
+                    onStep({ stage: 'request', runId, message: '① 后端已启动 Agent，正在调用模型' })
                     continue
                 }
 
                 if (!runId || event.runId !== runId) throw new Error('收到其他任务的事件')
-                if (event.type === 'error') throw new Error(event.error.message)
+                if (event.type === 'error') throw new BoardProtocolError(event.error)
                 if (event.type === 'text') {
                     textLength += event.text.length
                     if (textLength > 48000) throw new Error('任务文字超过上限')
@@ -107,14 +116,32 @@ export async function streamBoardCreateRun(
                         || call.function.name === 'ask_user' && ++asks > 1) throw new Error('工具调用预算已用尽')
                     callIds.add(call.id)
                     onStep({ stage: 'call', message: `后端请求 ${call.function.name}`, data: call })
-                    const output = validateBoardToolOutput(await execute(call))
+                    const toolStarted = Date.now()
+                    let output: BoardToolOutput
+                    let executionError: unknown
+                    try { output = validateBoardToolOutput(await execute(call)) } catch (cause) {
+                        if (transportSignal.aborted) {
+                            void reportAgentOperation(traceId, 'tool_execute', 'cancelled', cause, Date.now() - toolStarted, fetcher)
+                            throw cause
+                        }
+                        executionError = cause
+                        output = { ok: false, error: { code: ERROR_CODES.EXECUTION_FAILED, message: cause instanceof Error ? cause.message.slice(0, 1000) : '浏览器工具执行异常' } }
+                    }
+                    void reportAgentOperation(traceId, 'tool_execute', output.ok ? 'success' : 'error', executionError ?? (!output.ok ? new BoardProtocolError(output.error) : undefined), Date.now() - toolStarted, fetcher)
                     transportSignal.throwIfAborted()
                     if (!toolOutputMatchesCall(call, output)) throw new Error('浏览器工具结果与调用不匹配')
                     if (output.ok) {
                         if ('shapes' in output || 'ids' in output) localOutput = output
                     }
                     onStep({ stage: 'result', message: '提交真实结果，等待后端继续循环', data: output })
-                    await post(`/api/board-create/${runId}/result`, { callId: call.id, output })
+                    const submitStarted = Date.now()
+                    try {
+                        await post(`/api/board-create/${runId}/result`, { callId: call.id, output })
+                        void reportAgentOperation(traceId, 'result_submit', 'success', undefined, Date.now() - submitStarted, fetcher)
+                    } catch (cause) {
+                        void reportAgentOperation(traceId, 'result_submit', transportSignal.aborted ? 'cancelled' : 'error', cause, Date.now() - submitStarted, fetcher)
+                        throw cause
+                    }
                     continue
                 }
 
@@ -125,7 +152,8 @@ export async function streamBoardCreateRun(
                     }
 
                     onStep({ stage: 'summary', message: output ? '④ 后端已结束循环，等待用户确认' : '后端已结束循环，本轮未执行白板操作' })
-                    return { text: event.text, output }
+                    void reportAgentOperation(traceId, 'stream_receive', 'success', undefined, Date.now() - began, fetcher)
+                    return { text: event.text, output, runId }
                 }
 
                 throw new Error('未知任务事件')
@@ -134,6 +162,9 @@ export async function streamBoardCreateRun(
             if (pending.length > 30000) throw new Error('任务事件过大')
             if (chunk.done) throw new Error('任务连接中断，已完成的内容保留在草稿中')
         }
+    } catch (cause) {
+        void reportAgentOperation(traceId, 'stream_receive', transportSignal.aborted ? 'cancelled' : 'error', cause, Date.now() - began, fetcher)
+        throw cause
     } finally {
         controller.abort()
         await reader?.cancel().catch(() => {})
