@@ -19,6 +19,10 @@
 .adminMark { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 20px; font-size: 12px; }
 .toolbar { margin: 20px 0; p { color: var(--muted); font-size: 12px; } > div { display: flex; gap: 8px; } }
 .secondary { background: var(--card-bg); color: var(--text-color); padding: 8px 12px; font-size: 13px; }
+.filters { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; margin: 18px 0; label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; } select { min-width: 160px; } p { color: var(--muted); font-size: 12px; line-height: 1.8; max-width: 420px; } }
+.eventMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 11px; color: var(--muted); margin: 12px 0; code { overflow-wrap: anywhere; } }
+.errorCount { color: var(--danger); font-size: 11px; }
+.node[data-kind='operation'][data-status='completed'] { --node-color: var(--teal); }
 .workspace { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; align-items: start; }
 .list, .detailSlot, .login { border: 1px solid var(--border-color); background: var(--card-bg); border-radius: 14px; }
 .list { overflow: auto; max-height: calc(100vh - 205px); position: sticky; top: 20px; ul { list-style: none; } li + li { border-top: 1px solid var(--border-color); } }

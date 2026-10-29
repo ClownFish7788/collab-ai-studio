@@ -102,3 +102,17 @@ test('password attempts are throttled and an unset password never grants access'
     assert.equal((await POST(sessionRequest(saved))).status, 503)
     process.env.ADMIN_TRACE_PASSWORD = saved
 })
+
+test('category filters retain corrected failures in successful runs and reject unknown filter values', async () => {
+    const { startAgentTrace } = require('../src/lib/agentTrace.ts')
+    const trace = await startAgentTrace({ id: 'recovered', kind: 'board', userId: 'u1', model: 'fixture', prompt: 'recovered', input: {} })
+    await trace.record('tool_validation_error', { error: { code: 'INVALID_ARGUMENTS', message: 'bad width' }, willRetry: true })
+    await trace.end('completed', 'fixed')
+    const cookie = 'agent-trace-admin=' + createAdminSession(process.env.ADMIN_TRACE_PASSWORD)
+    const response = await GET(request('/api/admin/agent-traces?category=validation&status=completed', { headers: { cookie } }))
+    const data = await response.json()
+    assert.deepEqual(data.items.map(i => i.id), ['recovered'])
+    assert.equal(data.items[0].errorCount, 1)
+    assert.equal((await GET(request('/api/admin/agent-traces?category=__proto__', { headers: { cookie } }))).status, 400)
+    assert.equal((await GET(request('/api/admin/agent-traces?status=made-up', { headers: { cookie } }))).status, 400)
+})

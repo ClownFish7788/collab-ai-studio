@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Activity, LockKeyhole, LogOut, RefreshCw } from 'lucide-react'
 import { statusLabels, traceStatus, type TraceDetail as Detail, type TraceSummary } from '@/utils/agent-traces/flow'
 import TraceDetail from './TraceDetail'
+import { errorCategories } from '@/utils/agent-traces/outcomes'
 import styles from './page.module.scss'
 
 const endpoint = '/api/admin/agent-traces'
@@ -44,13 +45,16 @@ function Workspace({ onExit }: { onExit: () => void }) {
     const [logoutBusy, setLogoutBusy] = useState(false)
     const [error, setError] = useState('')
     const pageRequest = useRef<AbortController | null>(null)
+    const [category, setCategory] = useState('')
+    const [status, setStatus] = useState('')
     const detailRequest = useRef<AbortController | null>(null)
     const loadPage = useCallback(async (after?: string, append = false) => {
         pageRequest.current?.abort()
         const controller = new AbortController()
         pageRequest.current = controller
         try {
-            const response = await fetch(endpoint + (after ? '?cursor=' + encodeURIComponent(after) : ''), { cache: 'no-store', signal: controller.signal })
+            const params = new URLSearchParams({ ...(after ? { cursor: after } : {}), ...(category ? { category } : {}), ...(status ? { status } : {}) })
+            const response = await fetch(endpoint + (params.size ? '?' + params : ''), { cache: 'no-store', signal: controller.signal })
             if (response.status === 401) { onExit(); return }
             const data = await response.json()
             if (!response.ok) throw new Error(data.error || '无法读取运行记录')
@@ -59,7 +63,7 @@ function Workspace({ onExit }: { onExit: () => void }) {
             setCursor(data.nextCursor)
         } catch (error) { if (!controller.signal.aborted) setError(message(error)) }
         finally { if (!controller.signal.aborted) setListBusy(false) }
-    }, [onExit])
+    }, [onExit, category, status])
 
     useEffect(() => {
         void loadPage()
@@ -89,11 +93,20 @@ function Workspace({ onExit }: { onExit: () => void }) {
             onExit()
         } catch (error) { setError(message(error)); setLogoutBusy(false) }
     }
+    const resetFilterResults = () => {
+        detailRequest.current?.abort()
+        setItems([]); setCursor(null); setTrace(null); setDetailBusy(false); setListBusy(true); setError('')
+    }
     return <>
         <div className={styles.toolbar}><p>开发者会话 · 仅后台可见</p><div><button className={styles.secondary} disabled={listBusy} onClick={() => {
             setError(''); setListBusy(true); void loadPage(); if (trace) void loadDetail(trace.id)
         }}><RefreshCw size={15} aria-hidden />刷新</button><button className={styles.secondary} disabled={logoutBusy} onClick={logout}><LogOut size={15} aria-hidden />{logoutBusy ? '正在退出…' : '退出后台'}</button></div></div>
         {error && <p role="alert" className={styles.error}>{error}</p>}
+        <div className={styles.filters}>
+            <label>任务结果<select value={status} onChange={event => { setStatus(event.target.value); resetFilterResults() }}><option value="">全部结果</option>{['completed', 'failed', 'cancelled', 'timed_out', 'running'].map(value => <option key={value} value={value}>{value === 'running' ? '未结束／未回写' : statusLabels[value]}</option>)}</select></label>
+            <label>错误类型<select value={category} onChange={event => { setCategory(event.target.value); resetFilterResults() }}><option value="">全部类型</option>{Object.entries(errorCategories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <p>任务成功也可能包含已纠正的失败步骤；按错误类型可找到这些记录。</p>
+        </div>
         <div className={styles.workspace}>
             <aside className={styles.list} aria-label="运行记录列表"><div className={styles.panelHeading}><h2>最近运行</h2><span>{items.length} 条</span></div>
                 {!items.length && <p className={styles.empty} role="status">{listBusy ? '正在读取记录…' : '暂无记录。完成一次聊天或白板任务后，刷新查看。'}</p>}
@@ -103,6 +116,7 @@ function Workspace({ onExit }: { onExit: () => void }) {
                         <span className={styles.runTop}><span>{item.kind === 'board' ? '白板 Agent' : '普通聊天'}</span><span className={styles.badge} data-status={status}>{statusLabels[status] ?? status}</span></span>
                         <strong>{item.prompt || '图片或白板附件请求'}</strong><span className={styles.runMeta}>{new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false })}</span>
                         <span className={styles.runMeta}>{item.model} · {item.durationMs == null ? '尚未结束' : `${item.durationMs} ms`}</span>
+                        {!!item.errorCount && <span className={styles.errorCount}>{item.errorCount} 条失败事件</span>}
                     </button></li>
                 })}</ul>
                 {cursor && <button className={styles.loadMore} disabled={listBusy} onClick={() => { setListBusy(true); void loadPage(cursor, true) }}>{listBusy ? '正在读取…' : '加载更早记录'}</button>}

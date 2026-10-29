@@ -43,3 +43,15 @@ test('unpaired or malformed historical events remain inspectable', () => {
     assert.ok(nodes.some(n => n.eventIds.includes('orphan')))
     assert.ok(nodes.some(n => n.eventIds.includes('bad-json')))
 })
+
+test('operation successes are green, failures classified, and later draft actions follow the run result', () => {
+    const nodes = buildTraceFlow({ ...trace, events: [
+        { ...event('access', 'operation_result', { operation: 'access', outcome: 'success' }), outcome: 'success' },
+        { ...event('end', 'run_result', { status: 'completed', outcome: 'success' }), outcome: 'success' },
+        { ...event('apply', 'operation_result', { operation: 'draft_apply', outcome: 'error' }), source: 'client', outcome: 'error', errorCategory: 'draft', errorCode: 'DRAFT_APPLY_FAILED' },
+    ] })
+    assert.deepEqual(nodes.map(n => n.status), ['completed', 'completed', 'completed', 'failed'])
+    assert.deepEqual(nodes.map(n => n.kind), ['input', 'operation', 'result', 'operation'])
+    assert.equal(nodes[3].label, '应用草稿')
+    assert.ok(nodes[3].eventIds.includes('apply'))
+})
