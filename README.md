@@ -64,11 +64,9 @@
 ```bash
 # 本地 SQLite（增量 SQL，不删除已有文档）
 npm run trace:setup:sqlite
-npm run prisma:generate:sqlite
 
 # PostgreSQL 部署环境（由运维在部署时执行）
 npm run trace:setup:postgres
-npm run prisma:generate:postgres
 ```
 
 后台详情包含可点击的执行流程图和文字时间线，可查看用户上下文、实际模型请求、服务商返回的推理内容、工具参数/结果、追问答案、参数纠错和耗时。工具写入成功只表示生成草稿；用户随后应用或放弃草稿的结果会作为单独步骤追加。

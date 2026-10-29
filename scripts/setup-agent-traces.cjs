@@ -6,6 +6,7 @@ const { PrismaClient } = require('@prisma/client')
 async function setupTraceSchema(prisma, provider) {
     if (!['sqlite', 'postgres'].includes(provider)) throw new Error('Expected sqlite or postgres')
     const sql = fs.readFileSync(path.join(__dirname, '..', 'prisma', provider, 'agent-traces.sql'), 'utf8')
+    // shortcut: 仅处理当前简单 DDL；加入含分号的函数或数据迁移前改用正式迁移工具。
     for (const statement of sql.replace(/^--.*$/gm, '').split(';').map(part => part.trim()).filter(Boolean)) await prisma.$executeRawUnsafe(statement)
     const additions = {
         AgentTrace: { lastSequence: 'INTEGER NOT NULL DEFAULT 0' },
