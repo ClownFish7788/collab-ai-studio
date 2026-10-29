@@ -2,7 +2,7 @@ import { Liveblocks } from "@liveblocks/node";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 // 1. 初始化 Liveblocks Node 客户端
 const liveblocks = new Liveblocks({

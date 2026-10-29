@@ -3,7 +3,7 @@ import { appendChatSnapshot, validateChatSnapshot } from '@/utils/board/snapshot
 import type { RegionSnapshot } from '@/utils/board/snapshot/collectRegionSnapshot'
 import { tldrawPrompt } from '@/prompts/tldrawPrompt'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '../auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth'
 import { startAgentTrace } from '@/lib/agentTrace'
 import { observeModelFetch } from '@/lib/modelTrace'
 
