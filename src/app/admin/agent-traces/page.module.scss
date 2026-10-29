@@ -38,11 +38,11 @@
 .help { font-size: 12px; line-height: 1.8; color: var(--muted); margin: 18px 0; }
 .viewer { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, 1fr); gap: 14px; }
 .flowPanel, .inspector { border: 1px solid var(--border-color); border-radius: 10px; min-width: 0; overflow: hidden; }
-.graph { height: 560px; overflow: auto; background-image: radial-gradient(var(--border-color) 1px, transparent 1px); background-size: 20px 20px; svg { display: block; width: 100%; min-width: 620px; color: var(--muted); } }
+.graph { height: 560px; overflow: auto; background-image: radial-gradient(var(--border-color) 1px, transparent 1px); background-size: 20px 20px; svg { display: block; width: 100%; min-width: 540px; color: var(--muted); } }
 .edge { stroke: var(--muted); stroke-width: 1.6; opacity: .7; }
 .node { --node-color: #7a8495; cursor: pointer; &[data-kind='model'] { --node-color: var(--accent); } &[data-kind='tool'] { --node-color: var(--teal); } &[data-kind='validation'] { --node-color: #ba7a16; } &[data-status='failed']:not([data-kind='validation']), &[data-status='timed_out'] { --node-color: var(--danger); } &[data-kind='result'][data-status='completed'] { --node-color: var(--teal); } rect, polygon { fill: color-mix(in srgb, var(--node-color) 8%, var(--card-bg)); stroke: var(--node-color); stroke-width: 1.8; } &[aria-pressed='true'] rect, &[aria-pressed='true'] polygon, &:focus-visible rect, &:focus-visible polygon { stroke-width: 4; } &:focus { outline: none; } }
-.nodeTitle { fill: var(--text-color); font-size: 18px; font-weight: 600; }
-.nodeCaption { fill: var(--muted); font: 14px var(--font-geist-mono), monospace; }
+.nodeTitle { fill: var(--text-color); font-size: 20px; font-weight: 600; }
+.nodeCaption { fill: var(--muted); font: 15px var(--font-geist-mono), monospace; }
 .inspectorBody { max-height: 560px; overflow: auto; padding: 16px; }
 .event { h4 { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; margin-bottom: 12px; small { font-weight: 400; color: var(--muted); } } & + & { border-top: 1px solid var(--border-color); padding-top: 18px; margin-top: 18px; } }
 .fieldLabel { font-size: 12px; color: var(--muted); margin-top: 14px; }
@@ -52,4 +52,4 @@
 .login { max-width: 440px; margin: 70px auto; padding: 34px; > svg { color: var(--accent); margin-bottom: 18px; } h2 { font-size: 22px; margin-bottom: 14px; } > p:not(.eyebrow) { color: var(--muted); font-size: 13px; line-height: 1.9; } form { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; label { font-size: 13px; } input { width: 100%; min-height: 44px; } button { margin-top: 8px; min-height: 44px; background: var(--accent); color: white; } } }
 :global([data-theme='dark']) .shell { --accent: #91adf3; --teal: #6abbb2; --danger: #ef9999; }
 @media (max-width: 1300px) { .viewer { grid-template-columns: 1fr; } .graph { height: 450px; } .inspectorBody { max-height: 450px; } }
-@media (max-width: 800px) { .shell { padding: 20px 14px; } .workspace { grid-template-columns: 1fr; } .list { position: static; max-height: 300px; } .adminMark { display: none; } .detail { padding: 16px; } .header h1 { font-size: 24px; } .toolbar { align-items: flex-start; } .login { margin: 40px auto; padding: 26px; } }
+@media (max-width: 800px) { .shell { padding: 20px 14px; } .workspace { grid-template-columns: 1fr; } .list { position: static; max-height: 300px; } .adminMark { display: none; } .detail { padding: 16px; } .header h1 { font-size: 24px; } .toolbar { align-items: flex-start; } .login { margin: 40px auto; padding: 26px; } .graph svg { min-width: 620px; } }
