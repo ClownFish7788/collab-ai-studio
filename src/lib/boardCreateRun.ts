@@ -105,7 +105,7 @@ async function executeInBrowser(
         run.pending = { call, resolve }
         rejectWait = reject
     })
-    const timer = setTimeout(() => rejectWait(new Error('等待浏览器工具结果超时')), waitMs)
+    const timer = setTimeout(() => rejectWait(new DOMException('等待浏览器工具结果超时', 'TimeoutError')), waitMs)
     const onAbort = () => rejectWait(run.signal.reason)
     run.signal.addEventListener('abort', onAbort, { once: true })
 

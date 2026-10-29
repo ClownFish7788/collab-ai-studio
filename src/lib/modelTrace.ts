@@ -13,7 +13,10 @@ function sanitize(value: unknown): unknown {
             .replace(/((?:https?|postgres(?:ql)?|mysql|rediss?):\/\/)[^/\s:@]+:[^@\s/]+@/gi, '$1[redacted]@')
             .replace(/([?&](?:api[_-]?key|token|secret|password)=)[^&\s]+/gi, '$1[redacted]')
         for (const secret of [process.env.API_KEY, process.env.ADMIN_TRACE_PASSWORD, process.env.AUTH_GITHUB_SECRET, process.env.NEXTAUTH_SECRET]) {
-            if (secret && secret.length >= 4) text = text.split(secret).join('[redacted]')
+            if (secret && secret.length >= 4) {
+                text = text.split(secret).join('[redacted]')
+                if (secret.trim().length >= 4) text = text.split(secret.trim()).join('[redacted]')
+            }
         }
         return text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) + '\n[truncated]' : text
     }
@@ -120,11 +123,12 @@ class ModelCollector {
         }
         const valid = this.done && !this.error && (!!this.content.trim() || this.calls.size > 0)
         return {
-            status: valid ? 'completed' as const : cancelled ? 'cancelled' as const : 'failed' as const,
+            status: valid ? 'completed' as const : this.error ? 'failed' as const : cancelled ? 'cancelled' as const : 'failed' as const,
             content: this.content, reasoning: this.reasoning || null, toolCalls: [...this.calls.values()],
             usage: this.usage, truncated: this.truncated,
-            error: valid ? null : cancelled ? classifyTraceError({ name: 'AbortError', message: '模型响应流已取消' }, { operation: 'model_fetch' })
-                : this.failure ?? { category: 'model' as const, code: this.done ? 'MODEL_RESPONSE_INVALID' : 'MODEL_STREAM_INCOMPLETE', message: this.done ? '模型未返回可用响应' : '模型响应未完整结束' },
+            // 模型适配器拒绝错误帧后也会 cancel reader；清理动作不能覆盖已经取得的错误证据。
+            error: valid ? null : this.failure ?? (cancelled && !this.error ? classifyTraceError({ name: 'AbortError', message: '模型响应流已取消' }, { operation: 'model_fetch' })
+                : { category: 'model' as const, code: this.done ? 'MODEL_RESPONSE_INVALID' : 'MODEL_STREAM_INCOMPLETE', message: this.done ? '模型未返回可用响应' : '模型响应未完整结束' }),
         }
     }
 }
@@ -157,6 +161,7 @@ export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch =
         const finish = (cancelled: boolean, cause?: unknown) => finishing ??= (async () => {
             const summary = collector.finish(cancelled)
             if (summary.status !== 'completed' && (cause || init?.signal?.aborted)) summary.error = classifyTraceError(cause ?? init?.signal?.reason, { operation: 'model_fetch', signal: init?.signal ?? undefined })
+            if (summary.status !== 'completed' && init?.signal?.aborted) summary.status = 'cancelled'
             await save('model_response', { requestId, ...summary }, Date.now() - started)
             try { await onEnd?.(summary) } catch (cause) { console.error(serializeTraceData({ type: 'trace_completion_error', outcome: 'error', error: classifyTraceError(cause, { operation: 'storage' }) })) }
         })()

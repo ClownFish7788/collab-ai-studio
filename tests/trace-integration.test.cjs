@@ -133,3 +133,23 @@ test('rejected chat requests are captured before a model run exists, with stable
     const auth = await prisma.agentTrace.findUnique({ where: { id: denied.headers.get('x-agent-trace-id') }, include: { events: true } })
     assert.ok(auth.events.some(e => e.errorCategory === 'authentication'))
 })
+
+test('browser tool wait timeout is recorded as timeout instead of a generic tool failure', async () => {
+    const run = beginCreateRun('timeout-owner', 'room', new AbortController().signal)
+    const events = []
+    await assert.rejects(() => runCreateLoop(run, { roomId: 'room', prompt: 'read' }, async () => ({ kind: 'tool', call: call('wait', 'get_board_snapshot', { range: 'viewport' }) }),
+        () => {}, async () => {}, 5, async (...event) => events.push(event)), { name: 'TimeoutError' })
+    assert.equal(events.find(e => e[0] === 'tool_error')[1].error.category, 'timeout')
+})
+
+test('unsupported non-SSE chat response has one failed terminal event, never a successful task result', async () => {
+    const transport = mock.method(globalThis, 'fetch', async () => modelResponse({ content: 'not-sse' }))
+    const response = await POST(new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify({ messages: [{ role: 'user', content: 'wrong-content-type' }] }) }))
+    transport.mock.restore()
+    assert.equal(response.status, 502)
+    const saved = await prisma.agentTrace.findFirst({ where: { prompt: 'wrong-content-type' }, include: { events: true } })
+    const terminal = saved.events.filter(e => e.type === 'run_result')
+    assert.equal(terminal.length, 1)
+    assert.equal(terminal[0].outcome, 'error')
+    assert.equal(saved.reply, null)
+})

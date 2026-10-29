@@ -21,7 +21,21 @@ test('error messages and stacks redact bearer tokens, URL credentials and config
         const saved = serializeTraceData({ message: 'Bearer private-token https://user:private-password@example.com/path?api_key=private-key fixture-transport-secret' })
         assert.doesNotMatch(saved, /private-token|private-password|private-key|fixture-transport-secret/)
         assert.match(saved, /redacted/)
+        process.env.API_KEY = '  fixture-transport-secret  '
+        assert.doesNotMatch(serializeTraceData({ message: 'Incorrect API key provided: fixture-transport-secret' }), /fixture-transport-secret/)
     } finally { if (previous === undefined) delete process.env.API_KEY; else process.env.API_KEY = previous }
+})
+
+test('model adapter cleanup cannot turn a captured provider error into user cancellation', async () => {
+    const { requestBoardCreateModel } = require('../src/lib/boardCreateModel.ts')
+    const events = []
+    const raw = 'data: {"error":{"code":"provider_specific","message":"provider actual failure"}}\n\n'
+    const fetcher = observeModelFetch(async (...args) => events.push(args), fixtureFetch(raw, true))
+    await assert.rejects(() => requestBoardCreateModel([], { apiKey: 'fixture', model: 'fixture', baseUrl: 'https://fixture.invalid' }, new AbortController().signal, [], fetcher))
+    const response = events.find(e => e[0] === 'model_response')[1]
+    assert.equal(response.status, 'failed')
+    assert.equal(response.error.code, 'provider_specific')
+    assert.equal(response.error.message, 'provider actual failure')
 })
 
 function fixtureFetch(raw, open = false, contentType = 'text/event-stream') {

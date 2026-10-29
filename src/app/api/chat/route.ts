@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { traceAgentRequest, type AgentTrace } from '@/lib/agentTraceRequest'
 import { observeModelFetch } from '@/lib/modelTrace'
 import { CreateAccessError } from '@/lib/boardCreateAccess'
+import { classifyTraceError } from '@/utils/agent-traces/outcomes'
 
 export const maxDuration = 60
 
@@ -42,7 +43,8 @@ async function handleChat(request: Request, trace: AgentTrace) {
         }
         body += decoder.decode()
         payload = JSON.parse(body)
-    } catch {
+    } catch (cause) {
+        await trace.record('operation_result', { operation: 'request_validation', outcome: 'error', error: classifyTraceError(cause, { operation: 'request_validation' }) })
         return Response.json({ error: '请求格式错误' }, { status: 400 })
     }
 
@@ -64,6 +66,7 @@ async function handleChat(request: Request, trace: AgentTrace) {
                 validateChatSnapshot(message.snapshot)
                 snapshot = message.snapshot
             } catch (error) {
+                await trace.record('operation_result', { operation: 'request_validation', outcome: 'error', error: classifyTraceError(error, { operation: 'request_validation' }) })
                 return Response.json({ error: error instanceof Error ? error.message : '白板快照不合法' }, { status: 400 })
             }
         }
@@ -95,6 +98,7 @@ async function handleChat(request: Request, trace: AgentTrace) {
                 }
             }
         } catch (error) {
+            await trace.record('operation_result', { operation: 'request_validation', outcome: 'error', error: classifyTraceError(error, { operation: 'request_validation' }) })
             return Response.json({ error: error instanceof Error ? error.message : '图片消息不合法' }, { status: 400 })
         }
         messages.push({ role: message.role, content: [...images, ...texts], snapshot })
@@ -125,7 +129,9 @@ async function handleChat(request: Request, trace: AgentTrace) {
     await trace.context({ prompt, input: { messages } })
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(60000)])
     const isTimedOut = () => signal.reason instanceof Error && signal.reason.name === 'TimeoutError'
+    let responseAccepted = false
     const tracedFetch = observeModelFetch(trace.record, fetch, async end => {
+        if (!responseAccepted) return
         await trace.end(end.status === 'completed' ? 'completed' : isTimedOut() ? 'timed_out' : end.status,
             end.content, end.status === 'failed' ? '模型响应不完整或返回错误' : undefined)
     })
@@ -142,6 +148,7 @@ async function handleChat(request: Request, trace: AgentTrace) {
             await trace.end('failed', undefined, `模型服务请求失败（HTTP ${response.status}）`)
             return Response.json({ error: `模型服务请求失败（HTTP ${response.status}）` }, { status: response.status === 429 ? 429 : 502 })
         }
+        responseAccepted = true
         return new Response(response.body, {
             headers: {
                 'Content-Type': 'text/event-stream; charset=utf-8',

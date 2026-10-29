@@ -9,6 +9,7 @@ export type TraceFailure = { category: ErrorCategory; code: string; message: str
 
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
 const operationCategories: Record<string, ErrorCategory> = {
+    run_start: 'protocol',
     request_validation: 'validation', tool_validation: 'validation', authentication: 'authentication', access: 'permission',
     rate_limit: 'rate_limit', configuration: 'configuration', model_fetch: 'network', model_call: 'model', model_response: 'model',
     tool_execute: 'tool', result_submit: 'protocol', stream_receive: 'protocol', draft_apply: 'draft', draft_discard: 'draft', storage: 'storage',
@@ -35,7 +36,7 @@ export function classifyTraceError(cause: unknown, context: { operation: string;
     else if (original.name === 'AbortError' || context.signal?.aborted) category = 'cancelled'
     return {
         category,
-        code: code ?? (context.httpStatus ? `${context.operation.toUpperCase()}_HTTP_${context.httpStatus}` : `${context.operation.toUpperCase()}_${category === 'cancelled' ? 'CANCELLED' : 'FAILED'}`),
+        code: code ?? (context.httpStatus ? `${context.operation.toUpperCase()}_HTTP_${context.httpStatus}` : `${context.operation.toUpperCase()}_${category === 'cancelled' ? 'CANCELLED' : category === 'timeout' ? 'TIMEOUT' : 'FAILED'}`),
         message: typeof detail.message === 'string' ? detail.message.slice(0, 2000) : context.httpStatus ? `操作返回 HTTP ${context.httpStatus}` : '操作失败',
         ...(cause instanceof Error ? { diagnostic: { name: cause.name, ...(code ? { code } : {}), stack: cause.stack?.slice(0, 4000) } } : {}),
         ...(detail.issues ? { issues: detail.issues } : {}),

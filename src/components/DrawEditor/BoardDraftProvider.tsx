@@ -158,7 +158,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         }
         const ensureEditor = async () => {
             assertActive()
-            if (draftEditor) return
+            if (draftEditor) { linkTrace(); return }
             if (!draft) {
                 editor.complete()
                 const ids = input.snapshot?.shapes.map(shape => shape.id) ?? []
@@ -207,7 +207,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                 if (call.function.name !== 'ask_user') await ensureEditor()
                 assertActive()
                 return execute(call)
-            }, step => { assertActive(); if (step.runId) { traceId = step.runId; linkTrace() }; onStep(step) })
+            }, step => { assertActive(); if (step.runId) traceId = step.runId; onStep(step) })
             assertActive()
             return { ...result, ...(draft ? { draftId: draft.runId } : {}) }
         } finally {

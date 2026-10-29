@@ -92,8 +92,8 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                             : cause instanceof CreateAccessError ? { code: ERROR_CODES.ACCESS_DENIED, message: cause.message }
                                 : { code: ERROR_CODES.TASK_FAILED, message: '后端白板任务失败，已完成的内容仅保留在草稿中' }
 
-                    const timedOut = activeRun.signal.reason instanceof Error && activeRun.signal.reason.name === 'TimeoutError'
-                    await trace.record('run_error', { ...error, failure: classifyTraceError(cause, { operation: 'run', signal: activeRun.signal }) })
+                    const timedOut = activeRun.signal.reason instanceof Error && activeRun.signal.reason.name === 'TimeoutError' || cause instanceof Error && cause.name === 'TimeoutError'
+                    await trace.record('run_error', { ...error, failure: classifyTraceError(cause, { operation: 'run', signal: activeRun.signal, httpStatus: cause instanceof CreateAccessError ? cause.status : undefined }) })
                     await trace.end(timedOut ? 'timed_out' : activeRun.signal.aborted ? 'cancelled' : 'failed', finalReply, error.message)
                     try { emit({ type: 'error', runId: activeRun.id, error }) } catch { /* 连接已关闭。 */ }
                 } finally {

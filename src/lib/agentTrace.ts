@@ -28,6 +28,7 @@ export async function startAgentTrace(input: {
     const started = Date.now()
     let id: string | undefined
     let failure: TraceFailure | undefined
+    let endedStatus: string | undefined
     try {
         const saved = await prisma.agentTrace.create({ data: {
             ...input, prompt: JSON.parse(serializeTraceData(input.prompt)), input: serializeTraceData(input.input),
@@ -70,6 +71,9 @@ export async function startAgentTrace(input: {
         },
         async end(status: 'completed' | 'failed' | 'cancelled' | 'timed_out', reply?: string, error?: string) {
             if (!id) return
+            // 传输层和请求层可能共同处理同一失败；保留一次终态，失败后不能再降级为成功。
+            if (endedStatus === status || endedStatus && status === 'completed') return
+            endedStatus = status
             try {
                 await prisma.agentTrace.update({ where: { id }, data: {
                     status, reply: reply === undefined ? undefined : JSON.parse(serializeTraceData(reply)),
