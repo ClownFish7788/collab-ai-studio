@@ -12,7 +12,7 @@ db.exec(fs.readFileSync(path.join(__dirname, '../prisma/sqlite/agent-traces.sql'
 db.close()
 const prisma = require('../src/lib/prisma.ts').default
 after(async () => { await prisma.$disconnect(); fs.rmSync(directory, { recursive: true, force: true }) })
-const { createAdminSession, verifyAdminSession, matchesAdminPassword } = require('../src/lib/traceAdminSession.ts')
+const { createAdminSession, verifyAdminSession, matchesAdminPassword, sameOrigin } = require('../src/lib/traceAdminSession.ts')
 const { POST, DELETE } = require('../src/app/api/admin/agent-traces/session/route.ts')
 const { GET } = require('../src/app/api/admin/agent-traces/route.ts')
 const { GET: detail } = require('../src/app/api/admin/agent-traces/[id]/route.ts')
@@ -39,6 +39,28 @@ test('trace list and detail reject anonymous, ordinary user and forged cookies',
     for (const cookie of ['', 'next-auth.session-token=ordinary-user', 'agent-trace-admin=forged']) {
         assert.equal((await GET(request('/api/admin/agent-traces', { headers: { cookie } }))).status, 401)
         assert.equal((await detail(request('/api/admin/agent-traces/x', { headers: { cookie } }), { params: Promise.resolve({ id: 'x' }) })).status, 401)
+    }
+})
+
+test('origin validation uses the actual host when Next normalizes its internal request URL', () => {
+    assert.equal(sameOrigin(new Request('http://localhost:3010/api/admin/agent-traces/session', {
+        headers: { origin: 'http://127.0.0.1:3010', host: '127.0.0.1:3010' },
+    })), true)
+    assert.equal(sameOrigin(new Request('http://localhost:3010/api/admin/agent-traces/session', {
+        headers: { origin: 'http://attacker.invalid', host: '127.0.0.1:3010' },
+    })), false)
+    const environment = process.env.NODE_ENV
+    try {
+        process.env.NODE_ENV = 'production'
+        assert.equal(sameOrigin(new Request('http://internal/api/admin/agent-traces/session', {
+            headers: { origin: 'https://admin.example.com', host: 'admin.example.com' },
+        })), true)
+        assert.equal(sameOrigin(new Request('http://internal/api/admin/agent-traces/session', {
+            headers: { origin: 'http://admin.example.com', host: 'admin.example.com' },
+        })), false)
+    } finally {
+        if (environment === undefined) delete process.env.NODE_ENV
+        else process.env.NODE_ENV = environment
     }
 })
 

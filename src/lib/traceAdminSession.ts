@@ -43,5 +43,14 @@ export function traceJson(data: unknown, status = 200) {
 }
 
 export function sameOrigin(request: Request) {
-    return request.headers.get('origin') === new URL(request.url).origin
+    const origin = request.headers.get('origin')
+    if (!origin) return false
+    try {
+        const parsed = new URL(origin)
+        const internal = new URL(request.url)
+        // Next 可规范化内部 URL 的主机名；使用实际 Host，不信任客户端传入的 X-Forwarded-Host。
+        const host = request.headers.get('host') ?? internal.host
+        const protocol = process.env.NODE_ENV === 'production' ? 'https:' : internal.protocol
+        return parsed.origin === origin && parsed.host === host.toLowerCase() && parsed.protocol === protocol
+    } catch { return false }
 }
