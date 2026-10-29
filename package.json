@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test": "node --require ./tests/register.cjs --test tests/*.test.cjs",
     "dev": "npm run prisma:generate:sqlite && next dev",
     "build": "npm run prisma:generate:postgres && next build",
     "start": "next start",
