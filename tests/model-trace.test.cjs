@@ -14,6 +14,16 @@ test('trace payloads omit image bytes and credential fields, preserving useful c
     assert.doesNotThrow(() => JSON.parse(data))
 })
 
+test('error messages and stacks redact bearer tokens, URL credentials and configured secrets', () => {
+    const previous = process.env.API_KEY
+    process.env.API_KEY = 'fixture-transport-secret'
+    try {
+        const saved = serializeTraceData({ message: 'Bearer private-token https://user:private-password@example.com/path?api_key=private-key fixture-transport-secret' })
+        assert.doesNotMatch(saved, /private-token|private-password|private-key|fixture-transport-secret/)
+        assert.match(saved, /redacted/)
+    } finally { if (previous === undefined) delete process.env.API_KEY; else process.env.API_KEY = previous }
+})
+
 function fixtureFetch(raw, open = false, contentType = 'text/event-stream') {
     const bytes = new TextEncoder().encode(raw)
     return async () => new Response(new ReadableStream({ start(controller) {

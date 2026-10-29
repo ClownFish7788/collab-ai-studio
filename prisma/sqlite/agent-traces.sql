@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS "AgentTrace" (
   "reply" TEXT,
   "error" TEXT,
   "durationMs" INTEGER,
+  "lastSequence" INTEGER NOT NULL DEFAULT 0,
   "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -20,6 +21,10 @@ CREATE TABLE IF NOT EXISTS "AgentTraceEvent" (
   "traceId" TEXT NOT NULL,
   "sequence" INTEGER NOT NULL,
   "type" TEXT NOT NULL,
+  "source" TEXT NOT NULL DEFAULT 'server',
+  "outcome" TEXT NOT NULL DEFAULT 'unknown',
+  "errorCategory" TEXT,
+  "errorCode" TEXT,
   "data" TEXT NOT NULL,
   "durationMs" INTEGER,
   "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

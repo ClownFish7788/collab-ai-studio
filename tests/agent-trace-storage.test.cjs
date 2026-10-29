@@ -29,7 +29,23 @@ test('events persist before completion, in order, including failed tool results 
     assert.equal(saved.error, '执行失败')
     assert.equal(saved.events[1].sequence > saved.events[0].sequence, true)
     assert.equal(saved.events[1].durationMs, 12)
+    assert.equal(saved.events[0].outcome, 'pending')
+    assert.equal(saved.events[1].outcome, 'error')
+    assert.equal(saved.events[1].errorCategory, 'tool')
     assert.doesNotMatch(JSON.stringify(saved), /QUJD|secret/)
+})
+
+test('concurrent server and browser events receive unique ordered sequence numbers', async () => {
+    const { appendAgentTraceEvent } = require('../src/lib/agentTrace.ts')
+    const trace = await startAgentTrace({ id: 'parallel', kind: 'board', userId: 'owner', model: 'fixture', prompt: 'test', input: {} })
+    await Promise.all([
+        trace.record('operation_result', { operation: 'access', outcome: 'success' }),
+        appendAgentTraceEvent('parallel', 'operation_result', { operation: 'draft_apply', outcome: 'error', error: { message: 'conflict' } }, 5, 'client'),
+    ])
+    const events = await prisma.agentTraceEvent.findMany({ where: { traceId: 'parallel' }, orderBy: { sequence: 'asc' } })
+    assert.equal(events.length, 2)
+    assert.notEqual(events[0].sequence, events[1].sequence)
+    assert.equal(events.find(e => e.source === 'client').errorCategory, 'draft')
 })
 
 test('shared DB password budget cannot be bypassed with concurrent attempts and resets next window', async () => {

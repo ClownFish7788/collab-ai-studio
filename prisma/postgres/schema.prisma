@@ -113,6 +113,7 @@ model AgentTrace {
   error      String?
   durationMs Int?
   createdAt  DateTime          @default(now())
+  lastSequence Int            @default(0)
   updatedAt  DateTime          @default(now()) @updatedAt
   events     AgentTraceEvent[]
 
@@ -124,6 +125,10 @@ model AgentTraceEvent {
   traceId    String
   sequence   Int
   type       String
+  source     String     @default("server")
+  outcome    String     @default("unknown")
+  errorCategory String?
+  errorCode  String?
   data       String
   durationMs Int?
   createdAt  DateTime   @default(now())

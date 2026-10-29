@@ -5,8 +5,14 @@ const MAX_TEXT = 64 * 1024
 
 function sanitize(value: unknown): unknown {
     if (typeof value === 'string') {
-        const text = value.replace(/data:image\/([a-z0-9.+-]+);base64,[a-z0-9+/=]+/gi,
+        let text = value.replace(/data:image\/([a-z0-9.+-]+);base64,[a-z0-9+/=]+/gi,
             (_, type: string) => `[image omitted: image/${type}]`)
+            .replace(/\bBearer\s+[a-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
+            .replace(/((?:https?|postgres(?:ql)?|mysql|rediss?):\/\/)[^/\s:@]+:[^@\s/]+@/gi, '$1[redacted]@')
+            .replace(/([?&](?:api[_-]?key|token|secret|password)=)[^&\s]+/gi, '$1[redacted]')
+        for (const secret of [process.env.API_KEY, process.env.ADMIN_TRACE_PASSWORD, process.env.AUTH_GITHUB_SECRET, process.env.NEXTAUTH_SECRET]) {
+            if (secret && secret.length >= 4) text = text.split(secret).join('[redacted]')
+        }
         return text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) + '\n[truncated]' : text
     }
     if (Array.isArray(value)) return value.map(sanitize)

@@ -43,7 +43,7 @@ export function classifyTraceError(cause: unknown, context: { operation: string;
 /** 旧事件也统一补齐结果；开始事件保持 pending，不把“已发起”算作执行成功。 */
 export function eventOutcome(type: string, value: unknown): { outcome: TraceOutcome; errorCategory?: ErrorCategory; errorCode?: string; failure?: TraceFailure } {
     const data = object(value)
-    const failedOutput = object(data.output).ok === false
+    const failedOutput = object(data.output).ok === false || data.ok === false
     const operation = typeof data.operation === 'string' ? data.operation : type.startsWith('model') ? type === 'model_error' ? 'model_fetch' : 'model_response'
         : type === 'tool_validation_error' ? 'tool_validation' : type.startsWith('tool') ? 'tool_execute' : 'unknown'
     let outcome: TraceOutcome = type === 'model_request' || type === 'tool_call' ? 'pending' : 'success'
