@@ -22,7 +22,7 @@ export function serializeTraceData(value: unknown) {
     return json.length <= 1024 * 1024 ? json : JSON.stringify({ truncated: true, preview: json.slice(0, 1024 * 1024) })
 }
 
-// shortcut: 每字段 64 KiB、每帧 128 KiB；完整大响应评测需要改用受控对象存储。
+// shortcut: 每字段最多 65536 字符、每帧 131072 字符；完整大响应评测需要改用受控对象存储。
 class ModelCollector {
     private decoder = new TextDecoder()
     private pending = ''

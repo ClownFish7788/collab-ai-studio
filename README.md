@@ -51,6 +51,40 @@
 
 ### 🤖 AI 助手
 - 右侧可拉伸 AI 聊天框，随时唤出，可隐藏
+- 普通聊天与白板 Agent 的模型请求、工具执行及结果可在独立密码保护的开发者后台查看
+
+### Agent 运行记录后台
+
+访问 `/admin/agent-traces`，使用独立后台密码登录；普通用户账号没有查看权限，工作区导航不提供后台入口。
+
+在服务端环境变量中配置 `ADMIN_TRACE_PASSWORD`（至少 16 字符，建议使用随机生成的 32 字节密码，例如 `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`）。不要使用 `NEXT_PUBLIC_` 前缀。生产环境必须使用 HTTPS。
+
+已有数据库需要先添加记录表，再重新生成对应的 Prisma 客户端：
+
+```bash
+# 本地 SQLite（增量 SQL，不删除已有文档）
+npm run trace:setup:sqlite
+npm run prisma:generate:sqlite
+
+# PostgreSQL 部署环境（由运维在部署时执行）
+npm run trace:setup:postgres
+npm run prisma:generate:postgres
+```
+
+后台详情包含可点击的执行流程图和文字时间线，可查看用户上下文、实际模型请求、服务商返回的推理内容、工具参数/结果、追问答案、参数纠错和耗时。工具写入成功只表示生成草稿，不表示用户已确认应用。
+
+- 查询接口：`GET /api/admin/agent-traces?cursor=...`、`GET /api/admin/agent-traces/:id`，均校验独立后台会话并禁止缓存。
+- 登录/退出：`POST` / `DELETE /api/admin/agent-traces/session`，写操作校验同源；密码尝试共享数据库限额（每 10 分钟 20 次）。Cookie 为 HttpOnly，8 小时过期；修改密码可使所有既有后台会话失效。
+- 保持原有 `enable_thinking: false` 配置。只记录服务商实际返回的推理内容，未返回时显示“未提供”，不会生成或补写隐藏思维链。
+- API Key、Cookie 等传输凭据不进入记录；图片仅保留省略标记和类型。用户主动写入正文的敏感信息仍属于对话内容，需要按后台数据保护。
+- 每个字段最多记录 65536 字符，超出单事件上限时保存截断预览。记录逐步写入，记录失败只输出服务端错误，不中断用户任务；崩溃后未写回的任务会标为“状态未回写”。不回填历史对话。
+- 首版未配置自动清理或保留期限；上线前根据业务要求安排日志保留与清理。后台共享密码仅适合小范围开发/运维团队。
+
+测试使用 Node.js 22.13+ 的临时 SQLite，隔离数据库且不请求真实模型服务：
+
+```bash
+npm test
+```
 
 ### 📤 导出
 - 支持导出为 PDF、图片、Word 格式
