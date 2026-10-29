@@ -20,9 +20,10 @@ const protocolCategories: Record<string, ErrorCategory> = {
 /** 分类依赖稳定的阶段和错误码，不根据可能变化的提示文案猜测原因。 */
 export function classifyTraceError(cause: unknown, context: { operation: string; signal?: AbortSignal; httpStatus?: number }): TraceFailure {
     const original = object(cause)
+    const root = object(original.cause)
     const detail = Object.keys(object(original.detail)).length ? object(original.detail) : original
     const reason = object(context.signal?.reason)
-    const code = typeof detail.code === 'string' ? detail.code : undefined
+    const code = typeof detail.code === 'string' ? detail.code : typeof root.code === 'string' ? root.code : undefined
     let category: ErrorCategory = operationCategories[context.operation] ?? 'internal'
     if (code && protocolCategories[code]) category = protocolCategories[code]
     if (typeof detail.category === 'string' && Object.hasOwn(errorCategories, detail.category)) category = detail.category as ErrorCategory
@@ -35,7 +36,7 @@ export function classifyTraceError(cause: unknown, context: { operation: string;
         category,
         code: code ?? (context.httpStatus ? `${context.operation.toUpperCase()}_HTTP_${context.httpStatus}` : `${context.operation.toUpperCase()}_${category === 'cancelled' ? 'CANCELLED' : 'FAILED'}`),
         message: typeof detail.message === 'string' ? detail.message.slice(0, 2000) : context.httpStatus ? `操作返回 HTTP ${context.httpStatus}` : '操作失败',
-        ...(cause instanceof Error ? { diagnostic: { name: cause.name, ...(typeof original.code === 'string' ? { code: original.code } : {}), stack: cause.stack?.slice(0, 4000) } } : {}),
+        ...(cause instanceof Error ? { diagnostic: { name: cause.name, ...(code ? { code } : {}), stack: cause.stack?.slice(0, 4000) } } : {}),
         ...(detail.issues ? { issues: detail.issues } : {}),
     }
 }

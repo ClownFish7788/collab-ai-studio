@@ -1,5 +1,8 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
+import { traceAgentRequest } from './lib/agentTraceRequest'
+
+const agentKind = (path: string) => path === '/api/chat' ? 'chat' as const : path === '/api/board-create' || path.startsWith('/api/board-create/') ? 'board' as const : undefined
 
 
 
@@ -21,11 +24,15 @@ export async function proxy (request: NextRequest) {
                 secret: process.env.NEXTAUTH_SECRET
             })
             if(!token) {
+                const kind = agentKind(pathname)
+                if (kind) return traceAgentRequest(request, kind, async () => NextResponse.json({ error: 'Authentication required' }, { status: 401 }))
                 return NextResponse.json({ error: 'Authentication required' }, {status: 401})
             }
         }
         return response
     } catch (err) {
+        const kind = agentKind(request.nextUrl.pathname)
+        if (kind) return traceAgentRequest(request, kind, async () => { throw err })
         return NextResponse.json({ err }, {status: 500})
     }
 }

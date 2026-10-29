@@ -4,14 +4,25 @@ import type { RegionSnapshot } from '@/utils/board/snapshot/collectRegionSnapsho
 import { tldrawPrompt } from '@/prompts/tldrawPrompt'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { startAgentTrace } from '@/lib/agentTrace'
+import { traceAgentRequest, type AgentTrace } from '@/lib/agentTraceRequest'
 import { observeModelFetch } from '@/lib/modelTrace'
+import { CreateAccessError } from '@/lib/boardCreateAccess'
 
 export const maxDuration = 60
 
 // /api/chat 沿用 src/proxy.ts 的登录校验。
 // shortcut: Demo 仅限制单次请求，公开部署前补充用户级共享限流。
 export async function POST(request: Request) {
+    return traceAgentRequest(request, 'chat', trace => handleChat(request, trace))
+}
+
+async function handleChat(request: Request, trace: AgentTrace) {
+    const userId = await trace.step('authentication', async () => {
+        const session = await getServerSession(authOptions)
+        if (!session?.user?.id) throw new CreateAccessError('请先登录后再聊天', 401)
+        return session.user.id
+    })
+    await trace.context({ userId })
     let payload: unknown
     try {
         const reader = request.body?.getReader()
@@ -99,6 +110,7 @@ export async function POST(request: Request) {
         })),
     ]
 
+    await trace.record('operation_result', { operation: 'request_validation', outcome: 'success' })
     const apiKey = process.env.API_KEY?.trim()
     const model = process.env.BASE_MODEL?.trim()
     const baseUrl = process.env.BASE_URL?.trim()
@@ -106,11 +118,11 @@ export async function POST(request: Request) {
         return Response.json({ error: '服务端尚未配置 AI 接口' }, { status: 500 })
     }
 
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return Response.json({ error: '请先登录后再聊天' }, { status: 401 })
+    await trace.record('operation_result', { operation: 'configuration', outcome: 'success' })
+
     const lastContent = messages[messages.length - 1].content
     const prompt = typeof lastContent === 'string' ? lastContent : lastContent.map(part => part.type === 'text' ? part.text : '').filter(Boolean).join('\n')
-    const trace = await startAgentTrace({ kind: 'chat', userId: session.user.id, model, prompt, input: { messages } })
+    await trace.context({ prompt, input: { messages } })
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(60000)])
     const isTimedOut = () => signal.reason instanceof Error && signal.reason.name === 'TimeoutError'
     const tracedFetch = observeModelFetch(trace.record, fetch, async end => {

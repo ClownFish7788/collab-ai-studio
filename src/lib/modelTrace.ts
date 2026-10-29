@@ -1,5 +1,7 @@
+import { classifyTraceError, type TraceFailure } from '../utils/agent-traces/outcomes'
+
 export type TraceRecorder = (type: string, data: unknown, durationMs?: number) => Promise<void>
-export type ModelEnd = { status: 'completed' | 'failed' | 'cancelled'; content: string }
+export type ModelEnd = { status: 'completed' | 'failed' | 'cancelled'; content: string; error?: TraceFailure | null }
 
 const MAX_TEXT = 64 * 1024
 
@@ -37,6 +39,7 @@ class ModelCollector {
     private calls = new Map<number, { id: string; function: { name: string; arguments: string } }>()
     private usage: unknown = null
     private error = false
+    private failure: TraceFailure | undefined
     private done = false
     private dropping = false
     private truncated = false
@@ -66,12 +69,20 @@ class ModelCollector {
         const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n')
         if (!data) return
         if (data.trim() === '[DONE]') { this.done = true; return }
-        try { this.consumeValue(JSON.parse(data)) } catch { this.error = true }
+        try { this.consumeValue(JSON.parse(data)) } catch (cause) {
+            this.error = true
+            this.failure = { ...classifyTraceError(cause, { operation: 'model_response' }), code: 'MODEL_JSON_INVALID' }
+        }
     }
 
     private consumeValue(value: unknown) {
         if (!value || typeof value !== 'object') { this.error = true; return }
-        if ('error' in value && value.error) this.error = true
+        if ('error' in value && value.error) {
+            this.error = true
+            const detail = typeof value.error === 'object' ? value.error as { code?: unknown; message?: unknown } : {}
+            this.failure = { category: 'model', code: typeof detail.code === 'string' ? detail.code.slice(0, 100) : 'MODEL_PROVIDER_ERROR',
+                message: typeof detail.message === 'string' ? detail.message.slice(0, 2000) : typeof value.error === 'string' ? value.error.slice(0, 2000) : '模型服务返回错误' }
+        }
         if ('usage' in value && value.usage) this.usage = value.usage
         const choice = 'choices' in value && Array.isArray(value.choices) ? value.choices[0] : undefined
         if (!choice) return
@@ -102,13 +113,18 @@ class ModelCollector {
         this.push()
         if (this.pending.trim() && !this.dropping) {
             if (this.sse) this.consume(this.pending)
-            else try { this.consumeValue(JSON.parse(this.pending)); this.done = !this.error } catch { this.error = true }
+            else try { this.consumeValue(JSON.parse(this.pending)); this.done = !this.error } catch (cause) {
+                this.error = true
+                this.failure = { ...classifyTraceError(cause, { operation: 'model_response' }), code: 'MODEL_JSON_INVALID' }
+            }
         }
         const valid = this.done && !this.error && (!!this.content.trim() || this.calls.size > 0)
         return {
             status: valid ? 'completed' as const : cancelled ? 'cancelled' as const : 'failed' as const,
             content: this.content, reasoning: this.reasoning || null, toolCalls: [...this.calls.values()],
             usage: this.usage, truncated: this.truncated,
+            error: valid ? null : cancelled ? classifyTraceError({ name: 'AbortError', message: '模型响应流已取消' }, { operation: 'model_fetch' })
+                : this.failure ?? { category: 'model' as const, code: this.done ? 'MODEL_RESPONSE_INVALID' : 'MODEL_STREAM_INCOMPLETE', message: this.done ? '模型未返回可用响应' : '模型响应未完整结束' },
         }
     }
 }
@@ -116,7 +132,7 @@ class ModelCollector {
 /** Observe the actual model body, preserving response bytes/backpressure and recording cancellation in the same stream. */
 export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch = fetch, onEnd?: (end: ModelEnd) => Promise<void>): typeof fetch {
     const save: TraceRecorder = async (...args) => {
-        try { await record(...args) } catch { console.error('AI trace event could not be saved') }
+        try { await record(...args) } catch (cause) { console.error(serializeTraceData({ type: 'trace_observer_error', outcome: 'error', error: classifyTraceError(cause, { operation: 'storage' }) })) }
     }
     return async (input, init) => {
         const requestId = crypto.randomUUID()
@@ -126,21 +142,23 @@ export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch =
         await save('model_request', { requestId, request: payload })
         let response: Response
         try { response = await fetcher(input, init) } catch (cause) {
-            await save('model_error', { requestId, message: init?.signal?.aborted ? '模型请求取消或超时' : '模型连接失败' }, Date.now() - started)
+            await save('model_error', { requestId, error: classifyTraceError(cause, { operation: 'model_fetch', signal: init?.signal ?? undefined }) }, Date.now() - started)
             throw cause
         }
         if (!response.ok || !response.body) {
-            await save('model_error', { requestId, httpStatus: response.status }, Date.now() - started)
+            await save('model_error', { requestId, httpStatus: response.status,
+                error: response.ok ? { category: 'model', code: 'MODEL_BODY_EMPTY', message: '模型响应体为空' } : classifyTraceError(undefined, { operation: 'model_fetch', httpStatus: response.status }) }, Date.now() - started)
             return response
         }
         const reader = response.body.getReader()
         const collector = new ModelCollector(!!response.headers.get('content-type')?.includes('text/event-stream'))
         let cancelled = false
         let finishing: Promise<void> | undefined
-        const finish = (cancelled: boolean) => finishing ??= (async () => {
+        const finish = (cancelled: boolean, cause?: unknown) => finishing ??= (async () => {
             const summary = collector.finish(cancelled)
+            if (summary.status !== 'completed' && (cause || init?.signal?.aborted)) summary.error = classifyTraceError(cause ?? init?.signal?.reason, { operation: 'model_fetch', signal: init?.signal ?? undefined })
             await save('model_response', { requestId, ...summary }, Date.now() - started)
-            try { await onEnd?.(summary) } catch { console.error('AI trace completion could not be saved') }
+            try { await onEnd?.(summary) } catch (cause) { console.error(serializeTraceData({ type: 'trace_completion_error', outcome: 'error', error: classifyTraceError(cause, { operation: 'storage' }) })) }
         })()
         return new Response(new ReadableStream<Uint8Array>({
             async pull(controller) {
@@ -149,7 +167,7 @@ export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch =
                     if (chunk.done) { await finish(cancelled); controller.close() }
                     else { collector.push(chunk.value); controller.enqueue(chunk.value) }
                 } catch (cause) {
-                    await finish(cancelled || !!init?.signal?.aborted)
+                    await finish(cancelled || !!init?.signal?.aborted, cause)
                     controller.error(cause)
                 }
             },

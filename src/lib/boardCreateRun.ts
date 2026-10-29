@@ -2,6 +2,7 @@ import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
 import type { TraceRecorder } from './modelTrace'
+import { classifyTraceError } from '../utils/agent-traces/outcomes'
 import {
     validateBoardToolCall,
     parseCreateInput,
@@ -43,7 +44,7 @@ const runtime = globalThis as typeof globalThis & { boardCreateRuns?: Map<string
 const runs = runtime.boardCreateRuns ??= new Map<string, CreateRun>()
 
 /** 创建后端任务；同一用户一次只运行一个。任务 ID 由后端分配，断开或超时后自动失效。 */
-export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSignal): CreateRun {
+export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSignal, id = crypto.randomUUID()): CreateRun {
     signal.throwIfAborted()
 
     if ([...runs.values()].some(run => run.ownerId === ownerId && !run.signal.aborted)) {
@@ -52,7 +53,7 @@ export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSig
 
     const controller = new AbortController()
     const run: CreateRun = {
-        id: crypto.randomUUID(), ownerId, roomId, controller,
+        id, ownerId, roomId, controller,
         signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(55000)]),
     }
 
@@ -205,6 +206,7 @@ export async function runCreateLoop(
                 continue
             }
             // 模型请求可能耗时较长，读取、询问和写入前均再次复核任务权限。
+            await record('operation_result', { operation: 'tool_validation', outcome: 'success', callId: call.id })
             await checkAccess()
             run.signal.throwIfAborted()
             await record('tool_call', { call })
@@ -214,6 +216,7 @@ export async function runCreateLoop(
                 result = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? 45000 : waitMs)
             } catch (cause) {
                 await record('tool_error', { callId: call.id, name: call.function.name,
+                    error: classifyTraceError(cause, { operation: 'tool_execute', signal: run.signal }),
                     message: run.signal.aborted ? '任务取消或超时' : '未能取得浏览器工具结果' }, Date.now() - toolStarted)
                 throw cause
             }

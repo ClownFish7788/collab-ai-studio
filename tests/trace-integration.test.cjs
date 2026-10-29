@@ -16,8 +16,9 @@ const prisma = require('../src/lib/prisma.ts').default
 after(async () => { mock.restoreAll(); await prisma.$disconnect(); fs.rmSync(directory, { recursive: true, force: true }) })
 // Only external authentication and model transport are faked; loop validation and trace storage remain real.
 const authModule = require('next-auth')
+let authenticated = true
 require.cache[require.resolve('next-auth')].exports = { ...authModule, __esModule: true,
-    getServerSession: async () => ({ user: { id: 'fixture-user' } }),
+    getServerSession: async () => authenticated ? { user: { id: 'fixture-user' } } : null,
 }
 const { POST } = require('../src/app/api/chat/route.ts')
 const { startAgentTrace } = require('../src/lib/agentTrace.ts')
@@ -90,8 +91,9 @@ test('chat network failures return the existing error response and finish their 
     const response = await POST(new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify({ messages: [{ role: 'user', content: 'network-error' }] }) }))
     transport.mock.restore()
     assert.equal(response.status, 502)
-    const saved = await prisma.agentTrace.findFirst({ where: { prompt: 'network-error' } })
+    const saved = await prisma.agentTrace.findFirst({ where: { prompt: 'network-error' }, include: { events: true } })
     assert.equal(saved.status, 'failed')
+    assert.ok(saved.events.some(e => e.errorCategory === 'network'))
 })
 
 test('cancelling a chat stream persists partial output and cancellation', async () => {
@@ -104,7 +106,30 @@ test('cancelling a chat stream persists partial output and cancellation', async 
     await reader.read()
     await reader.cancel()
     transport.mock.restore()
-    const saved = await prisma.agentTrace.findFirst({ where: { prompt: 'cancel-stream' } })
+    const saved = await prisma.agentTrace.findFirst({ where: { prompt: 'cancel-stream' }, include: { events: true } })
     assert.equal(saved.status, 'cancelled')
     assert.equal(saved.reply, 'partial')
+    assert.ok(saved.events.some(e => e.outcome === 'cancelled' && e.errorCategory === 'cancelled'))
+})
+
+test('rejected chat requests are captured before a model run exists, with stable error categories', async () => {
+    const invalid = await POST(new Request('http://localhost/api/chat', { method: 'POST', body: '{' }))
+    assert.equal(invalid.status, 400)
+    assert.ok(invalid.headers.get('x-agent-trace-id'))
+    const rejected = await prisma.agentTrace.findUnique({ where: { id: invalid.headers.get('x-agent-trace-id') }, include: { events: true } })
+    assert.equal(rejected.status, 'failed')
+    assert.ok(rejected.events.some(e => e.errorCategory === 'validation'))
+    const saved = process.env.API_KEY
+    delete process.env.API_KEY
+    const missing = await POST(new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify({ messages: [{ role: 'user', content: 'configuration-error' }] }) }))
+    process.env.API_KEY = saved
+    assert.equal(missing.status, 500)
+    const config = await prisma.agentTrace.findUnique({ where: { id: missing.headers.get('x-agent-trace-id') }, include: { events: true } })
+    assert.ok(config.events.some(e => e.errorCategory === 'configuration'))
+    authenticated = false
+    const denied = await POST(new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify({ messages: [{ role: 'user', content: 'auth-error' }] }) }))
+    authenticated = true
+    assert.equal(denied.status, 401)
+    const auth = await prisma.agentTrace.findUnique({ where: { id: denied.headers.get('x-agent-trace-id') }, include: { events: true } })
+    assert.ok(auth.events.some(e => e.errorCategory === 'authentication'))
 })

@@ -1,7 +1,7 @@
 import 'server-only'
 import prisma from './prisma'
 import { serializeTraceData, type TraceRecorder } from './modelTrace'
-import { classifyTraceError, eventOutcome } from '../utils/agent-traces/outcomes'
+import { classifyTraceError, eventOutcome, type TraceFailure } from '../utils/agent-traces/outcomes'
 
 export class ClientTraceLimitError extends Error {}
 
@@ -27,6 +27,7 @@ export async function startAgentTrace(input: {
 }) {
     const started = Date.now()
     let id: string | undefined
+    let failure: TraceFailure | undefined
     try {
         const saved = await prisma.agentTrace.create({ data: {
             ...input, prompt: JSON.parse(serializeTraceData(input.prompt)), input: serializeTraceData(input.input),
@@ -35,6 +36,7 @@ export async function startAgentTrace(input: {
     } catch (cause) { storageFailure('trace_create', cause, input.id) }
 
     const record: TraceRecorder = async (type, data, durationMs) => {
+        failure = eventOutcome(type, data).failure ?? failure
         if (!id) return
         try {
             await appendAgentTraceEvent(id, type, data, durationMs)
@@ -42,6 +44,7 @@ export async function startAgentTrace(input: {
     }
     return {
         id: id ?? input.id ?? crypto.randomUUID(),
+        get failure() { return failure },
         record,
         async context(data: { userId?: string; roomId?: string; prompt?: string; input?: unknown }) {
             if (!id) return
@@ -72,6 +75,12 @@ export async function startAgentTrace(input: {
                     status, reply: reply === undefined ? undefined : JSON.parse(serializeTraceData(reply)),
                     error: error === undefined ? undefined : JSON.parse(serializeTraceData(error)), durationMs: Date.now() - started,
                 } })
+                await record('run_result', { status, outcome: status === 'completed' ? 'success' : status === 'cancelled' ? 'cancelled' : 'error',
+                    ...(status === 'completed' ? {} : { error: status === 'timed_out' || status === 'cancelled'
+                        ? classifyTraceError({ name: status === 'timed_out' ? 'TimeoutError' : 'AbortError', message: error ?? status }, { operation: 'run' })
+                        : failure ?? classifyTraceError({ message: error ?? '任务失败' }, { operation: 'run' }) }),
+                    reply, message: error,
+                }, Date.now() - started)
             } catch (cause) { storageFailure('trace_completion', cause, id) }
         },
     }
