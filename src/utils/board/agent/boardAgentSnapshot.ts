@@ -10,6 +10,7 @@ import { MAX_BOARD_SNAPSHOT_SHAPES, type SnapshotRange, type SnapshotToolSuccess
 export function captureBoardSnapshot(editor: Editor, range: SnapshotRange, reference?: RegionSnapshot['reference']): SnapshotToolSuccess {
     const region = range === 'page' ? editor.getCurrentPageBounds() ?? editor.getViewportPageBounds() : editor.getViewportPageBounds()
     const collected = collectRegionSnapshot(editor, region)
+    const viewport = editor.getViewportPageBounds()
     // shortcut: 单次最多 30 个元素和 64KB；大画板精确查询时再增加过滤或分页。
     let shapes = collected.shapes.slice(0, MAX_BOARD_SNAPSHOT_SHAPES)
     const encoder = new TextEncoder()
@@ -23,6 +24,7 @@ export function captureBoardSnapshot(editor: Editor, range: SnapshotRange, refer
             : { id: null, x: editor.getViewportPageBounds().x, y: editor.getViewportPageBounds().y })
         snapshot = {
             reference: { ...point },
+            viewport: { x: viewport.x - point.x, y: viewport.y - point.y, w: viewport.w, h: viewport.h },
             shapes: shapes.map(shape => ({ ...shape,
                 x: shape.x + collected.reference.x - point.x,
                 y: shape.y + collected.reference.y - point.y,
@@ -33,7 +35,14 @@ export function captureBoardSnapshot(editor: Editor, range: SnapshotRange, refer
     } while (shapes.length)
 
     // 单个超长元素可能使全部候选被移除，返回明确截断的空结果，不冒充空页面。
-    if (!shapes.length) snapshot = { reference: { ...(reference ?? { id: null, x: editor.getViewportPageBounds().x, y: editor.getViewportPageBounds().y }) }, shapes: [] }
+    if (!shapes.length) {
+        const point = reference ?? { id: null, x: viewport.x, y: viewport.y }
+        snapshot = {
+            reference: { ...point },
+            viewport: { x: viewport.x - point.x, y: viewport.y - point.y, w: viewport.w, h: viewport.h },
+            shapes: [],
+        }
+    }
     validateRegionSnapshot(snapshot)
     return { ok: true, state: 'draft', range, snapshot, truncated: shapes.length < collected.shapes.length }
 }

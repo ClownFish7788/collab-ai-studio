@@ -1,5 +1,6 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
+import type { MessageContent } from '../utils/chat/images'
 import {
     validateBoardToolCall,
     parseCreateInput,
@@ -130,13 +131,17 @@ export async function runCreateLoop(
     checkAccess: () => Promise<void>,
     waitMs = 15000,
 ) {
+    const content = (prompt: string, images?: string[]): MessageContent => images?.length ? [
+        ...images.map(url => ({ type: 'image_url' as const, image_url: { url } })),
+        ...(prompt.trim() ? [{ type: 'text' as const, text: prompt }] : []),
+    ] : prompt
     const messages: object[] = [
         { role: 'system', content: boardCreatePrompt },
         ...(request.history ?? []).flatMap(turn => [
-            { role: 'user', content: turn.prompt },
+            { role: 'user', content: content(turn.prompt, turn.images) },
             { role: 'assistant', content: turn.reply },
         ]),
-        { role: 'user', content: request.snapshot ? appendChatSnapshot(request.prompt, request.snapshot) : request.prompt },
+        { role: 'user', content: request.snapshot ? appendChatSnapshot(content(request.prompt, request.images), request.snapshot) : content(request.prompt, request.images) },
     ]
     let output: MutationToolSuccess | undefined
     let reference = request.snapshot ? { ...request.snapshot.reference } : undefined

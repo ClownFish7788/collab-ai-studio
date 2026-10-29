@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Scan } from 'lucide-react'
-import { useEditor, useValue, type TLPageId, type TLShapeId } from 'tldraw'
+import { useValue, type Editor, type TLPageId, type TLShapeId } from 'tldraw'
 import { collectRegionSnapshot } from '../../utils/board/snapshot/collectRegionSnapshot'
 import { useBoardSelectionStore } from '../AIChat/BoardSelectionProvider'
 import styles from './SelectBoardElementsButton.module.scss'
 
 type Props = {
+    editor: Editor
     isSelecting: boolean
     onSelectingChange: (isSelecting: boolean) => void
     disabled?: boolean
@@ -24,8 +25,7 @@ type SelectionSession = {
  * 只负责选取 AI 上下文：框选与点选沿用 tldraw，确认时读取快照，不提交白板修改。
  * 由 AIChat 视觉隐藏面板；确认栏 portal 到 body，避免随面板一起隐藏或被 inert 禁用。
  */
-export default function SelectBoardElementsButton({ isSelecting, onSelectingChange, disabled }: Props) {
-    const editor = useEditor()
+export default function SelectBoardElementsButton({ editor, isSelecting, onSelectingChange, disabled }: Props) {
     const selectionStore = useBoardSelectionStore()
     const buttonRef = useRef<HTMLButtonElement>(null)
     const sessionRef = useRef<SelectionSession | null>(null)

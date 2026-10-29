@@ -14,7 +14,7 @@ export class CreateAccessError extends Error {
 
 export async function requireCreateUser() {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) throw new CreateAccessError('请先登录后使用 AI 新增', 401)
+    if (!session?.user?.id) throw new CreateAccessError('请先登录后使用 AI 白板助手', 401)
     return session.user.id
 }
 
@@ -31,7 +31,7 @@ export async function requireCreateAccess(roomId: string, userId: string) {
 }
 
 /** 两条 API 共用读取上限，限制实际字节数而非可伪造的请求头。 */
-export async function readCreatePayload(request: Request): Promise<unknown> {
+export async function readCreatePayload(request: Request, maxBytes = MAX_BOARD_PAYLOAD_BYTES): Promise<unknown> {
     const reader = request.body?.getReader()
     if (!reader) throw new Error('请求不能为空')
 
@@ -44,7 +44,7 @@ export async function readCreatePayload(request: Request): Promise<unknown> {
         if (done) break
 
         size += value.byteLength
-        if (size > MAX_BOARD_PAYLOAD_BYTES) {
+        if (size > maxBytes) {
             await reader.cancel()
             throw new Error('白板任务请求或结果超过大小上限')
         }

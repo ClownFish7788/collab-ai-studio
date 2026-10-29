@@ -13,7 +13,7 @@ import { randomHexColor } from '@/utils/randomColor'
 import useEditorStore from '@/app/store/useEditorStore'
 import { useUserStore } from '@/app/store/useUserStore'
 import AIChat from '../AIChat/AIChat'
-import BoardDraftProvider from './BoardDraftProvider'
+import BoardDraftProvider, { BoardChatSlot } from './BoardDraftProvider'
 
 const OnlineDrawEditor = ({licenseKey}: {
     licenseKey: string
@@ -46,9 +46,9 @@ const OnlineDrawEditor = ({licenseKey}: {
 
     return (
         <div className={styles.container}>
-            <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={room.id} canEdit={role === 'owner' || role === 'collaborator'}>
+            <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={room.id} canEdit={role === 'owner' || role === 'collaborator'} chat={<AIChat key={room.id} />}>
             <Tldraw
-                components={{ SharePanel: AIChat }}
+                components={{ SharePanel: BoardChatSlot }}
                 licenseKey={licenseKey}
                 store={storeWithStatus.store}
                 onMount={(editor) => {

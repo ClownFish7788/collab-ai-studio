@@ -1,7 +1,8 @@
 import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
 import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
+import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } from '../../chat/images'
 
-/** 工具共享协议；启动请求和工具结果为快照预留相同的传输空间。 */
+/** 工具结果的快照传输上限；启动请求另外使用图文请求上限。 */
 export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_SNAPSHOT_BYTES + 20000
 export const MAX_BOARD_SNAPSHOT_SHAPES = 30
 export const CREATE_GEOS = ['ellipse', 'rectangle', 'diamond'] as const
@@ -69,20 +70,22 @@ export type SnapshotToolSuccess = {
 
 export type BoardToolOutput = CreateToolOutput | MutationToolSuccess | SnapshotToolSuccess | { ok: true; answer: string }
 
-export type BoardConversationTurn = { prompt: string; reply: string }
+export type BoardConversationTurn = { prompt: string; reply: string; images?: string[] }
 const MAX_CONVERSATION_TURNS = 6
 const MAX_CONVERSATION_BYTES = 16 * 1024
 
-/** 回传上下文仅保留有界完整轮次；界面可继续展示未回传的超长回复。 */
+/** 历史保留完整图文轮次，文字另设上限；旧快照不进入历史，也不恢复对象授权。 */
 export function getBoardConversationHistory(history: readonly BoardConversationTurn[]): BoardConversationTurn[] {
     const next = history.slice(-MAX_CONVERSATION_TURNS)
-    while (new TextEncoder().encode(JSON.stringify(next)).byteLength > MAX_CONVERSATION_BYTES) next.shift()
+    while (new TextEncoder().encode(JSON.stringify(next.map(({ prompt, reply }) => ({ prompt, reply })))).byteLength > MAX_CONVERSATION_BYTES
+        || new TextEncoder().encode(JSON.stringify(next)).byteLength > MAX_CHAT_REQUEST_BYTES) next.shift()
     return next
 }
 
 export type BoardCreateRequest = {
     roomId: string
     prompt: string
+    images?: string[]
     snapshot?: RegionSnapshot
     history?: BoardConversationTurn[]
 }
@@ -94,6 +97,7 @@ export type BoardCreateReply =
 /** 后端推送完整事件；前端只处理事件，不决定是否继续调用模型。 */
 export type BoardCreateEvent =
     | { type: 'started'; runId: string }
+    | { type: 'text'; runId: string; text: string }
     | { type: 'tool'; runId: string; call: BoardToolCall }
     | { type: 'completed'; runId: string; text: string; output?: MutationToolSuccess }
     | { type: 'error'; runId: string; error: BoardAgentError }
@@ -406,6 +410,10 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
             fields(value, ['type', 'runId', 'call'])
             validateBoardToolCall(value.call)
             break
+        case 'text':
+            fields(value, ['type', 'runId', 'text'])
+            if (typeof value.text !== 'string' || !value.text || value.text.length > 8000) throw new Error('文字分片不合法')
+            break
         case 'error':
             fields(value, ['type', 'runId', 'error'])
             validateBoardAgentError(value.error)
@@ -423,31 +431,40 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
     return value as BoardCreateEvent
 }
 
-/** 仅允许有界文字历史；角色由后端固定，不接受客户端工具调用或执行凭据。 */
+/** 只允许有界图文历史；角色由后端固定，不接受客户端工具调用或执行凭据。 */
 function validateConversationHistory(value: unknown): asserts value is BoardConversationTurn[] {
     if (!Array.isArray(value) || value.length > MAX_CONVERSATION_TURNS
-        || new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_CONVERSATION_BYTES) {
+        || new TextEncoder().encode(JSON.stringify(value.map(turn => ({ prompt: turn?.prompt, reply: turn?.reply })))).byteLength > MAX_CONVERSATION_BYTES
+        || new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_CHAT_REQUEST_BYTES) {
         throw new Error('白板对话历史超过上限或格式不合法')
     }
     for (const turn of value) {
         record(turn)
-        fields(turn, ['prompt', 'reply'])
-        if (typeof turn.prompt !== 'string' || !turn.prompt.trim() || turn.prompt.length > 1000
+        fields(turn, ['prompt', 'reply', 'images'])
+        if (turn.images !== undefined) validateBoardImages(turn.images)
+        if (typeof turn.prompt !== 'string' || !turn.prompt.trim() && !(turn.images as string[] | undefined)?.length || turn.prompt.length > 4000
             || typeof turn.reply !== 'string' || !turn.reply.trim() || turn.reply.length > 8000) {
             throw new Error('白板对话历史须为有效需求和回复')
         }
     }
 }
 
-/** 只接收当前需求、有界文字历史及明确附加选区；无附件时不隐式采集元素。 */
+function validateBoardImages(value: unknown): asserts value is string[] {
+    if (!Array.isArray(value) || value.length > MAX_IMAGES_PER_MESSAGE) throw new Error('每条消息最多 3 张图片')
+    value.forEach(validateImageDataUrl)
+}
+
+/** 只接收当前需求、图文历史及明确选区；无附件时不隐式采集元素。 */
 export function validateBoardCreateRequest(value: unknown): BoardCreateRequest {
     record(value)
-    fields(value, ['roomId', 'prompt', 'snapshot', 'history'])
+    fields(value, ['roomId', 'prompt', 'images', 'snapshot', 'history'])
     if (value.snapshot !== undefined) validateChatSnapshot(value.snapshot)
     if (value.history !== undefined) validateConversationHistory(value.history)
+    if (value.images !== undefined) validateBoardImages(value.images)
 
     if (typeof value.roomId !== 'string' || !value.roomId.trim() || value.roomId.length > 128
-        || typeof value.prompt !== 'string' || !value.prompt.trim() || value.prompt.length > 1000) {
+        || typeof value.prompt !== 'string' || value.prompt.length > 4000
+        || !value.prompt.trim() && !(value.images as string[] | undefined)?.length && !value.snapshot) {
         throw new Error('房间或需求不合法')
     }
 

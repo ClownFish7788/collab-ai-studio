@@ -19,6 +19,12 @@ export function validateRegionSnapshot(value: unknown): asserts value is RegionS
     if (new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_CHAT_SNAPSHOT_BYTES) {
         throw new Error('白板快照超过 64KB，请减少所选元素或文字')
     }
+    if (value.viewport !== undefined && (!isRecord(value.viewport)
+        || !isFiniteNumber(value.viewport.x) || !isFiniteNumber(value.viewport.y)
+        || !isFiniteNumber(value.viewport.w) || value.viewport.w < 0
+        || !isFiniteNumber(value.viewport.h) || value.viewport.h < 0)) {
+        throw new Error('白板视口坐标或尺寸不合法')
+    }
     const ids = new Set<string>()
     for (const shape of value.shapes) {
         if (!isRecord(shape) || !isShapeId(shape.id) || typeof shape.type !== 'string' || !shape.type

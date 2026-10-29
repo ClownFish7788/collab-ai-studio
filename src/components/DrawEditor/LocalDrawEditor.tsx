@@ -10,7 +10,7 @@ import useStyleStore from '@/app/store/useStyleStore'
 import * as Y from 'yjs'
 import { useParams } from 'next/navigation'
 import AIChat from '../AIChat/AIChat'
-import BoardDraftProvider from './BoardDraftProvider'
+import BoardDraftProvider, { BoardChatSlot } from './BoardDraftProvider'
 
 const LocalDrawEditor = ({licenseKey}: {
     licenseKey:string
@@ -35,9 +35,9 @@ const LocalDrawEditor = ({licenseKey}: {
     if(storeWithStatus.status === 'loading' && licenseKey) return <div className={styles.container}>加载本地私有画板中...</div>
     return (
         <div className={styles.container}>
-            <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={roomId} canEdit local>
+            <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={roomId} canEdit local chat={<AIChat key={roomId} />}>
             <Tldraw
-                components={{ SharePanel: AIChat }}
+                components={{ SharePanel: BoardChatSlot }}
                 licenseKey={licenseKey}
                 store={storeWithStatus.store}
                 onMount={(editor) => {

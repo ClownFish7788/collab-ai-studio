@@ -5,6 +5,8 @@ import {
 
 export type RegionSnapshot = {
     reference: { id: TLShapeId | null; x: number; y: number }
+    /** 当前视口的页面尺寸及相对 reference 的左上角；旧附件可能没有此字段。 */
+    viewport?: BoxModel
     shapes: {
         id: TLShapeId
         type: string
@@ -87,5 +89,9 @@ export function collectRegionSnapshot(
         shape.x -= reference.x
         shape.y -= reference.y
     }
-    return { reference, shapes }
+    return {
+        reference,
+        viewport: { x: viewport.x - reference.x, y: viewport.y - reference.y, w: viewport.w, h: viewport.h },
+        shapes,
+    }
 }

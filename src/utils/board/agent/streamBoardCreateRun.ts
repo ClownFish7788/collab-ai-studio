@@ -1,4 +1,5 @@
 import { isEqual } from 'tldraw'
+import { MAX_CHAT_REQUEST_BYTES } from '../../chat/images'
 import {
     validateBoardCreateEvent,
     validateBoardToolOutput,
@@ -10,7 +11,7 @@ import {
 } from './boardCreateProtocol'
 
 export type CreateAgentStep = {
-    stage: 'request' | 'call' | 'result' | 'summary'
+    stage: 'request' | 'call' | 'result' | 'summary' | 'text'
     message: string
     data?: BoardToolCall | BoardToolOutput
 }
@@ -48,6 +49,7 @@ export async function streamBoardCreateRun(
     }
 
     try {
+        if (new TextEncoder().encode(JSON.stringify(request)).byteLength > MAX_CHAT_REQUEST_BYTES) throw new Error('对话附件过多，请减少附件')
         const response = await post('/api/board-create', request)
         if (!response.body || !response.headers.get('content-type')?.includes('application/x-ndjson')) {
             throw new Error('后端未返回任务事件流')
@@ -61,6 +63,7 @@ export async function streamBoardCreateRun(
         const callIds = new Set<string>()
         let reads = 0
         let asks = 0
+        let textLength = 0
 
         while (true) {
             const chunk = await reader.read()
@@ -89,6 +92,12 @@ export async function streamBoardCreateRun(
 
                 if (!runId || event.runId !== runId) throw new Error('收到其他任务的事件')
                 if (event.type === 'error') throw new Error(event.error.message)
+                if (event.type === 'text') {
+                    textLength += event.text.length
+                    if (textLength > 48000) throw new Error('任务文字超过上限')
+                    onStep({ stage: 'text', message: event.text })
+                    continue
+                }
 
                 if (event.type === 'tool') {
                     if (localOutput || callIds.has(event.call.id)) throw new Error('收到重复或已结束的工具事件，已停止执行')

@@ -2,6 +2,7 @@ import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreat
 import { requestBoardCreateModel } from '@/lib/boardCreateModel'
 import { beginCreateRun, runCreateLoop } from '@/lib/boardCreateRun'
 import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/board/agent/boardCreateProtocol'
+import { MAX_CHAT_REQUEST_BYTES } from '@/utils/chat/images'
 
 export const maxDuration = 60
 
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
         let payload: ReturnType<typeof validateBoardCreateRequest>
 
         try {
-            payload = validateBoardCreateRequest(await readCreatePayload(request))
+            payload = validateBoardCreateRequest(await readCreatePayload(request, MAX_CHAT_REQUEST_BYTES))
         } catch {
             return Response.json({ error: '白板请求或文字历史不合法，不能提交工具调用或结果' }, { status: 400 })
         }
@@ -59,7 +60,8 @@ export async function POST(request: Request) {
                         activeRun,
                         payload,
                         (messages, allowTools) => requestBoardCreateModel(
-                            messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools,
+                            messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools, fetch,
+                            text => emit({ type: 'text', runId: activeRun.id, text }),
                         ),
                         emit,
                         () => requireCreateAccess(payload.roomId, userId),
