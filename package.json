@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "test": "node --require ./tests/register.cjs --test tests/*.test.cjs",
+    "trace:setup:sqlite": "prisma db execute --schema prisma/sqlite/schema.prisma --file prisma/sqlite/agent-traces.sql",
+    "trace:setup:postgres": "prisma db execute --schema prisma/postgres/schema.prisma --file prisma/postgres/agent-traces.sql",
     "dev": "npm run prisma:generate:sqlite && next dev",
     "build": "npm run prisma:generate:postgres && next build",
     "start": "next start",

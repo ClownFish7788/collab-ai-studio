@@ -101,3 +101,42 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+model AgentTrace {
+  id         String            @id @default(cuid())
+  kind       String
+  userId     String?
+  roomId     String?
+  model      String
+  prompt     String
+  input      String
+  status     String            @default("running")
+  reply      String?
+  error      String?
+  durationMs Int?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @default(now()) @updatedAt
+  events     AgentTraceEvent[]
+
+  @@index([createdAt, id])
+}
+
+model AgentTraceEvent {
+  id         String     @id @default(cuid())
+  traceId    String
+  sequence   Int
+  type       String
+  data       String
+  durationMs Int?
+  createdAt  DateTime   @default(now())
+  trace      AgentTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@unique([traceId, sequence])
+}
+
+model TraceAdminLogin {
+  id        String   @id
+  attempts  Int      @default(1)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
