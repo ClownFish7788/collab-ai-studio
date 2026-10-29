@@ -1,5 +1,5 @@
-import type { RegionSnapshot } from './collectRegionSnapshot'
-import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from './chatSnapshots'
+import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
+import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
 
 /** 工具共享协议；启动请求和工具结果为快照预留相同的传输空间。 */
 export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_SNAPSHOT_BYTES + 20000

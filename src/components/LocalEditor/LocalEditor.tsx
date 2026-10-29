@@ -10,7 +10,7 @@ import DrawEditor from '../DrawEditor/DrawEditor'
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import useEditorStore from '@/app/store/useEditorStore'
-import { checkAndClearStorageLRU, updateDocumentAccessTime } from '@/utils/storageManager'
+import { checkAndClearStorageLRU, updateDocumentAccessTime } from '@/utils/storage/storageManager'
 import { useUserStore } from '@/app/store/useUserStore'
 import { toast } from '@/components/Toast'
 

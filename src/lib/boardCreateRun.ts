@@ -1,5 +1,5 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
-import { appendChatSnapshot } from '../utils/chatSnapshots'
+import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import {
     validateBoardToolCall,
     parseCreateInput,
@@ -18,7 +18,7 @@ import {
     type BoardToolOutput,
     type BoardToolName,
     type MutationToolSuccess,
-} from '../utils/boardCreateProtocol'
+} from '../utils/board/agent/boardCreateProtocol'
 
 type PendingTool = {
     call: BoardToolCall

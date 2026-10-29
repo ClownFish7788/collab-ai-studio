@@ -1,6 +1,6 @@
 import type { Editor } from 'tldraw'
-import { collectRegionSnapshot, type RegionSnapshot } from './collectRegionSnapshot'
-import { MAX_CHAT_SNAPSHOT_BYTES, validateRegionSnapshot } from './chatSnapshots'
+import { collectRegionSnapshot, type RegionSnapshot } from '../snapshot/collectRegionSnapshot'
+import { MAX_CHAT_SNAPSHOT_BYTES, validateRegionSnapshot } from '../snapshot/chatSnapshots'
 import { MAX_BOARD_SNAPSHOT_SHAPES, type SnapshotRange, type SnapshotToolSuccess } from './boardCreateProtocol'
 
 /**

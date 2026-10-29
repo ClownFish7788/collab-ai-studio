@@ -1,5 +1,5 @@
 'use client'
-import CustomBoradcastChannel from "@/utils/BoradcastChannelProvider"
+import CustomBoradcastChannel from "@/utils/collaboration/BoradcastChannelProvider"
 import { useRoom, useStatus } from "@liveblocks/react"
 import { LiveblocksYjsProvider } from "@liveblocks/yjs"
 import { useCallback, useEffect, useRef, useState } from "react"

@@ -1,5 +1,5 @@
 import { createStore } from 'zustand'
-import type { RegionSnapshot } from '../../utils/collectRegionSnapshot'
+import type { RegionSnapshot } from '../../utils/board/snapshot/collectRegionSnapshot'
 
 type BoardSelectionState = {
     snapshot: RegionSnapshot | null

@@ -19,8 +19,8 @@ import {
 } from "tldraw";
 import { throttle } from "@/utils/throttle";
 import useNetworkStore from "@/app/store/useNetworkStore";
-import CustomBoradcastChannel from "@/utils/BoradcastChannelProvider";
-import toggleRealtimeEditing from "@/utils/toggleRealtimeEditing";
+import CustomBoradcastChannel from "@/utils/collaboration/BoradcastChannelProvider";
+import toggleRealtimeEditing from "@/utils/collaboration/toggleRealtimeEditing";
 
 export function useOnlineYjsStore(yDoc: Y.Doc, yProvider: LiveblocksYjsProvider, {
   shapeUtils = [],

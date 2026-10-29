@@ -5,7 +5,7 @@ import {
     ERROR_CODES,
     type BoardCreateReply,
     type BoardToolName,
-} from '../utils/boardCreateProtocol'
+} from '../utils/board/agent/boardCreateProtocol'
 
 /** 只携带本模块生成的安全诊断，不转发上游响应正文或连接配置。 */
 export class BoardCreateModelError extends BoardProtocolError {

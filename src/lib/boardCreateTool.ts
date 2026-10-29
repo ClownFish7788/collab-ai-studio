@@ -1,4 +1,4 @@
-import { CREATE_GEOS, CREATE_COLORS } from '../utils/boardCreateProtocol'
+import { CREATE_GEOS, CREATE_COLORS } from '../utils/board/agent/boardCreateProtocol'
 
 /** 仅由后端提供给模型的工具定义，不包含浏览器执行逻辑。 */
 export const boardCreateTool = {

@@ -5,7 +5,7 @@ import styles from './workspacePage.module.scss'
 import { FileText, LayoutGrid, List, Plus, BarChart2, Clock, Settings, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { nanoid } from "nanoid"
-import { addData } from "@/utils/db"
+import { addData } from "@/utils/storage/db"
 import { useEffect, useState } from "react"
 import useStyleStore from "@/app/store/useStyleStore";
 import { useUserStore } from "../store/useUserStore";

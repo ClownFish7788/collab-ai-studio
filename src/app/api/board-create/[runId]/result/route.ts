@@ -1,6 +1,6 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
 import { getOwnedCreateRun, submitCreateResult } from '@/lib/boardCreateRun'
-import { validateCreateResultRequest } from '@/utils/boardCreateProtocol'
+import { validateCreateResultRequest } from '@/utils/board/agent/boardCreateProtocol'
 
 /** 接收执行结果并唤醒原后端循环，不创建新任务，不接受客户端提交的模型历史。 */
 export async function POST(request: Request, context: { params: Promise<{ runId: string }> }) {

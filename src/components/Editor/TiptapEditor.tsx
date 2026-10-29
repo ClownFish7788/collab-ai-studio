@@ -12,11 +12,11 @@ import * as Y from "yjs"
 import Collaboration from "@tiptap/extension-collaboration"
 import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
-import { CustomCursor } from "@/utils/CustomCursor/CustomCursor"
+import { CustomCursor } from "@/components/Editor/extensions/CustomCursor/CustomCursor"
 import { LiveblocksYjsProvider } from "@liveblocks/yjs"
-import '@/utils/CustomCursor/CustomCursor.css'
+import '@/components/Editor/extensions/CustomCursor/CustomCursor.css'
 import useNetworkStore from "@/app/store/useNetworkStore"
-import { getTitle, updateTitle as updateTitle_db } from "@/utils/db"
+import { getTitle, updateTitle as updateTitle_db } from "@/utils/storage/db"
 import { useUserStore } from "@/app/store/useUserStore"
 import { randomHexColor } from "@/utils/randomColor"
 import { toast } from "@/components/Toast"

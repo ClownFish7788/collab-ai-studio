@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '../utils/boardCreateProtocol'
+import { ERROR_CODES } from '../utils/board/agent/boardCreateProtocol'
 
 /** 草稿增删改的系统规则；参数、授权和调用次数由程序独立验证。 */
 export const boardCreatePrompt = `你是协作白板助手，默认使用中文。

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Scan } from 'lucide-react'
 import { useEditor, useValue, type TLPageId, type TLShapeId } from 'tldraw'
-import { collectRegionSnapshot } from '../../utils/collectRegionSnapshot'
+import { collectRegionSnapshot } from '../../utils/board/snapshot/collectRegionSnapshot'
 import { useBoardSelectionStore } from '../AIChat/BoardSelectionProvider'
 import styles from './SelectBoardElementsButton.module.scss'
 

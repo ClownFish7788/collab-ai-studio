@@ -1,6 +1,6 @@
 import useListStore, { groupDocsForListStore, ListItem } from "@/app/store/useListStore"
 import { useUserStore } from "@/app/store/useUserStore"
-import { getList } from "@/utils/db"
+import { getList } from "@/utils/storage/db"
 import { useEffect } from "react"
 
 interface OnlineData {

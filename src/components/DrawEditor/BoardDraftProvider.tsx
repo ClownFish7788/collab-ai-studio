@@ -20,24 +20,24 @@ import {
     getDraftChanges,
     type BoardDraft,
     type DraftChanges
-} from '@/utils/boardDraft'
+} from '@/utils/board/draft/boardDraft'
 import {
     createDraftShapes,
     updateDraftShapes,
     deleteDraftShapes,
     type CreateDraftShapeInput
-} from '@/utils/draftShapeOperations'
-import { DRAFT_SHAPE_TYPES, type DraftShapeType } from '@/utils/boardDraft'
-import { BASE_SHAPE_PROPS, SHAPE_PROPERTY_CASES, TEST_ASSETS } from '@/utils/draftShapeTestCases'
-import { runDraftPropertyTests, type PropertyTestReport } from '@/utils/draftShapePropertyTests'
-import { getConfirmedRoomRole } from '@/utils/roomAccess'
-import { createBoardToolRunner } from '@/utils/executeBoardCreateTool'
-import { captureBoardSnapshot } from '@/utils/boardAgentSnapshot'
-import { requestBoardAnswer, type BoardQuestion } from '@/utils/boardAgentQuestion'
-import { validateChatSnapshot } from '@/utils/chatSnapshots'
-import { getBoardConversationHistory, type BoardConversationTurn } from '@/utils/boardCreateProtocol'
-import type { RegionSnapshot } from '@/utils/collectRegionSnapshot'
-import { streamBoardCreateRun, type CreateAgentStep } from '@/utils/streamBoardCreateRun'
+} from '@/utils/board/draft/draftShapeOperations'
+import { DRAFT_SHAPE_TYPES, type DraftShapeType } from '@/utils/board/draft/boardDraft'
+import { BASE_SHAPE_PROPS, SHAPE_PROPERTY_CASES, TEST_ASSETS } from '@/utils/board/draft/draftShapeTestCases'
+import { runDraftPropertyTests, type PropertyTestReport } from '@/utils/board/draft/draftShapePropertyTests'
+import { getConfirmedRoomRole } from '@/utils/collaboration/roomAccess'
+import { createBoardToolRunner } from '@/utils/board/agent/executeBoardCreateTool'
+import { captureBoardSnapshot } from '@/utils/board/agent/boardAgentSnapshot'
+import { requestBoardAnswer, type BoardQuestion } from '@/utils/board/agent/boardAgentQuestion'
+import { validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
+import { getBoardConversationHistory, type BoardConversationTurn } from '@/utils/board/agent/boardCreateProtocol'
+import type { RegionSnapshot } from '@/utils/board/snapshot/collectRegionSnapshot'
+import { streamBoardCreateRun, type CreateAgentStep } from '@/utils/board/agent/streamBoardCreateRun'
 import { toast } from '@/components/Toast'
 import Modal from '../Modal/Modal'
 import styles from './BoardDraft.module.scss'

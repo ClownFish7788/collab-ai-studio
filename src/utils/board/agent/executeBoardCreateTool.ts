@@ -1,7 +1,7 @@
 import type { TLShape, TLShapeId } from 'tldraw'
-import type { CreateDraftShapeInput, UpdateDraftShapeInput } from './draftShapeOperations'
-import type { RegionSnapshot } from './collectRegionSnapshot'
-import { validateChatSnapshot } from './chatSnapshots'
+import type { CreateDraftShapeInput, UpdateDraftShapeInput } from '../draft/draftShapeOperations'
+import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
+import { validateChatSnapshot } from '../snapshot/chatSnapshots'
 import {
     validateBoardToolCall, validateBoardToolOutput, parseCreateInput, parseSnapshotInput, parseAskInput, parseUpdateInput, parseDeleteInput,
     BoardProtocolError, ERROR_CODES, CREATE_GEOS,

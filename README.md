@@ -126,7 +126,16 @@ collab-ai-studio/
 │   │   └── ...
 │   ├── hooks/                 # 自定义 Hooks（useYjsStore、usePasteImageToTldraw 等）
 │   ├── lib/                   # 工具库（Prisma 客户端、IndexedDB 封装等）
-│   └── utils/                 # 通用工具函数
+│   └── utils/
+│       ├── board/
+│       │   ├── draft/         # 白板草稿、形状操作及属性测试工具
+│       │   ├── agent/         # Agent 协议、工具执行与事件传输
+│       │   └── snapshot/      # 白板快照采集、校验与消息拼接
+│       ├── chat/              # 聊天图片处理与流式请求
+│       ├── storage/           # IndexedDB 与本地存储管理
+│       ├── collaboration/     # 跨标签同步、协作开关与房间权限
+│       ├── randomColor.ts     # 随机颜色
+│       └── throttle.ts        # 节流
 ├── types/                     # 全局 TypeScript 类型定义
 ├── public/                    # 静态资源
 ├── next.config.ts

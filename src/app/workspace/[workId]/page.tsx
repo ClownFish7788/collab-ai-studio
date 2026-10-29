@@ -4,11 +4,11 @@ import React, { useCallback, useEffect, useState } from "react"
 import useEditorStore from "@/app/store/useEditorStore"
 import { LiveblocksProvider, RoomProvider } from "@liveblocks/react"
 import { LocalEditor } from "@/components/LocalEditor/LocalEditor"
-import { checkLocalDoc } from "@/utils/db"
+import { checkLocalDoc } from "@/utils/storage/db"
 import NotFound from "@/components/NotFound/NotFound"
 import { toast } from "@/components/Toast"
 import { useSession } from "next-auth/react"
-import { resolveRoomAccess } from "@/utils/roomAccess"
+import { resolveRoomAccess } from "@/utils/collaboration/roomAccess"
 
 const EditorPage = ({
     params

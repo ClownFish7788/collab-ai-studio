@@ -1,6 +1,6 @@
-import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl, type MessageContent, type ImagePart, type TextPart } from '@/utils/images'
-import { appendChatSnapshot, validateChatSnapshot } from '@/utils/chatSnapshots'
-import type { RegionSnapshot } from '@/utils/collectRegionSnapshot'
+import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl, type MessageContent, type ImagePart, type TextPart } from '@/utils/chat/images'
+import { appendChatSnapshot, validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
+import type { RegionSnapshot } from '@/utils/board/snapshot/collectRegionSnapshot'
 import { tldrawPrompt } from '@/prompts/tldrawPrompt'
 
 export const maxDuration = 60

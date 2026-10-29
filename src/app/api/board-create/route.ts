@@ -1,7 +1,7 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
 import { requestBoardCreateModel } from '@/lib/boardCreateModel'
 import { beginCreateRun, runCreateLoop } from '@/lib/boardCreateRun'
-import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/boardCreateProtocol'
+import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/board/agent/boardCreateProtocol'
 
 export const maxDuration = 60
 

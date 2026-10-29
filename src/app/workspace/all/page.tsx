@@ -4,7 +4,7 @@ import classNames from "classnames"
 import styles from './page.module.scss'
 import DocItem from "@/components/DocItem/DocItem"
 import AddButton from "@/components/AddButton/AddButton"
-import { addData } from "@/utils/db"
+import { addData } from "@/utils/storage/db"
 import { useState, useMemo } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import useListStore from "@/app/store/useListStore"
