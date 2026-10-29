@@ -6,7 +6,7 @@ export type AgentTrace = Awaited<ReturnType<typeof startAgentTrace>>
 /** 入口先建记录，再执行校验；否则模型启动之前的拒绝请求永远不会进入后台。 */
 export async function traceAgentRequest(request: Request, kind: 'chat' | 'board', handler: (trace: AgentTrace) => Promise<Response>) {
     const trace = await startAgentTrace({ id: crypto.randomUUID(), kind, model: process.env.BASE_MODEL?.trim() || 'unconfigured',
-        prompt: '', input: { method: request.method, path: new URL(request.url).pathname } })
+        prompt: `${request.method} ${new URL(request.url).pathname}`, input: { method: request.method, path: new URL(request.url).pathname } })
     try {
         const response = await handler(trace)
         response.headers.set('X-Agent-Trace-Id', trace.id)

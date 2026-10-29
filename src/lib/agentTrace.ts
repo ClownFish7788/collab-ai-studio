@@ -71,8 +71,8 @@ export async function startAgentTrace(input: {
         },
         async end(status: 'completed' | 'failed' | 'cancelled' | 'timed_out', reply?: string, error?: string) {
             if (!id) return
-            // 传输层和请求层可能共同处理同一失败；保留一次终态，失败后不能再降级为成功。
-            if (endedStatus === status || endedStatus && status === 'completed') return
+            // 传输层和请求层可能共同处理同一失败；第一个明确终态是唯一的任务结论。
+            if (endedStatus !== undefined) return
             endedStatus = status
             try {
                 await prisma.agentTrace.update({ where: { id }, data: {

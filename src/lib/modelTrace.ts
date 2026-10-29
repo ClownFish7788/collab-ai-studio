@@ -157,6 +157,7 @@ export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch =
         const reader = response.body.getReader()
         const collector = new ModelCollector(!!response.headers.get('content-type')?.includes('text/event-stream'))
         let cancelled = false
+        let rejectionReason: unknown
         let finishing: Promise<void> | undefined
         const finish = (cancelled: boolean, cause?: unknown) => finishing ??= (async () => {
             const summary = collector.finish(cancelled)
@@ -169,7 +170,7 @@ export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch =
             async pull(controller) {
                 try {
                     const chunk = await reader.read()
-                    if (chunk.done) { await finish(cancelled); controller.close() }
+                    if (chunk.done) { await finish(cancelled, rejectionReason); controller.close() }
                     else { collector.push(chunk.value); controller.enqueue(chunk.value) }
                 } catch (cause) {
                     await finish(cancelled || !!init?.signal?.aborted, cause)
@@ -178,8 +179,10 @@ export function observeModelFetch(record: TraceRecorder, fetcher: typeof fetch =
             },
             async cancel(reason) {
                 // cancel() 会把正在预读的 read() 唤醒为 done，必须先标记取消，避免抢先写成失败。
-                cancelled = true
-                try { await reader.cancel(reason) } finally { await finish(true) }
+                const rejected = reason instanceof Error && 'code' in reason && reason.code === 'INVALID_MODEL_RESPONSE'
+                rejectionReason = rejected ? reason : undefined
+                cancelled = !rejected
+                try { await reader.cancel(reason) } finally { await finish(cancelled, rejectionReason) }
             },
         }), { status: response.status, statusText: response.statusText, headers: response.headers })
     }

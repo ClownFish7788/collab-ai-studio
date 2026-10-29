@@ -144,9 +144,13 @@ async function handleChat(request: Request, trace: AgentTrace) {
             signal,
         })
         if (!response.ok || !response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
-            await response.body?.cancel()
-            await trace.end('failed', undefined, `模型服务请求失败（HTTP ${response.status}）`)
-            return Response.json({ error: `模型服务请求失败（HTTP ${response.status}）` }, { status: response.status === 429 ? 429 : 502 })
+            const error = response.ok ? classifyTraceError({ code: 'INVALID_MODEL_RESPONSE', message: !response.body ? '模型响应体为空' : '模型未返回合法的流式响应' }, { operation: 'model_call' })
+                : classifyTraceError(undefined, { operation: 'model_fetch', httpStatus: response.status })
+            await trace.record('operation_result', { operation: 'model_call', outcome: 'error', error })
+            // 告知采集器这是响应拒绝后的清理，而不是用户取消；保留同一错误分类。
+            await response.body?.cancel(Object.assign(new Error(error.message), { code: error.code }))
+            await trace.end('failed', undefined, error.message)
+            return Response.json({ error: error.message }, { status: response.status === 429 ? 429 : 502 })
         }
         responseAccepted = true
         return new Response(response.body, {

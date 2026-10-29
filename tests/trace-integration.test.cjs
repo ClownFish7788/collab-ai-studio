@@ -118,6 +118,7 @@ test('rejected chat requests are captured before a model run exists, with stable
     assert.ok(invalid.headers.get('x-agent-trace-id'))
     const rejected = await prisma.agentTrace.findUnique({ where: { id: invalid.headers.get('x-agent-trace-id') }, include: { events: true } })
     assert.equal(rejected.status, 'failed')
+    assert.equal(rejected.prompt, 'POST /api/chat')
     assert.ok(rejected.events.some(e => e.errorCategory === 'validation'))
     const saved = process.env.API_KEY
     delete process.env.API_KEY
@@ -152,4 +153,16 @@ test('unsupported non-SSE chat response has one failed terminal event, never a s
     assert.equal(terminal.length, 1)
     assert.equal(terminal[0].outcome, 'error')
     assert.equal(saved.reply, null)
+})
+
+test('rejecting an open HTML model response is a model error, never a user cancellation', async () => {
+    const transport = mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream({}), { headers: { 'Content-Type': 'text/html' } }))
+    const response = await POST(new Request('http://localhost/api/chat', { method: 'POST', body: JSON.stringify({ messages: [{ role: 'user', content: 'open-invalid-content' }] }) }))
+    transport.mock.restore()
+    assert.equal(response.status, 502)
+    const row = await prisma.agentTrace.findFirst({ where: { prompt: 'open-invalid-content' }, include: { events: true } })
+    assert.equal(row.status, 'failed')
+    assert.equal(row.events.filter(e => e.type === 'run_result').length, 1)
+    assert.equal(row.events.some(e => e.errorCategory === 'cancelled'), false)
+    assert.ok(row.events.some(e => e.errorCategory === 'model'))
 })
