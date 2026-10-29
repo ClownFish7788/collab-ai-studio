@@ -3,6 +3,8 @@ import { requestBoardCreateModel } from '@/lib/boardCreateModel'
 import { beginCreateRun, runCreateLoop } from '@/lib/boardCreateRun'
 import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/board/agent/boardCreateProtocol'
 import { MAX_CHAT_REQUEST_BYTES } from '@/utils/chat/images'
+import { startAgentTrace } from '@/lib/agentTrace'
+import { observeModelFetch } from '@/lib/modelTrace'
 
 export const maxDuration = 60
 
@@ -47,11 +49,17 @@ export async function POST(request: Request) {
         window.count++
         windows.set(userId, window)
 
+        const trace = await startAgentTrace({ id: run.id, kind: 'board', userId, roomId: payload.roomId,
+            model, prompt: payload.prompt, input: payload })
+        const tracedFetch = observeModelFetch(trace.record)
+
         const activeRun = run
         const encoder = new TextEncoder()
         const body = new ReadableStream<Uint8Array>({
             async start(controller) {
+                let finalReply: string | undefined
                 const emit = (event: BoardCreateEvent) => {
+                    if (event.type === 'completed') finalReply = event.text
                     controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
                 }
 
@@ -60,12 +68,15 @@ export async function POST(request: Request) {
                         activeRun,
                         payload,
                         (messages, allowTools) => requestBoardCreateModel(
-                            messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools, fetch,
+                            messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools, tracedFetch,
                             text => emit({ type: 'text', runId: activeRun.id, text }),
                         ),
                         emit,
                         () => requireCreateAccess(payload.roomId, userId),
+                        15000,
+                        trace.record,
                     )
+                    await trace.end('completed', finalReply)
                 } catch (cause) {
                     const error: BoardAgentError = activeRun.signal.aborted
                         ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时，已完成的内容仅保留在草稿中' }
@@ -73,6 +84,9 @@ export async function POST(request: Request) {
                             : cause instanceof CreateAccessError ? { code: ERROR_CODES.ACCESS_DENIED, message: cause.message }
                                 : { code: ERROR_CODES.TASK_FAILED, message: '后端白板任务失败，已完成的内容仅保留在草稿中' }
 
+                    const timedOut = activeRun.signal.reason instanceof Error && activeRun.signal.reason.name === 'TimeoutError'
+                    await trace.record('run_error', error)
+                    await trace.end(timedOut ? 'timed_out' : activeRun.signal.aborted ? 'cancelled' : 'failed', finalReply, error.message)
                     try { emit({ type: 'error', runId: activeRun.id, error }) } catch { /* 连接已关闭。 */ }
                 } finally {
                     try { controller.close() } catch { /* 浏览器已取消响应流。 */ }

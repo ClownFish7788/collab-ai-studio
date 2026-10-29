@@ -1,6 +1,7 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
+import type { TraceRecorder } from './modelTrace'
 import {
     validateBoardToolCall,
     parseCreateInput,
@@ -130,6 +131,7 @@ export async function runCreateLoop(
     emit: (event: BoardCreateEvent) => void | Promise<void>,
     checkAccess: () => Promise<void>,
     waitMs = 15000,
+    record: TraceRecorder = async () => {},
 ) {
     const content = (prompt: string, images?: string[]): MessageContent => images?.length ? [
         ...images.map(url => ({ type: 'image_url' as const, image_url: { url } })),
@@ -190,6 +192,9 @@ export async function runCreateLoop(
                     })
                 }
             } catch (cause) {
+                if (cause instanceof BoardProtocolError) await record('tool_validation_error', {
+                    call, error: cause.detail, willRetry: cause.detail.code === ERROR_CODES.INVALID_ARGUMENTS && !repaired,
+                })
                 if (!(cause instanceof BoardProtocolError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS || repaired) throw cause
 
                 repaired = true
@@ -202,7 +207,18 @@ export async function runCreateLoop(
             // 模型请求可能耗时较长，读取、询问和写入前均再次复核任务权限。
             await checkAccess()
             run.signal.throwIfAborted()
-            const result = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? 45000 : waitMs)
+            await record('tool_call', { call })
+            const toolStarted = Date.now()
+            let result: BoardToolOutput
+            try {
+                result = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? 45000 : waitMs)
+            } catch (cause) {
+                await record('tool_error', { callId: call.id, name: call.function.name,
+                    message: run.signal.aborted ? '任务取消或超时' : '未能取得浏览器工具结果' }, Date.now() - toolStarted)
+                throw cause
+            }
+            // 先记录失败结果，再抛给外层；否则最有用的现场会在异常路径中丢失。
+            await record('tool_result', { callId: call.id, output: result }, Date.now() - toolStarted)
             if (!result.ok) throw new BoardProtocolError(result.error)
             if ('snapshot' in result) {
                 const point = result.snapshot.reference
