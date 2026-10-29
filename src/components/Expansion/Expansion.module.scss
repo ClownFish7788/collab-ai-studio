@@ -1,4 +1,7 @@
 .container {
+    background: transparent;
+    border: none;
+    flex-shrink: 0;
     width: 1.5rem;
     height: 1.5rem;
     transition: all 0.2s;
@@ -10,6 +13,7 @@
     
     &:hover {
         background-color: var(--hover-bg);
-        color: #333333;
+        color: var(--text-color);
     }
+    &:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; }
 }

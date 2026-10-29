@@ -2,6 +2,7 @@
 import classNames from 'classnames'
 import styles from './NavigationItem.module.scss'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 interface Props {
     title: string
@@ -16,19 +17,20 @@ const NavigationItem = ({
     href, 
     handleClick = () => {}
 }: Props) => {
+    const pathname = usePathname()
     if(href) {
         return (
-            <Link href={href} className={classNames(styles.container)}>
+            <Link href={href} onClick={handleClick} aria-current={pathname === href ? 'page' : undefined} className={classNames(styles.container, pathname === href && styles.active)}>
                 {svg}
                 <div>{title}</div>
             </Link>
         )
     }
     return (
-        <div className={classNames(styles.container)} onClick={handleClick}>
+        <button type="button" className={classNames(styles.container)} onClick={handleClick}>
             {svg}
             <div>{title}</div>
-        </div>
+        </button>
     )
 }
 

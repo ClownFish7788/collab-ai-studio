@@ -1,25 +1,16 @@
 .container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    height: 100vh;
-    border-right: 1px solid var(--border-color);
-    padding: 1rem 1rem;
-    width: 16rem;
-    background-color: var(--sidebar-bg);
-    .item {
-        width: 100%;
-        transition: all 0.2s;
-        display: block;
-        line-height: 2rem;
-        padding: 0 0.5rem;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        color: var(--text-color);
-        &:hover {
-            background-color: var(--hover-bg);
-            color: var(--text-color);
-        }
-    }
-    .navigationContainer {}
+  display: flex; flex-direction: column; gap: 20px; height: 100%; overflow-y: auto;
+  border-right: 1px solid var(--border-color); padding: 24px 16px;
+  width: 240px; background: var(--sidebar-bg);
+  font-family: var(--font-geist-sans), 'Microsoft YaHei', sans-serif;
 }
+.brandRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
+.brand {
+  display: flex; align-items: center; gap: 10px; color: var(--text-color); font-size: 17px; font-weight: 650;
+  small { display: block; font-size: 11px; font-weight: 400; letter-spacing: .16em; margin-top: 2px; }
+  &:hover { text-decoration: none; }
+  &:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 4px; border-radius: 4px; }
+}
+.caption { font-size: 11px; letter-spacing: .08em; padding: 16px 12px 0; color: color-mix(in srgb, var(--text-color) 60%, var(--sidebar-bg)); }
+.navigationContainer { display: flex; flex-direction: column; gap: 6px; }
+.footer { margin-top: auto; border-top: 1px solid var(--border-color); padding: 18px 10px 0; font-size: 11px; line-height: 1.8; color: color-mix(in srgb, var(--text-color) 65%, var(--sidebar-bg)); }

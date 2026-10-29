@@ -39,6 +39,7 @@ export function groupDocsForListStore(
 
 interface ListStore {
     dataList: DateItem[]
+    isLoading: boolean
     addItem: (id: string) => void
     initData: (list: DateItem[]) => void
     getNameById: (id: string) => string|undefined
@@ -48,6 +49,7 @@ interface ListStore {
 
 const useListStore = create<ListStore>((set, get) => ({
     dataList: [],
+    isLoading: true,
     addItem: (id) => {
         const data = get().dataList
         const hasId = data.some(item => item.dataList.some(item => item.id === id))

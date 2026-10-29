@@ -3,9 +3,14 @@
     gap: 1rem;
     .item {
         cursor: pointer;
-        color: rgb(197, 197, 197);
+        color: color-mix(in srgb, var(--text-color) 65%, var(--bg-color));
+        font-size: 13px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        &:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
         &.active {
             color: var(--text-color);
+            background: var(--hover-bg);
         }
     }
 }

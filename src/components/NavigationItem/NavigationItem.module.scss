@@ -1,17 +1,10 @@
 .container {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    width: 100%;
-    transition: all 0.2s;
-    line-height: 2rem;
-    padding: 0 0.5rem;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    color: var(--text-color);
-    
-    &:hover {
-        background-color: var(--hover-bg);
-        color: var(--text-color);
-    }
+  display: flex; gap: 12px; align-items: center; width: 100%; min-height: 44px;
+  padding: 10px 12px; border-radius: 8px; border: 1px solid transparent;
+  background: transparent; cursor: pointer; color: var(--text-color); font: inherit;
+  font-size: 14px; text-align: left; line-height: 1.5;
+  svg { flex-shrink: 0; width: 18px; height: 18px; }
+  &:hover { background: var(--hover-bg); color: var(--text-color); text-decoration: none; }
+  &:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+  &.active { background: var(--card-bg); border-color: var(--border-color); font-weight: 600; }
 }

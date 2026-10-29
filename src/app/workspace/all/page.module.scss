@@ -1,269 +1,53 @@
 .container {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  width: 100%;
-  min-height: 100vh;
-  background-color: var(--bg-color);
-  padding: 24px;
-
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.5rem;
-    padding: 16px 24px;
-    background-color: var(--card-bg);
-    border-radius: 12px;
-    box-shadow: 0 2px 8px var(--shadow-color);
-
-    .headerTitle {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-
-      h1 {
-        font-size: 24px;
-        font-weight: 600;
-        color: var(--text-color);
-        margin: 0;
-      }
-
-      .count {
-        font-size: 14px;
-        color: var(--text-color);
-      }
-    }
-
-    .controls {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-
-      .searchBar {
-        position: relative;
-        display: flex;
-        align-items: center;
-        background-color: var(--hover-bg);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 8px 12px;
-        transition: all 0.2s ease;
-
-        &:focus-within {
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
-        }
-
-        .searchIcon {
-          color: var(--text-color);
-          margin-right: 8px;
-        }
-
-        input {
-          border: none;
-          background: transparent;
-          outline: none;
-          font-size: 14px;
-          color: var(--text-color);
-          min-width: 200px;
-
-          &::placeholder {
-            color: var(--text-color);
-          }
-        }
-      }
-    }
-  }
-
-  .main {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    width: 100%;
-    padding: 24px;
-    border-radius: 12px;
-    background: var(--card-bg);
-    box-shadow: 0 2px 8px var(--shadow-color);
-
-    .emptyState {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 64px 24px;
-      text-align: center;
-
-      .emptyIcon {
-        font-size: 48px;
-        margin-bottom: 16px;
-      }
-
-      h3 {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--text-color);
-        margin: 0 0 8px 0;
-      }
-
-      p {
-        font-size: 14px;
-        color: var(--text-color);
-        margin: 0 0 24px 0;
-      }
-
-      .createNowBtn {
-          padding: 10px 24px;
-          background-color: var(--primary-color);
-          color: var(--bg-color);
-          border: none;
-          border-radius: 8px;
-          font-size: 14px;
-          cursor: pointer;
-          transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
-
-          &:hover:not(:disabled) {
-            background-color: var(--hover-bg);
-            color: #333333;
-          }
-
-          &:disabled,
-          &:disabled:hover {
-            background-color: #d1d5db;
-            color: #6b7280;
-            cursor: not-allowed;
-            opacity: 0.95;
-          }
-        }
-    }
-
-    .group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-
-      .date {
-        color: var(--text-color);
-        font-size: 14px;
-        font-weight: 500;
-        margin-bottom: 8px;
-      }
-
-      .grid {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-    }
-  }
+  display: flex; flex-direction: column; gap: 28px; width: 100%; flex: 1; min-height: 0;
+  overflow-y: auto; padding: 28px 8px 40px; color: var(--text-color);
+  font-family: var(--font-geist-sans), 'Microsoft YaHei', sans-serif;
+  :is(button, input):focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; }
 }
-
-/* 加入房间模态框样式 */
+.header { display: flex; flex-direction: column; gap: 24px; }
+.headerTitle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; h1 { font-size: clamp(26px, 3vw, 34px); letter-spacing: -.04em; line-height: 1.4; } }
+.count { font-size: 13px; color: color-mix(in srgb, var(--text-color) 65%, var(--bg-color)); }
+.controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.searchBar {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px; max-width: 480px;
+  border: 1px solid var(--border-color); border-radius: 10px; padding: 0 12px; background: var(--input-bg);
+  &:focus-within { border-color: var(--primary-color); }
+  input { width: 100%; min-width: 0; border: none; box-shadow: none; padding: 12px 0; font-size: 14px; background: transparent; &:focus { box-shadow: none; } }
+}
+.searchIcon { flex-shrink: 0; opacity: .6; }
+.clearSearch { display: grid; place-items: center; flex-shrink: 0; border: none; background: transparent; color: var(--text-color); padding: 6px; }
+.secondaryButton { padding: 11px 16px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font-size: 14px; border-radius: 8px; white-space: nowrap; &:hover { background: var(--hover-bg); } }
+.main { display: flex; flex-direction: column; gap: 28px; width: 100%; }
+.group { display: flex; flex-direction: column; gap: 12px; }
+.date { font-size: 12px; font-weight: 500; color: color-mix(in srgb, var(--text-color) 65%, var(--bg-color)); padding: 0 2px; }
+.grid { display: flex; flex-direction: column; gap: 10px; }
+.emptyState {
+  display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center;
+  padding: 64px 24px; border: 1px dashed var(--border-color); border-radius: 16px; text-align: center;
+  h3 { font-size: 17px; font-weight: 600; } p { font-size: 14px; line-height: 1.8; }
+}
+.emptyIcon { opacity: .5; }
+.primaryButton, .createNowBtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 18px;
+  border: 1px solid var(--primary-color); background: var(--primary-color); color: var(--bg-color); font-size: 14px;
+  &:hover:not(:disabled) { background: var(--text-color); color: var(--bg-color); }
+  &:disabled { opacity: .55; cursor: wait; }
+}
+.createNowBtn { margin-top: 8px; }
 .joinRoomModal {
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  padding: 24px;
-  width: 400px;
-  max-width: 90vw;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-
-  @media (max-width: 768px) {
-    padding: 20px;
-    width: 90vw;
-  }
+  display: flex; flex-direction: column; gap: 24px; padding: 28px;
+  width: min(420px, calc(100vw - 32px)); background: var(--card-bg); color: var(--text-color);
+  border: 1px solid var(--border-color); border-radius: 16px; box-shadow: 0 20px 60px var(--shadow-color);
+  :is(button, input):focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; }
 }
-
-.joinRoomModalHeader {
-  h3 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: #1a1a1a;
-  }
-}
-
-.joinRoomModalBody {
-  .inputGroup {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-
-    label {
-      font-size: 14px;
-      font-weight: 500;
-      color: #333;
-    }
-
-    .input {
-      padding: 12px 16px;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      font-size: 14px;
-      transition: border-color 0.2s ease;
-
-      &:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      }
-    }
-
-    .errorMessage {
-      font-size: 12px;
-      color: #ef4444;
-      margin-top: 4px;
-    }
-  }
-}
-
-.joinRoomModalFooter {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 8px;
-
-  .cancelButton {
-    padding: 10px 20px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: white;
-    color: #666;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover {
-      background: #f9fafb;
-      border-color: #d1d5db;
-    }
-  }
-
-  .joinButton {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 8px;
-    background: #3b82f6;
-    color: white;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover:not(:disabled) {
-      background: #2563eb;
-    }
-
-    &:disabled,
-    &:disabled:hover {
-      background: #d1d5db;
-      color: #6b7280;
-      cursor: not-allowed;
-      opacity: 0.95;
-      box-shadow: none;
-    }
-  }
-}
+.joinRoomModalHeader { h3 { font-size: 20px; } p { font-size: 13px; line-height: 1.7; margin-top: 8px; } }
+.inputGroup { display: flex; flex-direction: column; gap: 10px; label { font-size: 13px; font-weight: 500; } }
+.input { padding: 12px 14px; font-size: 14px; width: 100%; }
+.errorMessage { color: var(--error-color); font-size: 12px; line-height: 1.7; }
+.joinRoomModalFooter { display: flex; justify-content: flex-end; gap: 10px; button { font-size: 14px; padding: 10px 20px; &:disabled { opacity: .55; cursor: wait; } } }
+.cancelButton { background: var(--card-bg); color: var(--text-color); }
+.joinButton { background: var(--primary-color); color: var(--bg-color); }
+.spinner { animation: spin .85s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 600px) { .container { padding: 20px 0 32px; gap: 24px; } .searchBar { flex-basis: 100%; max-width: none; } .controls { gap: 10px; } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
