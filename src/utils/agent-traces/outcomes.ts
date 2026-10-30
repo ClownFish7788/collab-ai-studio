@@ -12,6 +12,7 @@ const operationCategories: Record<string, ErrorCategory> = {
     run_start: 'protocol',
     request_validation: 'validation', tool_validation: 'validation', authentication: 'authentication', access: 'permission',
     rate_limit: 'rate_limit', configuration: 'configuration', model_fetch: 'network', model_call: 'model', model_response: 'model',
+    task_preparation: 'model', element_preparation: 'validation',
     tool_execute: 'tool', result_submit: 'protocol', stream_receive: 'protocol', draft_apply: 'draft', draft_discard: 'draft', storage: 'storage',
 }
 const protocolCategories: Record<string, ErrorCategory> = {

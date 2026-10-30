@@ -23,6 +23,7 @@ export const eventLabels: Record<string, string> = {
 export const operationLabels: Record<string, string> = {
     authentication: '身份认证', request_validation: '请求校验', access: '权限复核', rate_limit: '限流检查', configuration: '服务配置',
     run_start: '启动任务', stream_open: '响应流建立', model_call: '模型校验', tool_validation: '工具参数校验',
+    task_preparation: '需求拆分', element_preparation: '元素预处理',
     result_submit: '结果回传', stream_receive: '接收任务结果', draft_apply: '应用草稿', draft_discard: '放弃草稿', request: '请求处理',
 }
 export const outcomeLabels: Record<string, string> = { pending: '待完成', success: '成功', error: '失败', cancelled: '已中止', unknown: '未分类' }

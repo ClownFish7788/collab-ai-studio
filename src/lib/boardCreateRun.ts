@@ -162,7 +162,17 @@ export async function runCreateLoop(
         await checkAccess()
         run.signal.throwIfAborted()
         // 拆分只看原始上下文，不带执行阶段的工具规则；内部 JSON 不推送到聊天正文。
-        const preparation = validateBoardTaskPreparation(await prepare(messages.slice(1)))
+        const preparationStarted = Date.now()
+        let preparation: ReturnType<typeof validateBoardTaskPreparation>
+        try {
+            preparation = validateBoardTaskPreparation(await prepare(messages.slice(1)))
+            run.signal.throwIfAborted()
+        } catch (cause) {
+            const error = classifyTraceError(cause, { operation: 'task_preparation', signal: run.signal })
+            await record('operation_result', { operation: 'task_preparation', outcome: error.category === 'cancelled' ? 'cancelled' : 'error', error }, Date.now() - preparationStarted)
+            throw cause
+        }
+        await record('operation_result', { operation: 'task_preparation', outcome: 'success', preparation }, Date.now() - preparationStarted)
         run.signal.throwIfAborted()
         if (preparation.kind === 'reply') {
             await emit({ type: 'completed', runId: run.id, text: preparation.text })
@@ -201,9 +211,20 @@ export async function runCreateLoop(
             let call = modelCall
             let tableText: string
             try {
-                const prepared = prepareElementTableCall(modelCall, preparation.brief, seenIds)
-                call = prepared.call
-                tableText = formatElementTable(prepared.elements, call)
+                const elementsStarted = Date.now()
+                let prepared: ReturnType<typeof prepareElementTableCall>
+                try {
+                    prepared = prepareElementTableCall(modelCall, preparation.brief, seenIds)
+                    call = prepared.call
+                    tableText = formatElementTable(prepared.elements, call)
+                } catch (cause) {
+                    await record('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall,
+                        error: classifyTraceError(cause, { operation: 'element_preparation', signal: run.signal }),
+                        willRetry: cause instanceof BoardProtocolError && cause.detail.code === ERROR_CODES.INVALID_ARGUMENTS && !repaired,
+                    }, Date.now() - elementsStarted)
+                    throw cause
+                }
+                await record('operation_result', { operation: 'element_preparation', outcome: 'success', modelCall, call, elements: prepared.elements }, Date.now() - elementsStarted)
                 if (call.function.name === 'get_board_snapshot') parseSnapshotInput(call.function.arguments)
                 else if (call.function.name === 'ask_user') parseAskInput(call.function.arguments)
                 else if (call.function.name === 'create_shapes') {
