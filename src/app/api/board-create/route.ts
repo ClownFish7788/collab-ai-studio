@@ -1,5 +1,5 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
-import { requestBoardCreateModel } from '@/lib/boardCreateModel'
+import { requestBoardCreateModel, requestBoardTaskBrief } from '@/lib/boardCreateModel'
 import { beginCreateRun, runCreateLoop } from '@/lib/boardCreateRun'
 import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/board/agent/boardCreateProtocol'
 import { MAX_CHAT_REQUEST_BYTES } from '@/utils/chat/images'
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
                         ),
                         emit,
                         () => requireCreateAccess(payload.roomId, userId),
+                        messages => requestBoardTaskBrief(messages, { apiKey, model, baseUrl }, activeRun.signal),
                     )
                 } catch (cause) {
                     const error: BoardAgentError = activeRun.signal.aborted

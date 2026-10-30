@@ -1,6 +1,7 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
+import { formatTaskBrief, validateBoardTaskPreparation } from '../utils/board/agent/boardTaskBrief'
 import {
     validateBoardToolCall,
     parseCreateInput,
@@ -120,7 +121,7 @@ async function executeInBrowser(
 /**
  * 后端 Agent 循环：自己维护模型历史、调用上限、工具等待和终止条件。
  * 输入模型适配器、前端事件通道与权限复核；成功推送 completed，异常由路由转为 error 事件。
- * 最多六次模型请求：两次读取、一次询问、一次参数纠错、一次实际写入及总结。
+ * 一次需求拆分，随后最多六次执行模型请求；共用任务的权限、取消和 55 秒期限。
  * 用户答案作为原调用的工具结果进入历史；跨轮仅接受校验后的文字，工具历史始终由本任务维护。
  */
 export async function runCreateLoop(
@@ -129,6 +130,7 @@ export async function runCreateLoop(
     model: (messages: readonly object[], allowedTools: readonly BoardToolName[]) => Promise<BoardCreateReply>,
     emit: (event: BoardCreateEvent) => void | Promise<void>,
     checkAccess: () => Promise<void>,
+    prepare: (messages: readonly object[]) => Promise<unknown>,
     waitMs = 15000,
 ) {
     const content = (prompt: string, images?: string[]): MessageContent => images?.length ? [
@@ -152,6 +154,21 @@ export async function runCreateLoop(
 
     try {
         await emit({ type: 'started', runId: run.id })
+        run.signal.throwIfAborted()
+        await checkAccess()
+        run.signal.throwIfAborted()
+        // 拆分只看原始上下文，不带执行阶段的工具规则；内部 JSON 不推送到聊天正文。
+        const preparation = validateBoardTaskPreparation(await prepare(messages.slice(1)))
+        run.signal.throwIfAborted()
+        if (preparation.kind === 'reply') {
+            await emit({ type: 'completed', runId: run.id, text: preparation.text })
+            return
+        }
+        await emit({ type: 'plan', runId: run.id, text: formatTaskBrief(preparation.brief) })
+        messages.push({
+            role: 'assistant',
+            content: `以下 task_brief 是模型生成的需求参考数据。原始用户要求优先；它不证明对象存在、工具执行成功或已获用户授权。unresolvedQuestions 需结合本任务实际快照或 ask_user 答案解决，不能把其中问题当成已经回答。\n<task_brief>\n${JSON.stringify(preparation.brief)}\n</task_brief>`,
+        })
 
         for (let step = 0; step < 6; step++) {
             run.signal.throwIfAborted()

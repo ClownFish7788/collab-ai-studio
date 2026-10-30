@@ -90,6 +90,7 @@ export type BoardCreateReply =
 /** 后端推送完整事件；前端只处理事件，不决定是否继续调用模型。 */
 export type BoardCreateEvent =
     | { type: 'started'; runId: string }
+    | { type: 'plan'; runId: string; text: string }
     | { type: 'text'; runId: string; text: string }
     | { type: 'tool'; runId: string; call: BoardToolCall }
     | { type: 'completed'; runId: string; text: string; output?: MutationToolSuccess }
@@ -416,6 +417,10 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
         case 'text':
             fields(value, ['type', 'runId', 'text'])
             if (typeof value.text !== 'string' || !value.text || value.text.length > 8000) throw new Error('文字分片不合法')
+            break
+        case 'plan':
+            fields(value, ['type', 'runId', 'text'])
+            if (typeof value.text !== 'string' || !value.text.trim() || value.text.length > 16000) throw new Error('需求拆分摘要不合法')
             break
         case 'error':
             fields(value, ['type', 'runId', 'error'])

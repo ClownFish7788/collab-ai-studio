@@ -9,6 +9,7 @@ export type ChatMessage = {
     snapshot?: RegionSnapshot
     status?: string
     failed?: boolean
+    plan?: string
     clarification?: { question: string; answer?: string }
     execution?: { description: string; draftId?: string }
 }
