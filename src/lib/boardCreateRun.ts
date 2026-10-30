@@ -1,6 +1,8 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
+import type { TraceRecorder } from './modelTrace'
+import { classifyTraceError } from '../utils/agent-traces/outcomes'
 import {
     validateBoardToolCall,
     parseCreateInput,
@@ -42,7 +44,7 @@ const runtime = globalThis as typeof globalThis & { boardCreateRuns?: Map<string
 const runs = runtime.boardCreateRuns ??= new Map<string, CreateRun>()
 
 /** 创建后端任务；同一用户一次只运行一个。任务 ID 由后端分配，断开或超时后自动失效。 */
-export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSignal): CreateRun {
+export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSignal, id = crypto.randomUUID()): CreateRun {
     signal.throwIfAborted()
 
     if ([...runs.values()].some(run => run.ownerId === ownerId && !run.signal.aborted)) {
@@ -51,7 +53,7 @@ export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSig
 
     const controller = new AbortController()
     const run: CreateRun = {
-        id: crypto.randomUUID(), ownerId, roomId, controller,
+        id, ownerId, roomId, controller,
         signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(55000)]),
     }
 
@@ -103,7 +105,7 @@ async function executeInBrowser(
         run.pending = { call, resolve }
         rejectWait = reject
     })
-    const timer = setTimeout(() => rejectWait(new Error('等待浏览器工具结果超时')), waitMs)
+    const timer = setTimeout(() => rejectWait(new DOMException('等待浏览器工具结果超时', 'TimeoutError')), waitMs)
     const onAbort = () => rejectWait(run.signal.reason)
     run.signal.addEventListener('abort', onAbort, { once: true })
 
@@ -130,6 +132,7 @@ export async function runCreateLoop(
     emit: (event: BoardCreateEvent) => void | Promise<void>,
     checkAccess: () => Promise<void>,
     waitMs = 15000,
+    record: TraceRecorder = async () => {},
 ) {
     const content = (prompt: string, images?: string[]): MessageContent => images?.length ? [
         ...images.map(url => ({ type: 'image_url' as const, image_url: { url } })),
@@ -190,6 +193,9 @@ export async function runCreateLoop(
                     })
                 }
             } catch (cause) {
+                if (cause instanceof BoardProtocolError) await record('tool_validation_error', {
+                    call, error: cause.detail, willRetry: cause.detail.code === ERROR_CODES.INVALID_ARGUMENTS && !repaired,
+                })
                 if (!(cause instanceof BoardProtocolError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS || repaired) throw cause
 
                 repaired = true
@@ -200,9 +206,22 @@ export async function runCreateLoop(
                 continue
             }
             // 模型请求可能耗时较长，读取、询问和写入前均再次复核任务权限。
+            await record('operation_result', { operation: 'tool_validation', outcome: 'success', callId: call.id })
             await checkAccess()
             run.signal.throwIfAborted()
-            const result = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? 45000 : waitMs)
+            await record('tool_call', { call })
+            const toolStarted = Date.now()
+            let result: BoardToolOutput
+            try {
+                result = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? 45000 : waitMs)
+            } catch (cause) {
+                await record('tool_error', { callId: call.id, name: call.function.name,
+                    error: classifyTraceError(cause, { operation: 'tool_execute', signal: run.signal }),
+                    message: run.signal.aborted ? '任务取消或超时' : '未能取得浏览器工具结果' }, Date.now() - toolStarted)
+                throw cause
+            }
+            // 先记录失败结果，再抛给外层；否则最有用的现场会在异常路径中丢失。
+            await record('tool_result', { callId: call.id, output: result }, Date.now() - toolStarted)
             if (!result.ok) throw new BoardProtocolError(result.error)
             if ('snapshot' in result) {
                 const point = result.snapshot.reference

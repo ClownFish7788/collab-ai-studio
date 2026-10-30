@@ -15,7 +15,8 @@ const nextConfig: NextConfig = {
     ],
   },
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production'
+    // 运行记录写入故障必须保留在生产日志中，不能被构建器静默移除。
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false
   },
   experimental: {
     // Base64 图片及多轮历史需要超过默认 10MB 的代理缓冲，与聊天接口上限保持一致。

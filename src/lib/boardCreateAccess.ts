@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import prisma from './prisma'
-import { authOptions } from '../app/api/auth/[...nextauth]/route'
+import { authOptions } from './auth'
 import { canUseBoardCreateAgent, MAX_BOARD_PAYLOAD_BYTES } from '../utils/board/agent/boardCreateProtocol'
 
 export class CreateAccessError extends Error {

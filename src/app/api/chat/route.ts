@@ -2,12 +2,28 @@ import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl, t
 import { appendChatSnapshot, validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
 import type { RegionSnapshot } from '@/utils/board/snapshot/collectRegionSnapshot'
 import { tldrawPrompt } from '@/prompts/tldrawPrompt'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { traceAgentRequest, type AgentTrace } from '@/lib/agentTraceRequest'
+import { observeModelFetch } from '@/lib/modelTrace'
+import { CreateAccessError } from '@/lib/boardCreateAccess'
+import { classifyTraceError } from '@/utils/agent-traces/outcomes'
 
 export const maxDuration = 60
 
 // /api/chat 沿用 src/proxy.ts 的登录校验。
 // shortcut: Demo 仅限制单次请求，公开部署前补充用户级共享限流。
 export async function POST(request: Request) {
+    return traceAgentRequest(request, 'chat', trace => handleChat(request, trace))
+}
+
+async function handleChat(request: Request, trace: AgentTrace) {
+    const userId = await trace.step('authentication', async () => {
+        const session = await getServerSession(authOptions)
+        if (!session?.user?.id) throw new CreateAccessError('请先登录后再聊天', 401)
+        return session.user.id
+    })
+    await trace.context({ userId })
     let payload: unknown
     try {
         const reader = request.body?.getReader()
@@ -27,7 +43,8 @@ export async function POST(request: Request) {
         }
         body += decoder.decode()
         payload = JSON.parse(body)
-    } catch {
+    } catch (cause) {
+        await trace.record('operation_result', { operation: 'request_validation', outcome: 'error', error: classifyTraceError(cause, { operation: 'request_validation' }) })
         return Response.json({ error: '请求格式错误' }, { status: 400 })
     }
 
@@ -49,6 +66,7 @@ export async function POST(request: Request) {
                 validateChatSnapshot(message.snapshot)
                 snapshot = message.snapshot
             } catch (error) {
+                await trace.record('operation_result', { operation: 'request_validation', outcome: 'error', error: classifyTraceError(error, { operation: 'request_validation' }) })
                 return Response.json({ error: error instanceof Error ? error.message : '白板快照不合法' }, { status: 400 })
             }
         }
@@ -80,6 +98,7 @@ export async function POST(request: Request) {
                 }
             }
         } catch (error) {
+            await trace.record('operation_result', { operation: 'request_validation', outcome: 'error', error: classifyTraceError(error, { operation: 'request_validation' }) })
             return Response.json({ error: error instanceof Error ? error.message : '图片消息不合法' }, { status: 400 })
         }
         messages.push({ role: message.role, content: [...images, ...texts], snapshot })
@@ -95,6 +114,7 @@ export async function POST(request: Request) {
         })),
     ]
 
+    await trace.record('operation_result', { operation: 'request_validation', outcome: 'success' })
     const apiKey = process.env.API_KEY?.trim()
     const model = process.env.BASE_MODEL?.trim()
     const baseUrl = process.env.BASE_URL?.trim()
@@ -102,17 +122,37 @@ export async function POST(request: Request) {
         return Response.json({ error: '服务端尚未配置 AI 接口' }, { status: 500 })
     }
 
+    await trace.record('operation_result', { operation: 'configuration', outcome: 'success' })
+
+    const lastContent = messages[messages.length - 1].content
+    const prompt = typeof lastContent === 'string' ? lastContent : lastContent.map(part => part.type === 'text' ? part.text : '').filter(Boolean).join('\n')
+    await trace.context({ prompt, input: { messages } })
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(60000)])
+    const isTimedOut = () => signal.reason instanceof Error && signal.reason.name === 'TimeoutError'
+    let responseAccepted = false
+    const tracedFetch = observeModelFetch(trace.record, fetch, async end => {
+        if (!responseAccepted) return
+        await trace.end(end.status === 'completed' ? 'completed' : isTimedOut() ? 'timed_out' : end.status,
+            end.content, end.status === 'failed' ? '模型响应不完整或返回错误' : undefined)
+    })
+
     try {
-        const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+        const response = await tracedFetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
             body: JSON.stringify({ model, messages: modelMessages, stream: true, enable_thinking: false, max_tokens: 1024 }),
-            signal: AbortSignal.any([request.signal, AbortSignal.timeout(60000)]),
+            signal,
         })
         if (!response.ok || !response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
-            await response.body?.cancel()
-            return Response.json({ error: `模型服务请求失败（HTTP ${response.status}）` }, { status: response.status === 429 ? 429 : 502 })
+            const error = response.ok ? classifyTraceError({ code: 'INVALID_MODEL_RESPONSE', message: !response.body ? '模型响应体为空' : '模型未返回合法的流式响应' }, { operation: 'model_call' })
+                : classifyTraceError(undefined, { operation: 'model_fetch', httpStatus: response.status })
+            await trace.record('operation_result', { operation: 'model_call', outcome: 'error', error })
+            // 告知采集器这是响应拒绝后的清理，而不是用户取消；保留同一错误分类。
+            await response.body?.cancel(Object.assign(new Error(error.message), { code: error.code }))
+            await trace.end('failed', undefined, error.message)
+            return Response.json({ error: error.message }, { status: response.status === 429 ? 429 : 502 })
         }
+        responseAccepted = true
         return new Response(response.body, {
             headers: {
                 'Content-Type': 'text/event-stream; charset=utf-8',
@@ -121,6 +161,8 @@ export async function POST(request: Request) {
             },
         })
     } catch (error) {
+        await trace.end(isTimedOut() ? 'timed_out' : request.signal.aborted ? 'cancelled' : 'failed', undefined,
+            isTimedOut() ? '模型响应超时' : request.signal.aborted ? '用户取消请求' : '模型连接失败')
         if (request.signal.aborted) return new Response(null, { status: 499 })
         const timedOut = error instanceof Error && error.name === 'TimeoutError'
         return Response.json({ error: timedOut ? '模型响应超时，请重试' : '无法连接模型服务，请稍后重试' }, { status: timedOut ? 504 : 502 })
