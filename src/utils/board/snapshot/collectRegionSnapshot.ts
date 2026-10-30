@@ -1,6 +1,6 @@
 import {
     Box, type BoxModel, type Editor, type TLAssetId, type TLShapeId,
-    type TLDefaultColorStyle, type TLDefaultFillStyle,
+    type TLDefaultColorStyle, type TLDefaultFillStyle, type TLShape,
 } from 'tldraw'
 
 export type RegionSnapshot = {
@@ -15,6 +15,10 @@ export type RegionSnapshot = {
         w: number
         h: number
         text: string
+        /** 原生元素原点的页面坐标，相对 reference；与外接框左上角可能不同。 */
+        origin?: { x: number; y: number }
+        /** 原生属性只读上下文；更新时仅提交需要改变的可写字段。 */
+        props?: TLShape['props']
         /** 原生色名：图形描边色、文本颜色或便笺背景色，具体含义由 type 决定。 */
         color?: TLDefaultColorStyle
         /** 图形的标签文字颜色；与图形自身的 color 分开保留。 */
@@ -63,6 +67,8 @@ export function collectRegionSnapshot(
             w: bounds.w,
             h: bounds.h,
             text: editor.getShapeUtil(shape).getText(shape) ?? '',
+            origin: editor.getShapePageTransform(shape).applyToPoint({ x: 0, y: 0 }),
+            props: structuredClone(shape.props),
             opacity: shape.opacity,
             ...('color' in shape.props ? { color: shape.props.color } : {}),
             ...('labelColor' in shape.props ? { labelColor: shape.props.labelColor } : {}),
@@ -88,6 +94,7 @@ export function collectRegionSnapshot(
     for (const shape of shapes) {
         shape.x -= reference.x
         shape.y -= reference.y
+        if (shape.origin) shape.origin = { x: shape.origin.x - reference.x, y: shape.origin.y - reference.y }
     }
     return {
         reference,

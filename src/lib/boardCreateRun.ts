@@ -3,6 +3,8 @@ import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
 import type { TraceRecorder } from './modelTrace'
 import { classifyTraceError } from '../utils/agent-traces/outcomes'
+import { formatTaskBrief, validateBoardTaskPreparation } from '../utils/board/agent/boardTaskBrief'
+import { formatElementTable, prepareElementTableCall } from '../utils/board/agent/boardElementTable'
 import {
     validateBoardToolCall,
     parseCreateInput,
@@ -122,15 +124,16 @@ async function executeInBrowser(
 /**
  * 后端 Agent 循环：自己维护模型历史、调用上限、工具等待和终止条件。
  * 输入模型适配器、前端事件通道与权限复核；成功推送 completed，异常由路由转为 error 事件。
- * 最多六次模型请求：两次读取、一次询问、一次参数纠错、一次实际写入及总结。
+ * 一次需求拆分，随后最多六次执行模型请求；共用任务的权限、取消和 55 秒期限。
  * 用户答案作为原调用的工具结果进入历史；跨轮仅接受校验后的文字，工具历史始终由本任务维护。
  */
 export async function runCreateLoop(
     run: CreateRun,
     request: BoardCreateRequest,
-    model: (messages: readonly object[], allowedTools: readonly BoardToolName[]) => Promise<BoardCreateReply>,
+    model: (messages: readonly object[], allowedTools: readonly BoardToolName[], elementKeys: readonly string[]) => Promise<BoardCreateReply>,
     emit: (event: BoardCreateEvent) => void | Promise<void>,
     checkAccess: () => Promise<void>,
+    prepare: (messages: readonly object[]) => Promise<unknown>,
     waitMs = 15000,
     record: TraceRecorder = async () => {},
 ) {
@@ -155,6 +158,22 @@ export async function runCreateLoop(
 
     try {
         await emit({ type: 'started', runId: run.id })
+        run.signal.throwIfAborted()
+        await checkAccess()
+        run.signal.throwIfAborted()
+        // 拆分只看原始上下文，不带执行阶段的工具规则；内部 JSON 不推送到聊天正文。
+        const preparation = validateBoardTaskPreparation(await prepare(messages.slice(1)))
+        run.signal.throwIfAborted()
+        if (preparation.kind === 'reply') {
+            await emit({ type: 'completed', runId: run.id, text: preparation.text })
+            return
+        }
+        await emit({ type: 'plan', runId: run.id, text: formatTaskBrief(preparation.brief) })
+        const elementKeys = preparation.brief.objects.map(object => object.key)
+        messages.push({
+            role: 'assistant',
+            content: `以下 task_brief 是模型生成的需求参考数据。原始用户要求优先；它不证明对象存在、工具执行成功或已获用户授权。unresolvedQuestions 需结合本任务实际快照或 ask_user 答案解决，不能把其中问题当成已经回答。\n<task_brief>\n${JSON.stringify(preparation.brief)}\n</task_brief>`,
+        })
 
         for (let step = 0; step < 6; step++) {
             run.signal.throwIfAborted()
@@ -170,19 +189,30 @@ export async function runCreateLoop(
                     if (seenIds.size) allowedTools.push('update_shapes', 'delete_shapes')
                 }
             }
-            const reply = await model(messages, allowedTools)
+            const reply = await model(messages, allowedTools, elementKeys)
             run.signal.throwIfAborted()
 
             if (reply.kind === 'text') {
                 await emit({ type: 'completed', runId: run.id, text: reply.text, ...(output?.ok ? { output } : {}) })
                 return
             }
-            const call = validateBoardToolCall(reply.call)
-            if (!allowedTools.includes(call.function.name)) throw new Error('本轮工具未开放或调用预算已用尽')
+            const modelCall = validateBoardToolCall(reply.call)
+            if (!allowedTools.includes(modelCall.function.name)) throw new Error('本轮工具未开放或调用预算已用尽')
+            let call = modelCall
+            let tableText: string
             try {
+                const prepared = prepareElementTableCall(modelCall, preparation.brief, seenIds)
+                call = prepared.call
+                tableText = formatElementTable(prepared.elements, call)
                 if (call.function.name === 'get_board_snapshot') parseSnapshotInput(call.function.arguments)
                 else if (call.function.name === 'ask_user') parseAskInput(call.function.arguments)
-                else if (call.function.name === 'create_shapes') parseCreateInput(call.function.arguments)
+                else if (call.function.name === 'create_shapes') {
+                    const { shapes } = parseCreateInput(call.function.arguments)
+                    if (shapes.some(shape => shape.children?.some(id => !seenIds.has(id)))) throw new BoardProtocolError({
+                        code: ERROR_CODES.INVALID_ARGUMENTS, message: '分组子对象不在本任务已提供的快照中',
+                        issues: [{ path: 'shapes', message: 'children 只能使用附件或本任务读取结果实际返回的 ID' }],
+                    })
+                }
                 else {
                     const ids = call.function.name === 'update_shapes'
                         ? parseUpdateInput(call.function.arguments).shapes.map(shape => shape.id)
@@ -200,8 +230,8 @@ export async function runCreateLoop(
 
                 repaired = true
                 messages.push(
-                    { role: 'assistant', content: reply.content ?? null, tool_calls: [call] },
-                    { role: 'tool', tool_call_id: call.id, content: JSON.stringify({ ok: false, error: cause.detail }) },
+                    { role: 'assistant', content: reply.content ?? null, tool_calls: [modelCall] },
+                    { role: 'tool', tool_call_id: modelCall.id, content: JSON.stringify({ ok: false, error: cause.detail }) },
                 )
                 continue
             }
@@ -209,6 +239,7 @@ export async function runCreateLoop(
             await record('operation_result', { operation: 'tool_validation', outcome: 'success', callId: call.id })
             await checkAccess()
             run.signal.throwIfAborted()
+            await emit({ type: 'plan', runId: run.id, text: `${formatTaskBrief(preparation.brief)}\n\n${tableText}` })
             await record('tool_call', { call })
             const toolStarted = Date.now()
             let result: BoardToolOutput
@@ -235,7 +266,7 @@ export async function runCreateLoop(
             else output = result
 
             messages.push(
-                { role: 'assistant', content: reply.content ?? null, tool_calls: [call] },
+                { role: 'assistant', content: reply.content ?? null, tool_calls: [modelCall] },
                 { role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) },
             )
         }

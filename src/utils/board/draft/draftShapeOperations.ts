@@ -23,12 +23,9 @@ import {
     type DraftShapeType
 } from './boardDraft'
 
-/** 四个排版派生属性可读不可写；文字 autoSize=true 时的 w 另外按条件校验。 */
-export const DERIVED_SHAPE_PROPS: Record<string, readonly string[]> = {
-    geo: ['growY'],
-    note: ['growY', 'fontSizeAdjustment'],
-    bookmark: ['h']
-}
+import { DERIVED_SHAPE_PROPS } from './draftShapeSchema'
+import { MAX_BOARD_WRITE_SHAPES } from '../boardCapabilities'
+export { DERIVED_SHAPE_PROPS } from './draftShapeSchema'
 
 type CommonInput = {
     /** 相对父对象坐标；parentId 省略时父对象为当前页面，不是屏幕像素。 */
@@ -210,7 +207,7 @@ function validate(
         const validators = (editor.getShapeUtil(type as DraftShapeType).constructor as unknown as { props: Record<string, { validate(value: unknown): unknown }> }).props
 
         for (const [key, value] of Object.entries(input.props)) {
-            if (!own(validators, key) || DERIVED_SHAPE_PROPS[type]?.includes(key)) {
+            if (!own(validators, key) || DERIVED_SHAPE_PROPS[type as DraftShapeType]?.includes(key)) {
                 throw new Error(`${type}.${key} 未开放或由原生派生`)
             }
 
@@ -492,8 +489,8 @@ function execute<T>(draft: BoardDraft, editor: Editor, options: DraftOperationOp
 }
 
 function batch(inputs: unknown): asserts inputs is Record<string, unknown>[] {
-    if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > 30) {
-        throw new Error('每次操作须包含 1～30 项')
+    if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > MAX_BOARD_WRITE_SHAPES) {
+        throw new Error(`每次操作须包含 1～${MAX_BOARD_WRITE_SHAPES} 项`)
     }
 
     inputs.forEach(object)
@@ -619,8 +616,8 @@ export function updateDraftShapes(
 export function deleteDraftShapes(draft: BoardDraft, editor: Editor, ids: readonly TLShapeId[]): TLShapeId[] {
     task(draft, editor)
 
-    if (!Array.isArray(ids) || !ids.length || ids.length > 30 || new Set(ids).size !== ids.length) {
-        throw new Error('删除需要 1～30 个不重复 ID')
+    if (!Array.isArray(ids) || !ids.length || ids.length > MAX_BOARD_WRITE_SHAPES || new Set(ids).size !== ids.length) {
+        throw new Error(`删除需要 1～${MAX_BOARD_WRITE_SHAPES} 个不重复 ID`)
     }
 
     ids.forEach(id => target(draft, editor, id))

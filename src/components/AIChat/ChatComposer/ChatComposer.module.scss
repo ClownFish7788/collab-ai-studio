@@ -50,6 +50,10 @@
     color: var(--error-color);
     font-size: 12px;
     line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 120px;
+    overflow-y: auto;
 }
 
 .uploadButton {

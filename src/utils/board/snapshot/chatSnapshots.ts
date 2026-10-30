@@ -36,6 +36,11 @@ export function validateRegionSnapshot(value: unknown): asserts value is RegionS
         for (const key of ['color', 'labelColor', 'fill', 'geo', 'assetId', 'url']) {
             if (key in shape && typeof shape[key] !== 'string') throw new Error('白板元素属性不合法')
         }
+        if (shape.origin !== undefined && (!isRecord(shape.origin)
+            || !isFiniteNumber(shape.origin.x) || !isFiniteNumber(shape.origin.y))) {
+            throw new Error('白板元素原点不合法')
+        }
+        if (shape.props !== undefined && !isRecord(shape.props)) throw new Error('白板原生属性须为对象')
         if ((typeof shape.color === 'string' && !colors.includes(shape.color))
             || (typeof shape.labelColor === 'string' && !colors.includes(shape.labelColor))
             || (typeof shape.fill === 'string' && !fills.includes(shape.fill))

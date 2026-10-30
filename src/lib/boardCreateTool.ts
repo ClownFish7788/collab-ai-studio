@@ -1,11 +1,23 @@
-import { CREATE_GEOS, CREATE_COLORS } from '../utils/board/agent/boardCreateProtocol'
+import { defaultShapeSchemas } from '@tldraw/tlschema'
+import { DRAFT_SHAPE_TYPES, DERIVED_SHAPE_PROPS } from '../utils/board/draft/draftShapeSchema'
+import { MAX_BOARD_WRITE_SHAPES } from '../utils/board/boardCapabilities'
+
+const shapeProperties = {
+    type: { type: 'string', enum: DRAFT_SHAPE_TYPES, description: '原生元素类型；更新时必须与真实对象一致，不能转换类型。' },
+    x: { type: 'number', minimum: -10000, maximum: 10000 },
+    y: { type: 'number', minimum: -10000, maximum: 10000 },
+    props: {
+        type: 'object', additionalProperties: true,
+        description: `仅传明确设置的原生属性，省略使用原生默认值（更新时保留原值）。w/h 为 1～2000。文字使用 richText={"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"文字"}]}]}。属性按 type 校验，可写字段：${DRAFT_SHAPE_TYPES.map(type => `${type}: ${Object.keys(defaultShapeSchemas[type].props).filter(key => !DERIVED_SHAPE_PROPS[type]?.includes(key)).join('/')}`).join('；')}。text 设置 w 时同时指定 autoSize=false；note 尺寸用 scale。arrow.start/end 和 line.points 是元素局部坐标。draw/highlight 的 segments 必须是有效原生编码。image/video 仅引用已有 assetId，不能编造资产。`,
+    },
+} as const
 
 /** 仅由后端提供给模型的工具定义，不包含浏览器执行逻辑。 */
 export const boardCreateTool = {
     type: 'function',
     function: {
         name: 'create_shapes',
-        description: '用户已明确要求新增具体图形，且必要信息齐全或已有默认值时，在临时草稿新增 1～5 个基础图形。对象有歧义或用户要求先确认时，必须先调用 ask_user 并获得答案，不能自行选择 reference 对象。ellipse 宽高相等时是圆。x/y 相对固定参照点；返回真实 ID，不提交正式白板。',
+        description: `用户已明确要求新增元素时，在临时草稿新增 1～${MAX_BOARD_WRITE_SHAPES} 个原生 tldraw 元素。type 选择类型，props 提供该类型的原生属性；geo 支持所有原生几何和颜色。group 必须提供至少两个已读取的 children ID。x/y 相对固定参照点，内部几何坐标仍为局部坐标。对象有歧义或要求先确认时先 ask_user。返回真实 ID，不提交正式白板。`,
         parameters: {
             type: 'object',
             additionalProperties: false,
@@ -14,18 +26,15 @@ export const boardCreateTool = {
                 shapes: {
                     type: 'array',
                     minItems: 1,
-                    maxItems: 5,
+                    maxItems: MAX_BOARD_WRITE_SHAPES,
                     items: {
                         type: 'object',
                         additionalProperties: false,
-                        required: ['geo', 'x', 'y', 'w', 'h', 'color'],
+                        required: ['type', 'x', 'y'],
                         properties: {
-                            geo: { type: 'string', enum: CREATE_GEOS },
-                            x: { type: 'number', minimum: -10000, maximum: 10000 },
-                            y: { type: 'number', minimum: -10000, maximum: 10000 },
-                            w: { type: 'number', minimum: 1, maximum: 2000 },
-                            h: { type: 'number', minimum: 1, maximum: 2000 },
-                            color: { type: 'string', enum: CREATE_COLORS },
+                            ...shapeProperties,
+                            children: { type: 'array', minItems: 2, maxItems: 30, uniqueItems: true,
+                                items: { type: 'string', pattern: '^shape:[\\w-]{1,128}$' }, description: '仅 group：已有且已读取的子元素 ID；同一批次的多个分组不能复用子元素。' },
                         },
                     },
                 },
@@ -34,21 +43,21 @@ export const boardCreateTool = {
     },
 } as const
 
-/** 仅开放基础几何的部分更新；身份、层级、旋转等原生字段不进入模型协议。 */
+/** 开放各原生元素的部分属性更新；身份、层级、旋转不进入模型协议。 */
 export const boardUpdateTool = {
     type: 'function',
     function: {
         name: 'update_shapes',
-        description: '在草稿更新 1～5 个已通过本任务附件或读取工具获得真实 ID 的基础几何。只支持页面直属、无旋转、未锁定的 ellipse/rectangle/diamond。每项至少一个修改字段；省略字段保留原值，x/y 为相对固定参照点的左上角坐标。对象不唯一先读取或询问。整批失败不执行，不提交正式白板。',
+        description: `在草稿更新 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。每项提交真实 id 和匹配的 type，至少提供 x/y 或一个 props 修改字段；省略字段保留原值。x/y 是元素原点相对固定参照点的坐标。不能转换 type。对象不唯一先读取或询问；整批失败不执行，不提交正式白板。`,
         parameters: {
             type: 'object', additionalProperties: false, required: ['shapes'],
             properties: {
                 shapes: {
-                    type: 'array', minItems: 1, maxItems: 5,
+                    type: 'array', minItems: 1, maxItems: MAX_BOARD_WRITE_SHAPES,
                     items: {
-                        type: 'object', additionalProperties: false, required: ['id'], minProperties: 2,
+                        type: 'object', additionalProperties: false, required: ['id', 'type'], minProperties: 3,
                         properties: { id: { type: 'string', pattern: '^shape:[\\w-]{1,128}$' },
-                            ...boardCreateTool.function.parameters.properties.shapes.items.properties },
+                            ...shapeProperties },
                     },
                 },
             },
@@ -56,15 +65,15 @@ export const boardUpdateTool = {
     },
 } as const
 
-/** 删除只接收任务已见的 ID，不能提交容器或连带删除其他类型元素。 */
+/** 删除只接收任务已见的 ID，容器和绑定副作用由草稿层复核。 */
 export const boardDeleteTool = {
     type: 'function',
     function: {
         name: 'delete_shapes',
-        description: '在草稿删除 1～5 个已通过本任务附件或读取工具获得真实 ID 的基础几何。仅页面直属、无旋转、未锁定的 ellipse/rectangle/diamond。ids 不重复，不编造 ID；目标不明确先读取或询问。只生成待确认的删除草稿，不提交正式白板。',
+        description: `在草稿删除 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。容器后代和受影响箭头也必须已读取，越界副作用使整批回滚。ids 不重复、不编造；目标不明确先读取或询问。只生成待确认的删除草稿，不提交正式白板。`,
         parameters: {
             type: 'object', additionalProperties: false, required: ['ids'],
-            properties: { ids: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true,
+            properties: { ids: { type: 'array', minItems: 1, maxItems: MAX_BOARD_WRITE_SHAPES, uniqueItems: true,
                 items: { type: 'string', pattern: '^shape:[\\w-]{1,128}$' } } },
         },
     },

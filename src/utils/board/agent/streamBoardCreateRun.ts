@@ -1,4 +1,4 @@
-import { isEqual } from 'tldraw'
+import { isEqual } from '@tldraw/utils'
 import { MAX_CHAT_REQUEST_BYTES } from '../../chat/images'
 import { reportAgentOperation } from '../../agent-traces/client'
 import {
@@ -14,7 +14,7 @@ import {
 } from './boardCreateProtocol'
 
 export type CreateAgentStep = {
-    stage: 'request' | 'call' | 'result' | 'summary' | 'text'
+    stage: 'request' | 'plan' | 'call' | 'result' | 'summary' | 'text'
     message: string
     data?: BoardToolCall | BoardToolOutput
     runId?: string
@@ -95,12 +95,20 @@ export async function streamBoardCreateRun(
                     runId = event.runId
                     if (traceId && traceId !== runId) throw new Error('任务 ID 与响应标识不一致')
                     traceId = runId
-                    onStep({ stage: 'request', runId, message: '① 后端已启动 Agent，正在调用模型' })
+                    onStep({ stage: 'request', runId, message: '正在分析并拆分需求…' })
                     continue
                 }
 
                 if (!runId || event.runId !== runId) throw new Error('收到其他任务的事件')
-                if (event.type === 'error') throw new BoardProtocolError(event.error)
+                if (event.type === 'error') {
+                    const error = new BoardProtocolError(event.error)
+                    error.message = [event.error.message, ...(event.error.issues ?? []).map(issue => `${issue.path}：${issue.message}`)].join('\n')
+                    throw error
+                }
+                if (event.type === 'plan') {
+                    onStep({ stage: 'plan', message: event.text })
+                    continue
+                }
                 if (event.type === 'text') {
                     textLength += event.text.length
                     if (textLength > 48000) throw new Error('任务文字超过上限')

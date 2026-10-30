@@ -46,6 +46,10 @@ export default function ChatMessageList({ messages, isOpen, resolutions, onPrevi
                         <p>{message.clarification.question}</p>
                         {message.clarification.answer && <p>你的回答：{message.clarification.answer}</p>}
                     </div>}
+                    {message.plan && <details className={styles.bubble} open>
+                        <summary>需求拆分</summary>
+                        <div>{message.plan}</div>
+                    </details>}
                     {message.content && <p className={styles.bubble}>{message.content}</p>}
                     {message.status && <p role="status">{message.status}</p>}
                     {message.execution && <p className={styles.execution} role="status">

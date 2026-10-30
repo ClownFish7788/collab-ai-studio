@@ -88,6 +88,8 @@ export function useChatSession({ boardDraft, isClosing }: {
                 const result = await boardDraft.run({ prompt: content, history: toAgentHistory(messages),
                     ...(images.length ? { images: images.map(image => image.dataUrl) } : {}), ...(snapshot ? { snapshot } : {}) }, controller.signal, step => {
                     if (step.stage === 'text') updateReply(message => ({ ...message, content: message.content + step.message }))
+                    if (step.stage === 'request') updateReply(message => ({ ...message, status: step.message }))
+                    if (step.stage === 'plan') updateReply(message => ({ ...message, plan: step.message, status: '需求已拆分，正在规划并执行…' }))
                     if (step.stage === 'call' && step.data && 'function' in step.data) {
                         const call = step.data
                         const labels = { get_board_snapshot: '正在读取白板…', ask_user: '等待你的回答', create_shapes: '正在生成草稿…', update_shapes: '正在更新草稿…', delete_shapes: '正在生成删除草稿…' }

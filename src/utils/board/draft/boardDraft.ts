@@ -10,23 +10,8 @@ import {
     type RecordsDiff
 } from 'tldraw'
 
-export const DRAFT_SHAPE_TYPES = [
-    'geo',
-    'text',
-    'note',
-    'line',
-    'arrow',
-    'draw',
-    'highlight',
-    'frame',
-    'group',
-    'bookmark',
-    'embed',
-    'image',
-    'video'
-] as const
-
-export type DraftShapeType = typeof DRAFT_SHAPE_TYPES[number]
+import { DRAFT_SHAPE_TYPES } from './draftShapeSchema'
+export { DRAFT_SHAPE_TYPES, type DraftShapeType } from './draftShapeSchema'
 
 export type BoardDraft = {
     runId: string

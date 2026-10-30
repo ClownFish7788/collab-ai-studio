@@ -1,5 +1,5 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
-import { requestBoardCreateModel } from '@/lib/boardCreateModel'
+import { requestBoardCreateModel, requestBoardTaskBrief } from '@/lib/boardCreateModel'
 import { beginCreateRun, runCreateLoop } from '@/lib/boardCreateRun'
 import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/board/agent/boardCreateProtocol'
 import { MAX_CHAT_REQUEST_BYTES } from '@/utils/chat/images'
@@ -75,12 +75,14 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                     await runCreateLoop(
                         activeRun,
                         payload,
-                        (messages, allowTools) => trace.step('model_call', () => requestBoardCreateModel(
+                        (messages, allowTools, elementKeys) => trace.step('model_call', () => requestBoardCreateModel(
                             messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools, tracedFetch,
                             text => emit({ type: 'text', runId: activeRun.id, text }),
+                            elementKeys,
                         )),
                         emit,
                         () => trace.step('access', () => requireCreateAccess(payload.roomId, userId)),
+                        messages => requestBoardTaskBrief(messages, { apiKey, model, baseUrl }, activeRun.signal, tracedFetch),
                         15000,
                         trace.record,
                     )
