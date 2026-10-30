@@ -24,6 +24,7 @@ import {
 } from './boardDraft'
 
 import { DERIVED_SHAPE_PROPS } from './draftShapeSchema'
+import { MAX_BOARD_WRITE_SHAPES } from '../boardCapabilities'
 export { DERIVED_SHAPE_PROPS } from './draftShapeSchema'
 
 type CommonInput = {
@@ -488,8 +489,8 @@ function execute<T>(draft: BoardDraft, editor: Editor, options: DraftOperationOp
 }
 
 function batch(inputs: unknown): asserts inputs is Record<string, unknown>[] {
-    if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > 30) {
-        throw new Error('每次操作须包含 1～30 项')
+    if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > MAX_BOARD_WRITE_SHAPES) {
+        throw new Error(`每次操作须包含 1～${MAX_BOARD_WRITE_SHAPES} 项`)
     }
 
     inputs.forEach(object)
@@ -615,8 +616,8 @@ export function updateDraftShapes(
 export function deleteDraftShapes(draft: BoardDraft, editor: Editor, ids: readonly TLShapeId[]): TLShapeId[] {
     task(draft, editor)
 
-    if (!Array.isArray(ids) || !ids.length || ids.length > 30 || new Set(ids).size !== ids.length) {
-        throw new Error('删除需要 1～30 个不重复 ID')
+    if (!Array.isArray(ids) || !ids.length || ids.length > MAX_BOARD_WRITE_SHAPES || new Set(ids).size !== ids.length) {
+        throw new Error(`删除需要 1～${MAX_BOARD_WRITE_SHAPES} 个不重复 ID`)
     }
 
     ids.forEach(id => target(draft, editor, id))

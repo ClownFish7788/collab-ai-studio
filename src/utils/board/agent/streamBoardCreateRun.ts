@@ -1,4 +1,4 @@
-import { isEqual } from 'tldraw'
+import { isEqual } from '@tldraw/utils'
 import { MAX_CHAT_REQUEST_BYTES } from '../../chat/images'
 import {
     validateBoardCreateEvent,
@@ -91,7 +91,10 @@ export async function streamBoardCreateRun(
                 }
 
                 if (!runId || event.runId !== runId) throw new Error('收到其他任务的事件')
-                if (event.type === 'error') throw new Error(event.error.message)
+                if (event.type === 'error') throw new Error([
+                    event.error.message,
+                    ...(event.error.issues ?? []).map(issue => `${issue.path}：${issue.message}`),
+                ].join('\n'))
                 if (event.type === 'plan') {
                     onStep({ stage: 'plan', message: event.text })
                     continue

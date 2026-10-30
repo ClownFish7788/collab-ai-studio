@@ -1,4 +1,5 @@
 import { BoardProtocolError, ERROR_CODES } from './boardCreateProtocol'
+import { MAX_BOARD_ELEMENT_ROWS } from '../boardCapabilities'
 
 /** 需求层的逻辑对象；key 不是原生元素 ID，role 不是 tldraw 类型。 */
 export type TaskBrief = {
@@ -45,7 +46,7 @@ export function validateBoardTaskPreparation(value: unknown): BoardTaskPreparati
     for (const name of ['constraints', 'unresolvedQuestions'] as const) {
         if (!texts(brief[name], 20)) return invalid(`brief.${name}`, '必须是文字数组，最多 20 项，每项 1～300 字符')
     }
-    if (!Array.isArray(brief.objects) || brief.objects.length > 30) return invalid('brief.objects', '必须是对象数组，最多 30 项')
+    if (!Array.isArray(brief.objects) || brief.objects.length > MAX_BOARD_ELEMENT_ROWS) return invalid('brief.objects', `必须是对象数组，最多 ${MAX_BOARD_ELEMENT_ROWS} 项`)
     if (!Array.isArray(brief.relations) || brief.relations.length > 60) return invalid('brief.relations', '必须是关系数组，最多 60 项')
 
     const parents = new Map<string, string | undefined>()

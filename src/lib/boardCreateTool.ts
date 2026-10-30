@@ -1,5 +1,6 @@
 import { defaultShapeSchemas } from '@tldraw/tlschema'
 import { DRAFT_SHAPE_TYPES, DERIVED_SHAPE_PROPS } from '../utils/board/draft/draftShapeSchema'
+import { MAX_BOARD_WRITE_SHAPES } from '../utils/board/boardCapabilities'
 
 const shapeProperties = {
     type: { type: 'string', enum: DRAFT_SHAPE_TYPES, description: '原生元素类型；更新时必须与真实对象一致，不能转换类型。' },
@@ -16,7 +17,7 @@ export const boardCreateTool = {
     type: 'function',
     function: {
         name: 'create_shapes',
-        description: '用户已明确要求新增元素时，在临时草稿新增 1～5 个原生 tldraw 元素。type 选择类型，props 提供该类型的原生属性；geo 支持所有原生几何和颜色。group 必须提供至少两个已读取的 children ID。x/y 相对固定参照点，内部几何坐标仍为局部坐标。对象有歧义或要求先确认时先 ask_user。返回真实 ID，不提交正式白板。',
+        description: `用户已明确要求新增元素时，在临时草稿新增 1～${MAX_BOARD_WRITE_SHAPES} 个原生 tldraw 元素。type 选择类型，props 提供该类型的原生属性；geo 支持所有原生几何和颜色。group 必须提供至少两个已读取的 children ID。x/y 相对固定参照点，内部几何坐标仍为局部坐标。对象有歧义或要求先确认时先 ask_user。返回真实 ID，不提交正式白板。`,
         parameters: {
             type: 'object',
             additionalProperties: false,
@@ -25,7 +26,7 @@ export const boardCreateTool = {
                 shapes: {
                     type: 'array',
                     minItems: 1,
-                    maxItems: 5,
+                    maxItems: MAX_BOARD_WRITE_SHAPES,
                     items: {
                         type: 'object',
                         additionalProperties: false,
@@ -47,12 +48,12 @@ export const boardUpdateTool = {
     type: 'function',
     function: {
         name: 'update_shapes',
-        description: '在草稿更新 1～5 个已读取、页面直属、无旋转、未锁定的原生元素。每项提交真实 id 和匹配的 type，至少提供 x/y 或一个 props 修改字段；省略字段保留原值。x/y 是元素原点相对固定参照点的坐标。不能转换 type。对象不唯一先读取或询问；整批失败不执行，不提交正式白板。',
+        description: `在草稿更新 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。每项提交真实 id 和匹配的 type，至少提供 x/y 或一个 props 修改字段；省略字段保留原值。x/y 是元素原点相对固定参照点的坐标。不能转换 type。对象不唯一先读取或询问；整批失败不执行，不提交正式白板。`,
         parameters: {
             type: 'object', additionalProperties: false, required: ['shapes'],
             properties: {
                 shapes: {
-                    type: 'array', minItems: 1, maxItems: 5,
+                    type: 'array', minItems: 1, maxItems: MAX_BOARD_WRITE_SHAPES,
                     items: {
                         type: 'object', additionalProperties: false, required: ['id', 'type'], minProperties: 3,
                         properties: { id: { type: 'string', pattern: '^shape:[\\w-]{1,128}$' },
@@ -69,10 +70,10 @@ export const boardDeleteTool = {
     type: 'function',
     function: {
         name: 'delete_shapes',
-        description: '在草稿删除 1～5 个已读取、页面直属、无旋转、未锁定的原生元素。容器后代和受影响箭头也必须已读取，越界副作用使整批回滚。ids 不重复、不编造；目标不明确先读取或询问。只生成待确认的删除草稿，不提交正式白板。',
+        description: `在草稿删除 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。容器后代和受影响箭头也必须已读取，越界副作用使整批回滚。ids 不重复、不编造；目标不明确先读取或询问。只生成待确认的删除草稿，不提交正式白板。`,
         parameters: {
             type: 'object', additionalProperties: false, required: ['ids'],
-            properties: { ids: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true,
+            properties: { ids: { type: 'array', minItems: 1, maxItems: MAX_BOARD_WRITE_SHAPES, uniqueItems: true,
                 items: { type: 'string', pattern: '^shape:[\\w-]{1,128}$' } } },
         },
     },

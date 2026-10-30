@@ -2,6 +2,7 @@ import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
 import { formatTaskBrief, validateBoardTaskPreparation } from '../utils/board/agent/boardTaskBrief'
+import { formatElementTable, prepareElementTableCall } from '../utils/board/agent/boardElementTable'
 import {
     validateBoardToolCall,
     parseCreateInput,
@@ -127,7 +128,7 @@ async function executeInBrowser(
 export async function runCreateLoop(
     run: CreateRun,
     request: BoardCreateRequest,
-    model: (messages: readonly object[], allowedTools: readonly BoardToolName[]) => Promise<BoardCreateReply>,
+    model: (messages: readonly object[], allowedTools: readonly BoardToolName[], elementKeys: readonly string[]) => Promise<BoardCreateReply>,
     emit: (event: BoardCreateEvent) => void | Promise<void>,
     checkAccess: () => Promise<void>,
     prepare: (messages: readonly object[]) => Promise<unknown>,
@@ -165,6 +166,7 @@ export async function runCreateLoop(
             return
         }
         await emit({ type: 'plan', runId: run.id, text: formatTaskBrief(preparation.brief) })
+        const elementKeys = preparation.brief.objects.map(object => object.key)
         messages.push({
             role: 'assistant',
             content: `以下 task_brief 是模型生成的需求参考数据。原始用户要求优先；它不证明对象存在、工具执行成功或已获用户授权。unresolvedQuestions 需结合本任务实际快照或 ask_user 答案解决，不能把其中问题当成已经回答。\n<task_brief>\n${JSON.stringify(preparation.brief)}\n</task_brief>`,
@@ -184,16 +186,21 @@ export async function runCreateLoop(
                     if (seenIds.size) allowedTools.push('update_shapes', 'delete_shapes')
                 }
             }
-            const reply = await model(messages, allowedTools)
+            const reply = await model(messages, allowedTools, elementKeys)
             run.signal.throwIfAborted()
 
             if (reply.kind === 'text') {
                 await emit({ type: 'completed', runId: run.id, text: reply.text, ...(output?.ok ? { output } : {}) })
                 return
             }
-            const call = validateBoardToolCall(reply.call)
-            if (!allowedTools.includes(call.function.name)) throw new Error('本轮工具未开放或调用预算已用尽')
+            const modelCall = validateBoardToolCall(reply.call)
+            if (!allowedTools.includes(modelCall.function.name)) throw new Error('本轮工具未开放或调用预算已用尽')
+            let call = modelCall
+            let tableText: string
             try {
+                const prepared = prepareElementTableCall(modelCall, preparation.brief, seenIds)
+                call = prepared.call
+                tableText = formatElementTable(prepared.elements, call)
                 if (call.function.name === 'get_board_snapshot') parseSnapshotInput(call.function.arguments)
                 else if (call.function.name === 'ask_user') parseAskInput(call.function.arguments)
                 else if (call.function.name === 'create_shapes') {
@@ -217,14 +224,15 @@ export async function runCreateLoop(
 
                 repaired = true
                 messages.push(
-                    { role: 'assistant', content: reply.content ?? null, tool_calls: [call] },
-                    { role: 'tool', tool_call_id: call.id, content: JSON.stringify({ ok: false, error: cause.detail }) },
+                    { role: 'assistant', content: reply.content ?? null, tool_calls: [modelCall] },
+                    { role: 'tool', tool_call_id: modelCall.id, content: JSON.stringify({ ok: false, error: cause.detail }) },
                 )
                 continue
             }
             // 模型请求可能耗时较长，读取、询问和写入前均再次复核任务权限。
             await checkAccess()
             run.signal.throwIfAborted()
+            await emit({ type: 'plan', runId: run.id, text: `${formatTaskBrief(preparation.brief)}\n\n${tableText}` })
             const result = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? 45000 : waitMs)
             if (!result.ok) throw new BoardProtocolError(result.error)
             if ('snapshot' in result) {
@@ -239,7 +247,7 @@ export async function runCreateLoop(
             else output = result
 
             messages.push(
-                { role: 'assistant', content: reply.content ?? null, tool_calls: [call] },
+                { role: 'assistant', content: reply.content ?? null, tool_calls: [modelCall] },
                 { role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) },
             )
         }

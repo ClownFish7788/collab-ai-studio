@@ -59,9 +59,10 @@ export async function POST(request: Request) {
                     await runCreateLoop(
                         activeRun,
                         payload,
-                        (messages, allowTools) => requestBoardCreateModel(
+                        (messages, allowTools, elementKeys) => requestBoardCreateModel(
                             messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools, fetch,
                             text => emit({ type: 'text', runId: activeRun.id, text }),
+                            elementKeys,
                         ),
                         emit,
                         () => requireCreateAccess(payload.roomId, userId),

@@ -5,6 +5,7 @@ import type { CreateDraftShapeInput } from '../draft/draftShapeOperations'
 import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
 import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } from '../../chat/images'
+import { MAX_BOARD_WRITE_SHAPES, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
 
 /** 工具结果的快照传输上限；启动请求另外使用图文请求上限。 */
 export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_SNAPSHOT_BYTES + 20000
@@ -128,8 +129,8 @@ function json(value: unknown, depth = 0): boolean {
 function validateShapes(value: unknown, update: boolean) {
     const issues: NonNullable<BoardAgentError['issues']> = []
     if (!isRecord(value) || Object.keys(value).some(key => key !== 'shapes')
-        || !Array.isArray(value.shapes) || value.shapes.length < 1 || value.shapes.length > 5) {
-        issues.push({ path: 'shapes', message: '须包含 1～5 个元素，不能携带其他字段' })
+        || !Array.isArray(value.shapes) || value.shapes.length < 1 || value.shapes.length > MAX_BOARD_WRITE_SHAPES) {
+        issues.push({ path: 'shapes', message: `须包含 1～${MAX_BOARD_WRITE_SHAPES} 个元素，不能携带其他字段` })
     } else {
         const ids = new Set<string>()
         const groupedChildren = new Set<string>()
@@ -225,13 +226,13 @@ export function parseUpdateInput(argumentsText: string): { shapes: UpdateShapePa
     return validateUpdateInput(parseToolArguments(argumentsText))
 }
 
-/** 删除仅允许 1～5 个唯一 ID；实际存在、类型和授权由当前任务执行器复核。 */
+/** 删除数量遵守共享写入上限；实际存在、类型和授权由当前任务执行器复核。 */
 export function validateDeleteInput(value: unknown): { ids: string[] } {
     if (!isRecord(value) || Object.keys(value).some(key => key !== 'ids') || !Array.isArray(value.ids)
-        || value.ids.length < 1 || value.ids.length > 5 || !value.ids.every(validShapeId)
+        || value.ids.length < 1 || value.ids.length > MAX_BOARD_WRITE_SHAPES || !value.ids.every(validShapeId)
         || new Set(value.ids).size !== value.ids.length) {
         throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '删除参数校验失败',
-            issues: [{ path: 'ids', message: '须为 1～5 个不重复的真实图形 ID，不能携带其他字段' }] })
+            issues: [{ path: 'ids', message: `须为 1～${MAX_BOARD_WRITE_SHAPES} 个不重复的真实图形 ID，不能携带其他字段` }] })
     }
     return value as { ids: string[] }
 }
@@ -272,7 +273,7 @@ export function validateBoardToolCall(value: unknown): BoardToolCall {
 
     if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 200
         || value.type !== 'function' || !['create_shapes', 'update_shapes', 'delete_shapes', 'get_board_snapshot', 'ask_user'].includes(value.function.name as string)
-        || typeof value.function.arguments !== 'string' || value.function.arguments.length > 10000) {
+        || typeof value.function.arguments !== 'string' || value.function.arguments.length > MAX_BOARD_TOOL_ARGUMENT_CHARS) {
         throw new Error('白板工具调用格式不合法')
     }
 
