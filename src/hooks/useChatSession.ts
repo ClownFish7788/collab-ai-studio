@@ -89,7 +89,8 @@ export function useChatSession({ boardDraft, isClosing }: {
                     ...(images.length ? { images: images.map(image => image.dataUrl) } : {}), ...(snapshot ? { snapshot } : {}) }, controller.signal, step => {
                     if (step.stage === 'text') updateReply(message => ({ ...message, content: message.content + step.message }))
                     if (step.stage === 'request') updateReply(message => ({ ...message, status: step.message }))
-                    if (step.stage === 'plan') updateReply(message => ({ ...message, plan: step.message, status: '需求已拆分，正在规划并执行…' }))
+                    if (step.stage === 'preview') updateReply(message => ({ ...message, preview: step.message }))
+                    if (step.stage === 'plan') updateReply(message => ({ ...message, plan: step.message, preview: undefined, status: '需求已拆分，正在规划并执行…' }))
                     if (step.stage === 'call' && step.data && 'function' in step.data) {
                         const call = step.data
                         const labels = { get_board_snapshot: '正在读取白板…', ask_user: '等待你的回答', create_shapes: '正在生成草稿…', update_shapes: '正在更新草稿…', delete_shapes: '正在生成删除草稿…' }
@@ -101,7 +102,7 @@ export function useChatSession({ boardDraft, isClosing }: {
                 const output = result.output
                 const description = !output ? '本轮未更改白板' : 'ids' in output ? `草稿删除 ${output.ids.length} 个元素`
                     : `草稿${'operation' in output ? '更新' : '新增'} ${output.shapes.length} 个元素`
-                updateReply(message => ({ ...message, content: result.text, status: undefined,
+                updateReply(message => ({ ...message, content: result.text, preview: undefined, status: undefined,
                     execution: { description, ...(output && result.draftId ? { draftId: result.draftId } : {}) } }))
             } else {
                 await streamChat(toChatMessages(history), controller.signal,

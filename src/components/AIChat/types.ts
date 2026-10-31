@@ -10,6 +10,7 @@ export type ChatMessage = {
     status?: string
     failed?: boolean
     plan?: string
+    preview?: string
     clarification?: { question: string; answer?: string }
     execution?: { description: string; draftId?: string }
 }

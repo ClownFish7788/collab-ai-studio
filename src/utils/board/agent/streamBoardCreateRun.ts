@@ -1,6 +1,8 @@
 import { isEqual } from '@tldraw/utils'
 import { MAX_CHAT_REQUEST_BYTES } from '../../chat/images'
 import { reportAgentOperation } from '../../agent-traces/client'
+import { MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
+import { formatBoardJsonPreview } from './boardJsonPreview'
 import {
     validateBoardCreateEvent,
     validateBoardToolOutput,
@@ -14,7 +16,7 @@ import {
 } from './boardCreateProtocol'
 
 export type CreateAgentStep = {
-    stage: 'request' | 'plan' | 'call' | 'result' | 'summary' | 'text'
+    stage: 'request' | 'plan' | 'preview' | 'call' | 'result' | 'summary' | 'text'
     message: string
     data?: BoardToolCall | BoardToolOutput
     runId?: string
@@ -71,6 +73,9 @@ export async function streamBoardCreateRun(
         let reads = 0
         let asks = 0
         let textLength = 0
+        let previewSource = ''
+        let previewJson = ''
+        let previewLength = 0
 
         while (true) {
             const chunk = await reader.read()
@@ -100,6 +105,16 @@ export async function streamBoardCreateRun(
                 }
 
                 if (!runId || event.runId !== runId) throw new Error('收到其他任务的事件')
+                if (event.type === 'preview') {
+                    if (event.start) { previewSource = event.source; previewJson = '' }
+                    if (previewSource !== event.source) throw new Error('生成预览缺少起始事件')
+                    previewJson += event.delta
+                    previewLength += event.delta.length
+                    if (previewJson.length > (event.source === 'preparation' ? 8000 : MAX_BOARD_TOOL_ARGUMENT_CHARS)
+                        || previewLength > 8000 + 6 * MAX_BOARD_TOOL_ARGUMENT_CHARS) throw new Error('生成预览超过上限')
+                    onStep({ stage: 'preview', message: formatBoardJsonPreview(event.source, previewJson) })
+                    continue
+                }
                 if (event.type === 'error') {
                     const error = new BoardProtocolError(event.error)
                     error.message = [event.error.message, ...(event.error.issues ?? []).map(issue => `${issue.path}：${issue.message}`)].join('\n')

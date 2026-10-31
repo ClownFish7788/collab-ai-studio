@@ -18,7 +18,7 @@ export class BoardCreateModelError extends BoardProtocolError {
 }
 
 /** 聚合有界 SSE；文字只用于展示，工具分片直到 DONE/结束原因均有效后才交给调用校验。 */
-async function readModelStream(response: Response, signal: AbortSignal, onText?: (text: string) => void) {
+async function readModelStream(response: Response, signal: AbortSignal, onText?: (text: string) => void, onArguments?: (text: string) => void) {
     if (!response.body) throw new BoardCreateModelError('模型响应流为空')
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
@@ -61,6 +61,7 @@ async function readModelStream(response: Response, signal: AbortSignal, onText?:
                 call.function[key] += part
             }
             if (call.id.length > 200 || call.function.name.length > 100 || call.function.arguments.length > MAX_BOARD_TOOL_ARGUMENT_CHARS) throw invalid()
+            if (fragment.function?.arguments) onArguments?.(fragment.function.arguments)
         }
         if (choice.finish_reason != null) {
             if (!['stop', 'tool_calls'].includes(choice.finish_reason)) throw invalid()
@@ -103,23 +104,25 @@ export async function requestBoardCreateModel(
     fetcher: typeof fetch = fetch,
     onText?: (text: string) => void,
     elementKeys?: readonly string[],
+    onArguments?: (text: string) => void,
 ): Promise<BoardCreateReply> {
     // 用户回答不会建立画布参照点；每轮明确运行状态，避免沿用前轮工具或跳过读取。
     return requestModel([...messages, { role: 'system', content: allowedTools.length
         ? `本轮仅允许这些工具：${allowedTools.join('、')}。其他工具即使出现在历史也不能调用。本任务尚未执行任何写入，读取快照和回答不表示操作完成，历史任务的成功也不算本任务的执行。若当前用户操作已明确且信息齐全，必须实际调用对应写入工具，不能用 content 声称已新增、更新或删除。${allowedTools.includes('get_board_snapshot') && !allowedTools.includes('create_shapes')
             ? '当前尚未取得首份白板快照，用户回答不等于快照。继续白板操作前必须先调用 get_board_snapshot；禁止直接写入。' : ''}${allowedTools.includes('ask_user')
             ? '已明确的白板任务若缺少必要信息或有多个候选，必须真正调用 ask_user 等待答案；不能仅在 content 中写问题并结束。用户按描述指定更新或删除目标，而该范围快照 truncated=true 时，即使只返回一个匹配项也不能确认唯一，必须先询问用户是否操作这个已读取对象；用户已明确指定真实 ID 或已明确选定目标时例外。这是继续当前任务的协议要求。' : ''}`
-        : '本轮未开放工具。仅用普通文字回复，若已有草稿执行结果则说明实际结果，不再调用工具。' }], config, signal, allowedTools, fetcher, onText, undefined, elementKeys)
+        : '本轮未开放工具。仅用普通文字回复，若已有草稿执行结果则说明实际结果，不再调用工具。' }], config, signal, allowedTools, fetcher, onText, undefined, elementKeys, onArguments)
 }
 
-/** 同一传输适配器上的无工具准备调用；JSON 仅交给后端校验，不流入用户聊天。 */
+/** 无工具准备调用；分片仅供生成预览，完整 JSON 仍由后端解析和校验。 */
 export async function requestBoardTaskBrief(
     messages: readonly object[],
     config: { apiKey: string; model: string; baseUrl: string },
     signal: AbortSignal,
     fetcher: typeof fetch = fetch,
+    onText?: (text: string) => void,
 ): Promise<unknown> {
-    const reply = await requestModel([{ role: 'system', content: boardTaskBriefPrompt }, ...messages], config, signal, [], fetcher, undefined, 2000)
+    const reply = await requestModel([{ role: 'system', content: boardTaskBriefPrompt }, ...messages], config, signal, [], fetcher, onText, 2000)
     if (reply.kind !== 'text') throw new BoardCreateModelError('需求拆分不能调用工具')
     try { return JSON.parse(reply.text) } catch { throw new BoardCreateModelError('需求拆分未返回合法 JSON，本轮没有执行工具') }
 }
@@ -133,6 +136,7 @@ async function requestModel(
     onText?: (text: string) => void,
     maxTokens = allowedTools.length ? 4000 : 1000,
     elementKeys?: readonly string[],
+    onArguments?: (text: string) => void,
 ): Promise<BoardCreateReply> {
     const response = await fetcher(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
@@ -165,7 +169,7 @@ async function requestModel(
     let data
     try {
         data = response.headers.get('content-type')?.includes('text/event-stream')
-            ? await readModelStream(response, signal, onText) : await response.json()
+            ? await readModelStream(response, signal, onText, onArguments) : await response.json()
     } catch {
         signal.throwIfAborted()
         throw new BoardCreateModelError('模型服务未返回完整合法响应，本轮没有执行工具')

@@ -50,6 +50,10 @@ export default function ChatMessageList({ messages, isOpen, resolutions, onPrevi
                         <summary>需求拆分</summary>
                         <div>{message.plan}</div>
                     </details>}
+                    {message.preview && <details className={styles.bubble} open>
+                        <summary>{message.failed ? '未完成的生成预览（未校验）' : '生成预览（未校验，不代表执行结果）'}</summary>
+                        <div>{message.preview}</div>
+                    </details>}
                     {message.content && <p className={styles.bubble}>{message.content}</p>}
                     {message.status && <p role="status">{message.status}</p>}
                     {message.execution && <p className={styles.execution} role="status">

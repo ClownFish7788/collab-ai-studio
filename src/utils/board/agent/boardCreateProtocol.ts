@@ -92,6 +92,7 @@ export type BoardCreateReply =
 export type BoardCreateEvent =
     | { type: 'started'; runId: string }
     | { type: 'plan'; runId: string; text: string }
+    | { type: 'preview'; runId: string; source: 'preparation' | 'tool'; delta: string; start: boolean }
     | { type: 'text'; runId: string; text: string }
     | { type: 'tool'; runId: string; call: BoardToolCall }
     | { type: 'completed'; runId: string; text: string; output?: MutationToolSuccess }
@@ -408,6 +409,11 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
         throw new Error('任务事件 ID 不合法')
     }
     switch (value.type) {
+        case 'preview':
+            fields(value, ['type', 'runId', 'source', 'delta', 'start'])
+            if (!['preparation', 'tool'].includes(value.source as string) || typeof value.start !== 'boolean'
+                || typeof value.delta !== 'string' || !value.delta || value.delta.length > MAX_BOARD_TOOL_ARGUMENT_CHARS) throw new Error('生成预览分片不合法')
+            break
         case 'started':
             fields(value, ['type', 'runId'])
             break

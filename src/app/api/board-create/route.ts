@@ -70,6 +70,14 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                     if (event.type === 'completed') finalReply = event.text
                     controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
                 }
+                const preview = (source: 'preparation' | 'tool') => {
+                    let start = true
+                    return (delta: string) => {
+                        activeRun.signal.throwIfAborted()
+                        emit({ type: 'preview', runId: activeRun.id, source, delta, start })
+                        start = false
+                    }
+                }
 
                 try {
                     await runCreateLoop(
@@ -79,10 +87,11 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                             messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools, tracedFetch,
                             undefined, // 模型自由文字只留在追踪中，页面进度由工具事件驱动。
                             elementKeys,
+                            preview('tool'),
                         )),
                         emit,
                         () => trace.step('access', () => requireCreateAccess(payload.roomId, userId)),
-                        messages => requestBoardTaskBrief(messages, { apiKey, model, baseUrl }, activeRun.signal, tracedFetch),
+                        messages => requestBoardTaskBrief(messages, { apiKey, model, baseUrl }, activeRun.signal, tracedFetch, preview('preparation')),
                         15000,
                         trace.record,
                     )
