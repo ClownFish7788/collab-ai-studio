@@ -203,7 +203,8 @@ export async function runCreateLoop(
             run.signal.throwIfAborted()
 
             if (reply.kind === 'text') {
-                await emit({ type: 'completed', runId: run.id, text: reply.text, ...(output?.ok ? { output } : {}) })
+                const text = output ? '已经执行草稿修改，请检查白板预览。' : '本轮没有执行白板修改。'
+                await emit({ type: 'completed', runId: run.id, text, ...(output ? { output } : {}) })
                 return
             }
             const modelCall = validateBoardToolCall(reply.call)
