@@ -1,21 +1,29 @@
 const assert = require('node:assert/strict')
 const { test } = require('node:test')
 const Module = require('node:module')
-const { submitCreateResult } = require('../src/lib/boardCreateRun.ts')
+const { requestBoardCreateModel } = require('../src/lib/boardCreateModel.ts')
 const { streamBoardCreateRun } = require('../src/utils/board/agent/streamBoardCreateRun.ts')
 
 let userId = crypto.randomUUID()
 const traces = []
+const access = { check: async () => {} }
+class CreateAccessError extends Error {
+    constructor(message, status) { super(message); this.status = status }
+}
 // Only replace authentication and trace storage; run the real route, model adapter and tool loop.
 const load = Module._load
-let POST
+let POST, POSTResult
 try {
     Module._load = function (name, ...args) {
         if (name === '@/lib/boardCreateAccess') return {
-            CreateAccessError: class extends Error {},
+            CreateAccessError,
             requireCreateUser: async () => userId,
-            requireCreateAccess: async () => {},
+            requireCreateAccess: (...args) => access.check(...args),
             readCreatePayload: request => request.json(),
+        }
+        if (name === '@/lib/prisma') return { agentTrace: { findUnique: async () => ({ userId }) } }
+        if (name === '@/lib/agentTrace') return {
+            appendAgentTraceEvent: async (id, type, data) => traces.find(trace => trace.id === id)?.events.push({ type, data }),
         }
         if (name === '@/lib/agentTraceRequest') return {
             traceAgentRequest: async (_request, _kind, handler) => {
@@ -33,6 +41,7 @@ try {
         return load.call(this, name, ...args)
     }
     ;({ POST } = require('../src/app/api/board-create/route.ts'))
+    ;({ POST: POSTResult } = require('../src/app/api/board-create/[runId]/result/route.ts'))
 } finally { Module._load = load }
 
 const jsonReply = content => Response.json({ choices: [{
@@ -60,11 +69,56 @@ async function browserFetch(url, init) {
     if (url === '/api/board-create') return POST(new Request(`https://app.test${url}`, init))
     const result = /^\/api\/board-create\/([^/]+)\/result$/.exec(url)
     if (result) {
-        const { callId, output } = JSON.parse(init.body)
-        submitCreateResult(result[1], userId, callId, output)
+        return POSTResult(new Request(`https://app.test${url}`, init), { params: Promise.resolve({ runId: result[1] }) })
     }
     return Response.json({ accepted: true })
 }
+
+test('执行模型没有开放工具时直接拒绝，不再保留无工具总结请求', async () => {
+    await assert.rejects(requestBoardCreateModel([], { apiKey: 'test', model: 'test', baseUrl: 'https://model.test' },
+        new AbortController().signal, [], async () => assert.fail('不能发起无工具的执行模型请求')),
+    /没有可调用的工具/)
+})
+
+for (const revoked of [false, true]) test(`真实结果接口${revoked ? '拒绝失去权限的结果' : '验收写入后直接结束，不再复核下一轮权限'}`, async t => {
+    const shape = { type: 'geo', x: 0, y: 0 }
+    let requests = 0, toolExecuted = false
+    const steps = []
+    configureModel(t, async () => {
+        assert.ok(++requests <= 2, '不能再请求模型总结')
+        return requests === 1 ? jsonReply({ kind: 'task', brief: {
+            goal: '新增矩形', tasks: ['新增矩形'], objects: [{ key: 'box', role: '矩形', description: '待新增' }],
+            relations: [], constraints: [], unresolvedQuestions: [],
+        } }) : streamedReply('', { id: 'create', type: 'function', function: {
+            name: 'create_shapes', arguments: JSON.stringify({ shapes: [shape], elements: [
+                { key: 'box', operation: 'create', type: 'geo', known: {}, missing: [] },
+            ] }),
+        } })
+    })
+    let resultAccessChecks = 0
+    t.mock.method(access, 'check', async () => {
+        assert.equal(traces.at(-1).events.some(event => event.type === 'tool_result'), false,
+            '已验收写入后不能再运行下一轮权限检查')
+        if (toolExecuted) {
+            resultAccessChecks++
+            if (revoked) throw new CreateAccessError('当前没有编辑权限', 403)
+        }
+    })
+    const output = { ok: true, state: 'draft', shapes: [{ ...shape, id: 'shape:new' }] }
+    const work = streamBoardCreateRun({ roomId: 'room', prompt: '新增矩形', snapshot: {
+        reference: { id: null, x: 0, y: 0 }, viewport: { x: 0, y: 0, w: 800, h: 600 }, shapes: [],
+    } }, new AbortController().signal, () => { toolExecuted = true; return output }, step => steps.push(step), browserFetch)
+    if (revoked) {
+        await assert.rejects(work, /当前没有编辑权限/)
+        assert.equal(steps.some(step => step.stage === 'summary'), false)
+        assert.equal(traces.at(-1).events.some(event => event.type === 'tool_result'), false)
+    } else {
+        assert.deepEqual((await work).output, output)
+        assert.equal(steps.find(step => step.stage === 'result').message, '提交真实结果，等待后端确认')
+    }
+    assert.equal(resultAccessChecks, 1, '结果回传仍必须独立复核权限')
+    assert.equal(requests, 2)
+})
 
 test('白板模型的提前完成声明只留在追踪中，页面仍接收真实读取和询问进度', async t => {
     const elements = [{ key: 'box', operation: 'create', type: 'geo', known: {}, missing: [{ field: '颜色', source: 'ask' }] }]

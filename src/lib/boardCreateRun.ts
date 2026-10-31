@@ -22,7 +22,6 @@ import {
     type BoardToolCall,
     type BoardToolOutput,
     type BoardToolName,
-    type MutationToolSuccess,
 } from '../utils/board/agent/boardCreateProtocol'
 
 type PendingTool = {
@@ -149,7 +148,6 @@ export async function runCreateLoop(
         ]),
         { role: 'user', content: request.snapshot ? appendChatSnapshot(content(request.prompt, request.images), request.snapshot) : content(request.prompt, request.images) },
     ]
-    let output: MutationToolSuccess | undefined
     let reference = request.snapshot ? { ...request.snapshot.reference } : undefined
     const seenIds = new Set(request.snapshot?.shapes.map(shape => shape.id as string))
     let repaired = false
@@ -191,20 +189,17 @@ export async function runCreateLoop(
             run.signal.throwIfAborted()
 
             const allowedTools: BoardToolName[] = []
-            if (!output) {
-                if (reads < 2) allowedTools.push('get_board_snapshot')
-                if (asks < 1) allowedTools.push('ask_user')
-                if (reference) {
-                    allowedTools.push('create_shapes')
-                    if (seenIds.size) allowedTools.push('update_shapes', 'delete_shapes')
-                }
+            if (reads < 2) allowedTools.push('get_board_snapshot')
+            if (asks < 1) allowedTools.push('ask_user')
+            if (reference) {
+                allowedTools.push('create_shapes')
+                if (seenIds.size) allowedTools.push('update_shapes', 'delete_shapes')
             }
             const reply = await model(messages, allowedTools, elementKeys)
             run.signal.throwIfAborted()
 
             if (reply.kind === 'text') {
-                const text = output ? '已经执行草稿修改，请检查白板预览。' : '本轮没有执行白板修改。'
-                await emit({ type: 'completed', runId: run.id, text, ...(output ? { output } : {}) })
+                await emit({ type: 'completed', runId: run.id, text: '本轮没有执行白板修改。' })
                 return
             }
             const modelCall = validateBoardToolCall(reply.call)
@@ -285,7 +280,12 @@ export async function runCreateLoop(
                 result.snapshot.shapes.forEach(shape => seenIds.add(shape.id))
                 reads++
             } else if ('answer' in result) asks++
-            else output = result
+            else {
+                // 结果接口已复核权限；写入成功后直接结束，不再进入下一轮推理的准备流程。
+                run.signal.throwIfAborted()
+                await emit({ type: 'completed', runId: run.id, text: '已经执行草稿修改，请检查白板预览。', output: result })
+                return
+            }
 
             messages.push(
                 { role: 'assistant', content: reply.content ?? null, tool_calls: [modelCall] },

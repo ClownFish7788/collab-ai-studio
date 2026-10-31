@@ -190,20 +190,70 @@ test('新增草稿保留元素表埋点，浏览器仅执行原生参数，最�
     const shape = { type: 'geo', x: 10, y: 20, props: { w: 100, h: 80, geo: 'rectangle' } }
     const output = { ok: true, state: 'draft', shapes: [{ id: 'shape:created', ...shape }] }
     let attempts = 0
-    await runCreateLoop(run, { ...request, snapshot }, async () => ++attempts === 1 ? { kind: 'tool', call: {
-        id: 'create', type: 'function', function: { name: 'create_shapes', arguments: JSON.stringify({
-            shapes: [shape], elements: [{ key: 'box', operation: 'create', type: 'geo', known: {}, missing: [] }],
-        }) },
-    } } : { kind: 'text', text: '已生成草稿' }, event => {
+    await runCreateLoop(run, { ...request, snapshot }, async () => {
+        assert.equal(++attempts, 1, '成功写入后不能再请求模型总结')
+        return { kind: 'tool', call: {
+            id: 'create', type: 'function', function: { name: 'create_shapes', arguments: JSON.stringify({
+                shapes: [shape], elements: [{ key: 'box', operation: 'create', type: 'geo', known: {}, missing: [] }],
+            }) },
+        } }
+    }, event => {
         emitted.push(event)
         if (event.type === 'tool') {
             assert.deepEqual(JSON.parse(event.call.function.arguments), { shapes: [shape] })
             submitCreateResult(run.id, run.ownerId, event.call.id, output)
         }
-    }, async () => {}, async () => preparation, 100, record)
+    }, async () => {
+        assert.equal(events.some(event => event.type === 'tool_result'), false, '写入结果已验收，不应再运行下一轮模型的权限复核')
+    }, async () => preparation, 100, record)
     assert.deepEqual(emitted.at(-1).output, output)
+    assert.equal(emitted.at(-1).text, '已经执行草稿修改，请检查白板预览。')
     assert.deepEqual(events.find(event => event.type === 'tool_result').data.output, output)
     assert.equal(operation(events, 'element_preparation').data.elements[0].type, 'geo')
+})
+
+for (const operation of ['update', 'delete']) test(`${operation} 成功后直接用真实 output 结束，不再请求模型`, async () => {
+    const run = newRun(), emitted = []
+    const patch = { id: 'shape:box', type: 'geo', props: { color: 'blue' } }
+    const args = operation === 'update' ? { shapes: [patch] } : { ids: ['shape:box'] }
+    const output = operation === 'update' ? { ok: true, state: 'draft', operation, shapes: [patch] }
+        : { ok: true, state: 'draft', operation, ids: ['shape:box'] }
+    let requests = 0
+    await runCreateLoop(run, { ...request, snapshot: { ...snapshot, shapes: [{
+        id: 'shape:box', type: 'geo', x: 0, y: 0, w: 100, h: 100, text: '', opacity: 1,
+        origin: { x: 0, y: 0 }, props: { geo: 'rectangle', w: 100, h: 100 },
+    }] } }, async () => {
+        assert.equal(++requests, 1, '成功写入后不能再调用模型')
+        return { kind: 'tool', call: { id: operation, type: 'function', function: {
+            name: `${operation}_shapes`, arguments: JSON.stringify({ ...args, elements: [{
+                key: 'box', operation, type: 'geo', shapeId: 'shape:box', known: {}, missing: [],
+            }] }),
+        } } }
+    }, event => {
+        emitted.push(event)
+        if (event.type === 'tool') submitCreateResult(run.id, run.ownerId, event.call.id, output)
+    }, async () => {}, async () => preparation, 100)
+    assert.equal(emitted.at(-1).type, 'completed')
+    assert.deepEqual(emitted.at(-1).output, output)
+    assert.equal(emitted.at(-1).text, '已经执行草稿修改，请检查白板预览。')
+})
+
+test('写入结果记录后取消，不能报告正常完成', async () => {
+    const run = newRun(), emitted = []
+    const shape = { type: 'geo', x: 0, y: 0 }
+    await assert.rejects(runCreateLoop(run, { ...request, snapshot }, async () => ({ kind: 'tool', call: {
+        id: 'create', type: 'function', function: { name: 'create_shapes', arguments: JSON.stringify({
+            shapes: [shape], elements: [{ key: 'box', operation: 'create', type: 'geo', known: {}, missing: [] }],
+        }) },
+    } }), event => {
+        emitted.push(event)
+        if (event.type === 'tool') submitCreateResult(run.id, run.ownerId, event.call.id,
+            { ok: true, state: 'draft', shapes: [{ ...shape, id: 'shape:new' }] })
+    }, async () => {}, async () => preparation, 100,
+    async type => {
+        if (type === 'tool_result') run.controller.abort()
+    }))
+    assert.equal(emitted.some(event => event.type === 'completed'), false)
 })
 
 test('前端接收 plan 时保留 runId，错误展示字段问题并保留埋点分类', async () => {

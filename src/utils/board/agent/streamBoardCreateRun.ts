@@ -156,7 +156,7 @@ export async function streamBoardCreateRun(
                     if (output.ok) {
                         if ('shapes' in output || 'ids' in output) localOutput = output
                     }
-                    onStep({ stage: 'result', message: '提交真实结果，等待后端继续循环', data: output })
+                    onStep({ stage: 'result', message: '提交真实结果，等待后端确认', data: output })
                     const submitStarted = Date.now()
                     try {
                         await post(`/api/board-create/${runId}/result`, { callId: call.id, output })
@@ -174,7 +174,7 @@ export async function streamBoardCreateRun(
                         throw new Error('后端完成结果与本地实际执行结果不一致')
                     }
 
-                    onStep({ stage: 'summary', message: output ? '④ 后端已结束循环，等待用户确认' : '后端已结束循环，本轮未执行白板操作' })
+                    onStep({ stage: 'summary', message: output ? '草稿修改完成，等待用户确认' : '本轮未执行白板操作' })
                     void reportAgentOperation(traceId, 'stream_receive', 'success', undefined, Date.now() - began, fetcher)
                     return { text: event.text, output, runId }
                 }
