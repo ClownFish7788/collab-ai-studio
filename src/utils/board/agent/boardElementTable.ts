@@ -29,12 +29,12 @@ export const elementTableSchema = {
             sourceKey: { type: 'string', description: '将一个语义对象展开为多个实际元素时，引用 task_brief.objects 中的 key。' },
             role: { type: 'string', minLength: 1, maxLength: 100, description: '对象用途；当准备阶段的 objects 为空时必须填写，且只能补齐原始需求涉及的对象。' },
             operation: { type: 'string', enum: ['create', 'update', 'delete', 'reference'] },
-            type: { type: 'string', enum: DRAFT_SHAPE_TYPES },
-            shapeId: { type: 'string', pattern: '^shape:[\\w-]{1,128}$', description: '仅填写本任务附件或读取结果已返回的真实 ID；新增对象不得填写。' },
+            type: { type: 'string', enum: DRAFT_SHAPE_TYPES, description: '元素表行的顶层原生类型；写入前包括 reference 行都须填写。读取已有对象时使用快照的 type，例如 geo，不能用 known 中的 props.geo 代替。' },
+            shapeId: { type: 'string', pattern: '^shape:[\\w-]{1,128}$', description: '已有对象的真实 ID，填写在本行顶层 shapeId，不能只放在 known.shapeId；使用本任务附件或读取结果的 id。新增对象不得填写。' },
             known: { type: 'object', maxProperties: 12,
                 propertyNames: { minLength: 1, maxLength: 64, pattern: '\\S' },
                 additionalProperties: { anyOf: [{ type: 'string', maxLength: 300 }, { type: 'number' }, { type: 'boolean' }] },
-                description: '已知信息的平面字段表，如 {"props.color":"blue","颜色要求":"同行不同色"}；字段名允许中文，文字值最多300字符，未知值不填，不能用 null、数组或对象占位。' },
+                description: '每行必填，包括 reference 行；无已知信息时显式提供 known: {}，不得省略。已知信息使用平面字段表，如 {"props.color":"blue","颜色要求":"同行不同色"}；字段名允许中文，文字值最多300字符，未知值不填，不能用 null、数组或对象占位。' },
             missing: { type: 'array', maxItems: 8, items: {
                 type: 'object', additionalProperties: false, required: ['field', 'source'],
                 properties: { field: { type: 'string', minLength: 1, maxLength: 100 }, source: { type: 'string', enum: ['read', 'ask', 'calculate'] } },
@@ -91,6 +91,7 @@ export function prepareElementTableCall(call: BoardToolCall, brief: TaskBrief, s
         if (row.type !== undefined && !DRAFT_SHAPE_TYPES.includes(row.type as DraftShapeType)) return invalid(`${path}.type`, '原生元素类型不合法')
         if (row.shapeId !== undefined && (typeof row.shapeId !== 'string' || !seenIds.has(row.shapeId))) return invalid(`${path}.shapeId`, 'ID 必须来自本任务附件或实际读取结果')
         if (row.operation === 'create' && row.shapeId !== undefined) return invalid(`${path}.shapeId`, '新增对象不得使用已有对象 ID')
+        if (!Object.hasOwn(row, 'known')) return invalid(`${path}.known`, '缺少必填字段 known；无已知信息也必须显式提供 known: {}，包括 reference 行')
         if (!record(row.known) || Object.keys(row.known).length > 12 || Object.entries(row.known).some(([key, value]) =>
             !key.trim() || key.length > 64 || !(typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value) || typeof value === 'string' && value.length <= 300))) return invalid(`${path}.known`, '已知信息最多12个平面字段，字段名须为1～64字符的非空文字，值须为有限数值、布尔或最多300字符文字')
         if (!Array.isArray(row.missing) || row.missing.length > 8 || row.missing.some(item => !record(item)
@@ -104,11 +105,15 @@ export function prepareElementTableCall(call: BoardToolCall, brief: TaskBrief, s
     const nativeCall = { ...call, function: { ...call.function, arguments: JSON.stringify(nativeArgs) } }
     const operation = call.function.name === 'create_shapes' ? 'create' : call.function.name === 'update_shapes' ? 'update' : call.function.name === 'delete_shapes' ? 'delete' : undefined
     if (operation) {
+        const issues: { path: string; message: string }[] = []
         for (const [index, row] of elements.entries()) {
             if (row.missing.length) return invalid(`elements[${index}].missing`, '仍有待读取、待询问或待计算的数据，不能提交写入')
-            if (!row.type || row.operation !== 'create' && !row.shapeId) return invalid(`elements[${index}]`, '写入前必须确定原生类型及已有对象真实 ID')
+            if (!row.type) issues.push({ path: `elements[${index}].type`, message: `${row.operation} 元素 ${row.key} 缺少顶层 type；已有对象使用快照的 type（如 geo），不能只填 known 中的 props.geo` })
+            if (row.operation !== 'create' && !row.shapeId) issues.push({ path: `elements[${index}].shapeId`, message: `${row.operation} 元素 ${row.key} 缺少顶层 shapeId；请复制快照的真实 id，不能只放在 known.shapeId` })
             if (row.operation !== 'reference' && row.operation !== operation) return invalid(`elements[${index}].operation`, '本次只能提交同一种写入，参照对象不参与写入')
         }
+        if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS,
+            message: '元素表缺少顶层字段：每行须有 type，已有对象还须有 shapeId；新增对象不需要已有 ID', issues: issues.slice(0, 40) })
         const changed = elements.filter(row => row.operation !== 'reference')
         const referenceIds = new Set(elements.filter(row => row.operation === 'reference').map(row => row.shapeId))
         if (changed.some(row => row.shapeId && referenceIds.has(row.shapeId))) return invalid('elements', '仅作参照的真实对象不能通过其他表项参与写入')

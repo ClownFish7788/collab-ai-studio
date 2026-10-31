@@ -77,7 +77,7 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                         payload,
                         (messages, allowTools, elementKeys) => trace.step('model_call', () => requestBoardCreateModel(
                             messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools, tracedFetch,
-                            text => emit({ type: 'text', runId: activeRun.id, text }),
+                            undefined, // 模型自由文字只留在追踪中，页面进度由工具事件驱动。
                             elementKeys,
                         )),
                         emit,

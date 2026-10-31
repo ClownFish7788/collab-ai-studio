@@ -7,6 +7,7 @@ const { buildTraceFlow } = require('../src/utils/agent-traces/flow.ts')
 const { eventOutcome } = require('../src/utils/agent-traces/outcomes.ts')
 const { BoardProtocolError } = require('../src/utils/board/agent/boardCreateProtocol.ts')
 const { streamBoardCreateRun } = require('../src/utils/board/agent/streamBoardCreateRun.ts')
+const { prepareElementTableCall } = require('../src/utils/board/agent/boardElementTable.ts')
 
 const request = { roomId: 'room', prompt: '新增一个矩形' }
 const preparation = { kind: 'task', brief: {
@@ -119,6 +120,69 @@ test('元素表连续无效时仅纠错一次，两次失败均留痕且不下�
         event => assert.notEqual(event.type, 'tool'), async () => {}, async () => preparation, 100, record), BoardProtocolError)
     const failures = events.filter(event => event.data.operation === 'element_preparation')
     assert.deepEqual(failures.map(event => [event.data.outcome, event.data.willRetry]), [['error', true], ['error', false]])
+})
+
+for (const name of ['get_board_snapshot', 'ask_user']) test(`${name} 漏填 known 时先给出具体纠错提示，补齐后才执行工具`, async () => {
+    const run = newRun(), { events, record } = capture(), executed = []
+    const args = name === 'get_board_snapshot' ? { range: 'viewport' } : { question: '矩形使用什么颜色？' }
+    let attempt = 0
+    await runCreateLoop(run, request, async messages => {
+        if (++attempt === 3) return { kind: 'text', text: '本轮未写入' }
+        const element = { ...row }
+        if (attempt === 1) delete element.known
+        else {
+            assert.equal(executed.length, 0, '非法参数不能先执行再纠错')
+            const failure = JSON.parse(messages.filter(message => message.role === 'tool').at(-1).content)
+            assert.equal(failure.error.code, 'INVALID_ARGUMENTS')
+            assert.equal(failure.error.issues[0].path, 'elements[0].known')
+            assert.match(failure.error.issues[0].message, /缺少.*known/)
+            assert.match(failure.error.issues[0].message, /known: \{\}/)
+        }
+        return { kind: 'tool', call: { id: `call-${attempt}`, type: 'function', function: {
+            name, arguments: JSON.stringify({ ...args, elements: [element] }),
+        } } }
+    }, event => {
+        if (event.type !== 'tool') return
+        executed.push(event.call)
+        assert.deepEqual(JSON.parse(event.call.function.arguments), args)
+        submitCreateResult(run.id, run.ownerId, event.call.id, name === 'get_board_snapshot'
+            ? { ok: true, state: 'draft', range: 'viewport', snapshot, truncated: false }
+            : { ok: true, answer: '蓝色' })
+    }, async () => {}, async () => preparation, 100, record)
+    assert.equal(executed.length, 1)
+    const checks = events.filter(event => event.data.operation === 'element_preparation')
+    assert.deepEqual(checks.map(event => event.data.outcome), ['error', 'success'])
+})
+
+test('known 为 null、数组或嵌套对象时仍拒绝，不自动当作空对象', () => {
+    for (const known of [null, [], { position: { x: 0 } }]) {
+        assert.throws(() => prepareElementTableCall(makeCall('invalid-known', [{ ...row, known }]), preparation.brief, new Set()),
+            error => error instanceof BoardProtocolError && error.detail.issues[0].path === 'elements[0].known')
+    }
+})
+
+test('新增无需已有 ID；参照对象的 ID 和类型须在顶层，缺项一次列全', () => {
+    const shape = { type: 'geo', x: 0, y: 132, props: { geo: 'rectangle', w: 100, h: 100 } }
+    const created = { key: 'box', operation: 'create', type: 'geo', known: {}, missing: [] }
+    const makeCreate = elements => ({ id: 'create', type: 'function', function: {
+        name: 'create_shapes', arguments: JSON.stringify({ shapes: [shape], elements }),
+    } })
+    assert.deepEqual(JSON.parse(prepareElementTableCall(makeCreate([created]), preparation.brief, new Set()).call.function.arguments), { shapes: [shape] })
+    const brief = { ...preparation.brief, objects: [
+        { key: 'above', role: '上方图形', description: '只作参照' }, ...preparation.brief.objects,
+    ] }
+    const reference = { key: 'above', operation: 'reference', known: { shapeId: 'shape:above', 'props.geo': 'ellipse' }, missing: [] }
+    const seen = new Set(['shape:above'])
+    assert.throws(() => prepareElementTableCall(makeCreate([reference, created]), brief, seen), error => {
+        assert.ok(error instanceof BoardProtocolError)
+        assert.deepEqual(error.detail.issues.map(issue => issue.path), ['elements[0].type', 'elements[0].shapeId'])
+        assert.match(error.detail.issues[1].message, /顶层.*shapeId/)
+        assert.match(error.detail.issues[1].message, /known/)
+        return true
+    })
+    const corrected = { ...reference, type: 'geo', shapeId: 'shape:above' }
+    assert.deepEqual(JSON.parse(prepareElementTableCall(makeCreate([corrected, created]), brief, seen).call.function.arguments), { shapes: [shape] })
+    assert.throws(() => prepareElementTableCall(makeCreate([{ ...corrected, shapeId: 'shape:unseen' }, created]), brief, seen), BoardProtocolError)
 })
 
 test('新增草稿保留元素表埋点，浏览器仅执行原生参数，最终输出匹配真实结果', async () => {
