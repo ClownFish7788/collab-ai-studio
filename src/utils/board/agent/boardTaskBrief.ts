@@ -1,11 +1,12 @@
 import { BoardProtocolError, ERROR_CODES } from './boardCreateProtocol'
 import { MAX_BOARD_ELEMENT_ROWS } from '../boardCapabilities'
+import { taskObjectSchema, type TaskObject } from './boardTaskObject'
 
 /** 需求层的逻辑对象；key 不是原生元素 ID，role 不是 tldraw 类型。 */
 export type TaskBrief = {
     goal: string
     tasks: string[]
-    objects: { key: string; role: string; description: string; parentKey?: string }[]
+    objects: TaskObject[]
     relations: { from: string; to: string; description: string }[]
     constraints: string[]
     unresolvedQuestions: string[]
@@ -52,11 +53,9 @@ export function validateBoardTaskPreparation(value: unknown): BoardTaskPreparati
     const parents = new Map<string, string | undefined>()
     for (const [index, object] of brief.objects.entries()) {
         const path = `brief.objects[${index}]`
-        if (!isRecord(object) || !fields(object, ['key', 'role', 'description', 'parentKey'])
-            || !key(object.key) || !text(object.role, 100) || !text(object.description, 300)
-            || object.parentKey !== undefined && !key(object.parentKey)
-            || parents.has(object.key)) return invalid(path, '需提供唯一合法 key、role、description 和可选 parentKey，不能包含坐标或额外字段')
-        parents.set(object.key, object.parentKey as string | undefined)
+        const parsed = taskObjectSchema.safeParse(object)
+        if (!parsed.success || parents.has(parsed.data.key)) return invalid(path, '需提供唯一合法 key、role、description 和可选 parentKey，不能包含坐标或额外字段')
+        parents.set(parsed.data.key, parsed.data.parentKey)
     }
     for (const [index, object] of brief.objects.entries()) {
         const start = object.key
