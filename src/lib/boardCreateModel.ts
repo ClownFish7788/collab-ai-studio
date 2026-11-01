@@ -1,6 +1,6 @@
 import { boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardAskTool } from './boardCreateTool'
 import { boardTaskBriefPrompt } from '../prompts/boardTaskBriefPrompt'
-import { getElementTableSchema } from '../utils/board/agent/boardElementTable'
+import { getElementTableSchema } from '../utils/board/agent/boardElementTableSchema'
 import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../utils/board/boardCapabilities'
 import {
     validateBoardToolCall,
