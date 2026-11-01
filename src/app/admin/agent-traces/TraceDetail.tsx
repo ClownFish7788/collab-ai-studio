@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { buildTraceFlow, eventLabels, operationLabels, outcomeLabels, readTraceData, statusLabels, traceStatus, traceEventOutcome, type TraceDetail as Detail, type TraceEvent } from '@/utils/agent-traces/flow'
 import { errorCategories } from '@/utils/agent-traces/outcomes'
 import FlowGraph from './FlowGraph'
+import TraceData from './TraceData'
 import styles from './page.module.scss'
 
 const pretty = (raw: string) => { try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw } }
@@ -24,7 +25,8 @@ function EventContent({ event }: { event: TraceEvent }) {
             <p className={styles.fieldLabel}>服务商返回的推理内容</p><pre>{typeof data.reasoning === 'string' && data.reasoning ? data.reasoning : '未提供。当前请求保持原有 thinking 配置。'}</pre>
             {data.truncated === true && <p className={styles.notice}>响应内容达到记录上限，已截断。</p>}
         </>}
-        <details open={event.type !== 'model_request' && event.type !== 'model_response'}><summary>查看原始 JSON</summary><pre>{pretty(event.data)}</pre></details>
+        <TraceData value={event.type === 'model_response' ? Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'content' && key !== 'reasoning')) : data} />
+        <details><summary>查看原始 JSON</summary><pre>{pretty(event.data)}</pre></details>
     </section>
 }
 
@@ -50,7 +52,7 @@ export default function TraceDetail({ trace }: { trace: Detail }) {
             <section className={styles.inspector} aria-label="节点详情" aria-live="polite">
                 <div className={styles.panelHeading}><h3>{node.label}</h3><span>{statusLabels[node.status] ?? node.status}</span></div>
                 <div className={styles.inspectorBody}>
-                    {node.kind === 'input' && <><p className={styles.fieldLabel}>用户输入与附件上下文</p><pre>{pretty(trace.input)}</pre></>}
+                    {node.kind === 'input' && <><p className={styles.fieldLabel}>用户输入与附件上下文</p><TraceData value={readTraceData(trace.input)} /><details><summary>查看原始 JSON</summary><pre>{pretty(trace.input)}</pre></details></>}
                     {node.kind === 'result' && <><p className={styles.fieldLabel}>最终回复／已接收的部分回复</p><pre>{trace.reply || '本次任务未保存最终回复。'}</pre>{trace.error && <p className={styles.error}>{trace.error}</p>}</>}
                     {trace.events.filter(event => node.eventIds.includes(event.id)).map(event => <EventContent key={event.id} event={event} />)}
                 </div>
