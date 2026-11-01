@@ -150,7 +150,7 @@ async function requestModel(
                     const write = ['create_shapes', 'update_shapes', 'delete_shapes'].includes(tool.function.name)
                     return {
                         ...tool, function: { ...tool.function, parameters: { ...tool.function.parameters,
-                            required: [...tool.function.parameters.required, 'elements', ...(write ? ['isFinal'] : [])],
+                            required: [...(tool.function.parameters.required ?? []), 'elements', ...(write ? ['isFinal'] : [])],
                             properties: { ...tool.function.parameters.properties, elements: getElementTableSchema(elementKeys, write),
                                 ...(write ? { isFinal: { type: 'boolean', description: '必填。本次写入成功后全部任务完成时为 true，仍需后续操作时为 false；程序据此继续或结束，不请求模型总结。' } } : {}),
                             },

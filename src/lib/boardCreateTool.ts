@@ -1,6 +1,7 @@
-import { defaultShapeSchemas } from '@tldraw/tlschema'
-import { DRAFT_SHAPE_TYPES, DERIVED_SHAPE_PROPS } from '../utils/board/draft/draftShapeSchema'
+import { z } from 'zod'
+import { DRAFT_SHAPE_TYPES } from '../utils/board/draft/draftShapeSchema'
 import { MAX_BOARD_WRITE_SHAPES } from '../utils/board/boardCapabilities'
+import { createShapesInputSchema, nativeShapePropsDescription } from '../utils/board/agent/boardCreateInputSchema'
 
 const shapeProperties = {
     type: { type: 'string', enum: DRAFT_SHAPE_TYPES, description: '原生元素类型；更新时必须与真实对象一致，不能转换类型。' },
@@ -8,7 +9,7 @@ const shapeProperties = {
     y: { type: 'number', minimum: -10000, maximum: 10000 },
     props: {
         type: 'object', additionalProperties: true,
-        description: `仅传明确设置的原生属性，省略使用原生默认值（更新时保留原值）。w/h 为 1～2000。文字使用 richText={"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"文字"}]}]}。属性按 type 校验，可写字段：${DRAFT_SHAPE_TYPES.map(type => `${type}: ${Object.keys(defaultShapeSchemas[type].props).filter(key => !DERIVED_SHAPE_PROPS[type]?.includes(key)).join('/')}`).join('；')}。text 设置 w 时同时指定 autoSize=false；note 尺寸用 scale。arrow.start/end 和 line.points 是元素局部坐标。draw/highlight 的 segments 必须是有效原生编码。image/video 仅引用已有 assetId，不能编造资产。`,
+        description: nativeShapePropsDescription,
     },
 } as const
 
@@ -18,28 +19,7 @@ export const boardCreateTool = {
     function: {
         name: 'create_shapes',
         description: `用户已明确要求新增元素时，在临时草稿新增 1～${MAX_BOARD_WRITE_SHAPES} 个原生 tldraw 元素。type 选择类型，props 提供该类型的原生属性；geo 支持所有原生几何和颜色。group 必须提供至少两个已读取的 children ID。x/y 相对固定参照点，内部几何坐标仍为局部坐标。对象有歧义或要求先确认时先 ask_user。返回真实 ID，不提交正式白板。`,
-        parameters: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['shapes'],
-            properties: {
-                shapes: {
-                    type: 'array',
-                    minItems: 1,
-                    maxItems: MAX_BOARD_WRITE_SHAPES,
-                    items: {
-                        type: 'object',
-                        additionalProperties: false,
-                        required: ['type', 'x', 'y'],
-                        properties: {
-                            ...shapeProperties,
-                            children: { type: 'array', minItems: 2, maxItems: 30, uniqueItems: true,
-                                items: { type: 'string', pattern: '^shape:[\\w-]{1,128}$' }, description: '仅 group：已有且已读取的子元素 ID；同一批次的多个分组不能复用子元素。' },
-                        },
-                    },
-                },
-            },
-        },
+        parameters: z.toJSONSchema(createShapesInputSchema, { target: 'draft-7' }),
     },
 } as const
 
