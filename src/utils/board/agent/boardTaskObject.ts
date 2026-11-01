@@ -11,5 +11,3 @@ export const taskObjectSchema = z.strictObject({
 })
 
 export type TaskObject = z.infer<typeof taskObjectSchema>
-
-export const taskObjectJsonSchema = z.toJSONSchema(taskObjectSchema)
