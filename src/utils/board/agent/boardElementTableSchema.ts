@@ -4,8 +4,9 @@ import { MAX_BOARD_ELEMENT_ROWS } from '../boardCapabilities'
 import { taskObjectSchema } from './boardTaskObject'
 
 const MAX_KNOWN_FIELDS = 12
-const shapeTypeSchema = z.enum(DRAFT_SHAPE_TYPES).describe('原生类型，如 geo；props.geo 不能代替 type。')
-const shapeIdSchema = z.string().regex(/^shape:[\w-]{1,128}$/)
+const shapeTypeSchema = z.enum(DRAFT_SHAPE_TYPES, { error: '请在行顶层填写原生 type（如 geo）；known.type 和 props.geo 不能代替' })
+    .describe('原生类型，如 geo；props.geo 不能代替 type。')
+const shapeIdSchema = z.string({ error: '请在行顶层填写 shapeId，复制快照中的真实 id；不能只填 known.shapeId' }).regex(/^shape:[\w-]{1,128}$/)
     .describe('本任务附件、实际读取或新增结果中的真实 ID，填写在顶层；known.shapeId 不能代替。')
 const missingSchema = z.strictObject({
     field: z.string().min(1).max(100).regex(/\S/, '不能只包含空白'),

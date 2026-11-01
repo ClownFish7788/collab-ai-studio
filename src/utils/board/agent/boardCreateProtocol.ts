@@ -1,21 +1,22 @@
 import { z } from 'zod'
 import { defaultShapeSchemas } from '@tldraw/tlschema'
 import { isEqual } from '@tldraw/utils'
-import { DRAFT_SHAPE_TYPES, DERIVED_SHAPE_PROPS, type DraftShapeType } from '../draft/draftShapeSchema'
-import { createShapesInputSchema, type CreateShapeParameters, type CreateShapesInput } from './boardCreateInputSchema'
+import { DERIVED_SHAPE_PROPS, type DraftShapeType } from '../draft/draftShapeSchema'
+import {
+    createShapesInputSchema, updateShapesInputSchema, deleteShapesInputSchema, snapshotInputSchema, askInputSchema, shapeIdSchema,
+    type CreateShapeParameters, type CreateShapesInput, type UpdateShapeParameters, type UpdateShapesInput,
+    type DeleteShapesInput, type SnapshotRange, type SnapshotInput, type AskInput,
+} from './boardToolInputSchema'
 import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
 import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } from '../../chat/images'
-import { MAX_BOARD_WRITE_SHAPES, MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
+import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
 
 /** 工具结果的快照传输上限；启动请求另外使用图文请求上限。 */
 export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_SNAPSHOT_BYTES + 20000
 export const MAX_BOARD_SNAPSHOT_SHAPES = 30
-export type { CreateShapeParameters } from './boardCreateInputSchema'
-
-export type SnapshotRange = 'viewport' | 'page'
+export type { CreateShapeParameters, UpdateShapeParameters, SnapshotRange } from './boardToolInputSchema'
 export type BoardToolName = 'create_shapes' | 'update_shapes' | 'delete_shapes' | 'get_board_snapshot' | 'ask_user'
-export type UpdateShapeParameters = { id: string; type: DraftShapeType } & Partial<Pick<CreateShapeParameters, 'x' | 'y' | 'props'>>
 export type BoardToolCall = {
     id: string
     type: 'function'
@@ -148,51 +149,23 @@ function validateShapeProps(shape: { props?: unknown }, type: DraftShapeType, pa
     }
 }
 
-function validateUpdateShapes(value: unknown) {
-    const issues: NonNullable<BoardAgentError['issues']> = []
-    if (!isRecord(value) || Object.keys(value).some(key => key !== 'shapes')
-        || !Array.isArray(value.shapes) || value.shapes.length < 1 || value.shapes.length > MAX_BOARD_WRITE_SHAPES) {
-        issues.push({ path: 'shapes', message: `须包含 1～${MAX_BOARD_WRITE_SHAPES} 个元素，不能携带其他字段` })
-    } else {
-        const ids = new Set<string>()
-        value.shapes.forEach((shape, index) => {
-            const path = `shapes[${index}]`
-            if (!isRecord(shape)) { issues.push({ path, message: '元素参数必须是对象' }); return }
-            const allowed = ['id', 'type', 'x', 'y', 'props']
-            if (Object.keys(shape).some(key => !allowed.includes(key))) issues.push({ path, message: '包含未开放的字段' })
-            if (!validShapeId(shape.id) || ids.has(shape.id)) issues.push({ path: `${path}.id`, message: '须为不重复的真实元素 ID' })
-            else ids.add(shape.id)
-            if (shape.x === undefined && shape.y === undefined && (!isRecord(shape.props) || !Object.keys(shape.props).length)) {
-                issues.push({ path, message: '至少指定一个坐标或属性修改' })
-            }
-            for (const key of ['x', 'y'] as const) {
-                if (key in shape && !number(shape[key], -10000, 10000)) {
-                    issues.push({ path: `${path}.${key}`, message: '必须是 -10000～10000 之间的有限数字' })
-                }
-            }
-            if (!(DRAFT_SHAPE_TYPES as readonly unknown[]).includes(shape.type)) {
-                issues.push({ path: `${path}.type`, message: '须为受支持的 tldraw 元素类型' }); return
-            }
-            const type = shape.type as DraftShapeType
-            validateShapeProps(shape, type, path, issues)
-        })
-    }
-    if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS,
-        message: '更新参数校验失败', issues: issues.slice(0, 40) })
+function validateToolInput<T extends z.ZodType>(schema: T, value: unknown, message: string): z.output<T> {
+    const parsed = schema.safeParse(value, { error: z.locales.zhCN().localeError })
+    if (!parsed.success) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message,
+        issues: parsed.error.issues.slice(0, 40).map(issue => ({
+            path: issue.path.map((part, index) => typeof part === 'number' ? `[${part}]` : `${index ? '.' : ''}${String(part)}`).join('') || 'arguments',
+            message: issue.message.slice(0, 200),
+        })),
+    })
+    return parsed.data
 }
 
 /** 验证整批新增参数，不分配 ID、不修改白板。 */
 export function validateCreateInput(value: unknown): CreateShapesInput {
-    const parsed = createShapesInputSchema.safeParse(value, { error: z.locales.zhCN().localeError })
-    if (!parsed.success) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '新增参数校验失败',
-        issues: parsed.error.issues.slice(0, 40).map(issue => ({
-            path: issue.path.map((part, index) => typeof part === 'number' ? `[${part}]` : `${index ? '.' : ''}${String(part)}`).join('') || 'shapes',
-            message: issue.message.slice(0, 200),
-        })),
-    })
+    const input = validateToolInput(createShapesInputSchema, value, '新增参数校验失败')
     const issues: NonNullable<BoardAgentError['issues']> = []
     const groupedChildren = new Set<string>()
-    parsed.data.shapes.forEach((shape, index) => {
+    input.shapes.forEach((shape, index) => {
         const path = `shapes[${index}]`
         if (shape.type === 'group') {
             for (const id of shape.children) {
@@ -203,7 +176,7 @@ export function validateCreateInput(value: unknown): CreateShapesInput {
         validateShapeProps(shape, shape.type, path, issues)
     })
     if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '新增参数校验失败', issues: issues.slice(0, 40) })
-    return parsed.data
+    return input
 }
 
 /** JSON 语法错误仍可归属到已识别的调用；只反馈固定诊断，不转发解析器中的输入片段。 */
@@ -225,55 +198,46 @@ export function parseCreateInput(argumentsText: string): CreateShapesInput {
     return validateCreateInput(parseToolArguments(argumentsText))
 }
 
-const validShapeId = (id: unknown): id is string => typeof id === 'string' && /^shape:[\w-]{1,128}$/.test(id)
+const validShapeId = (id: unknown): id is string => shapeIdSchema.safeParse(id).success
 
 /** 部分更新必须至少指定一个可写字段；整批校验完成前不访问 Editor，不改变省略字段。 */
-export function validateUpdateInput(value: unknown): { shapes: UpdateShapeParameters[] } {
-    validateUpdateShapes(value)
-    return value as { shapes: UpdateShapeParameters[] }
+export function validateUpdateInput(value: unknown): UpdateShapesInput {
+    const input = validateToolInput(updateShapesInputSchema, value, '更新参数校验失败')
+    const issues: NonNullable<BoardAgentError['issues']> = []
+    const ids = new Set<string>()
+    input.shapes.forEach((shape, index) => {
+        const path = `shapes[${index}]`
+        if (ids.has(shape.id)) issues.push({ path: `${path}.id`, message: '须为不重复的真实元素 ID' })
+        ids.add(shape.id)
+        validateShapeProps(shape, shape.type, path, issues)
+    })
+    if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '更新参数校验失败', issues: issues.slice(0, 40) })
+    return input
 }
 
 /** type 用于校验目标类型，不允许把已有元素转换成另一种类型。 */
-export function parseUpdateInput(argumentsText: string): { shapes: UpdateShapeParameters[] } {
+export function parseUpdateInput(argumentsText: string): UpdateShapesInput {
     return validateUpdateInput(parseToolArguments(argumentsText))
 }
 
 /** 删除数量遵守共享写入上限；实际存在、类型和授权由当前任务执行器复核。 */
-export function validateDeleteInput(value: unknown): { ids: string[] } {
-    if (!isRecord(value) || Object.keys(value).some(key => key !== 'ids') || !Array.isArray(value.ids)
-        || value.ids.length < 1 || value.ids.length > MAX_BOARD_WRITE_SHAPES || !value.ids.every(validShapeId)
-        || new Set(value.ids).size !== value.ids.length) {
-        throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '删除参数校验失败',
-            issues: [{ path: 'ids', message: `须为 1～${MAX_BOARD_WRITE_SHAPES} 个不重复的真实图形 ID，不能携带其他字段` }] })
-    }
-    return value as { ids: string[] }
+export function validateDeleteInput(value: unknown): DeleteShapesInput {
+    return validateToolInput(deleteShapesInputSchema, value, '删除参数校验失败')
 }
 
 /** 解析删除实参；非法 JSON 和字段问题均在执行前转为受控参数错误。 */
-export function parseDeleteInput(argumentsText: string): { ids: string[] } {
+export function parseDeleteInput(argumentsText: string): DeleteShapesInput {
     return validateDeleteInput(parseToolArguments(argumentsText))
 }
 
 /** 读取范围只能是任务绑定页面的视口或全页，模型不能指定其他房间、页面。 */
-export function parseSnapshotInput(argumentsText: string): { range: SnapshotRange } {
-    const value = parseToolArguments(argumentsText)
-    if (!isRecord(value) || Object.keys(value).some(key => key !== 'range')
-        || value.range !== 'viewport' && value.range !== 'page') {
-        throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '快照读取范围不合法',
-            issues: [{ path: 'range', message: '必须为 viewport 或 page，且不能携带其他字段' }] })
-    }
-    return value as { range: SnapshotRange }
+export function parseSnapshotInput(argumentsText: string): SnapshotInput {
+    return validateToolInput(snapshotInputSchema, parseToolArguments(argumentsText), '快照读取范围不合法')
 }
 
 /** 询问工具只提交问题，不允许模型把答案伪装成用户输入。 */
-export function parseAskInput(argumentsText: string): { question: string } {
-    const value = parseToolArguments(argumentsText)
-    if (!isRecord(value) || Object.keys(value).some(key => key !== 'question')
-        || typeof value.question !== 'string' || !value.question.trim() || value.question.length > 1000) {
-        throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '询问参数不合法',
-            issues: [{ path: 'question', message: '须为 1～1000 字的问题，且不能携带其他字段' }] })
-    }
-    return value as { question: string }
+export function parseAskInput(argumentsText: string): AskInput {
+    return validateToolInput(askInputSchema, parseToolArguments(argumentsText), '询问参数不合法')
 }
 
 /** 校验完整 tool_call；流式分片或未知工具不进入本地执行器。 */
