@@ -1,4 +1,5 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
+import { MAX_BOARD_WRITES_PER_TASK } from '../utils/board/boardCapabilities'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
 import type { TraceRecorder } from './modelTrace'
@@ -22,6 +23,7 @@ import {
     type BoardToolCall,
     type BoardToolOutput,
     type BoardToolName,
+    type BoardMutationResult,
 } from '../utils/board/agent/boardCreateProtocol'
 
 type PendingTool = {
@@ -153,6 +155,9 @@ export async function runCreateLoop(
     let repaired = false
     let reads = 0
     let asks = 0
+    const results: BoardMutationResult[] = []
+    const callIds = new Set<string>()
+    const coveredObjectKeys = new Set<string>()
 
     try {
         await emit({ type: 'started', runId: run.id })
@@ -173,7 +178,7 @@ export async function runCreateLoop(
         await record('operation_result', { operation: 'task_preparation', outcome: 'success', preparation }, Date.now() - preparationStarted)
         run.signal.throwIfAborted()
         if (preparation.kind === 'reply') {
-            await emit({ type: 'completed', runId: run.id, text: preparation.text })
+            await emit({ type: 'completed', runId: run.id, text: preparation.text, results: [] })
             return
         }
         await emit({ type: 'plan', runId: run.id, text: formatTaskBrief(preparation.brief) })
@@ -199,19 +204,30 @@ export async function runCreateLoop(
             run.signal.throwIfAborted()
 
             if (reply.kind === 'text') {
-                await emit({ type: 'completed', runId: run.id, text: '本轮没有执行白板修改。' })
+                if (results.length) throw new Error('任务只完成部分写入，未通过最终写入确认完成；已有内容保留在草稿中')
+                await emit({ type: 'completed', runId: run.id, text: '本轮没有执行白板修改。', results: [] })
                 return
             }
             const modelCall = validateBoardToolCall(reply.call)
+            if (callIds.has(modelCall.id)) throw new Error('工具调用 ID 已执行，不能重复操作')
             if (!allowedTools.includes(modelCall.function.name)) throw new Error('本轮工具未开放或调用预算已用尽')
             let call = modelCall
             let tableText: string
+            let isFinal: boolean | undefined
+            let stepKeys: string[] = []
             try {
                 const elementsStarted = Date.now()
                 let prepared: ReturnType<typeof prepareElementTableCall>
                 try {
                     prepared = prepareElementTableCall(modelCall, preparation.brief, seenIds)
                     call = prepared.call
+                    isFinal = prepared.isFinal
+                    stepKeys = prepared.elements.map(row => row.sourceKey ?? row.key)
+                    const missingObjects = isFinal ? preparation.brief.objects.filter(object => !coveredObjectKeys.has(object.key) && !stepKeys.includes(object.key)) : []
+                    if (missingObjects.length) throw new BoardProtocolError({
+                        code: ERROR_CODES.INVALID_ARGUMENTS, message: '最终写入不能遗漏需求对象',
+                        issues: missingObjects.map(object => ({ path: 'isFinal', message: `尚未覆盖对象 ${object.key}；仍需后续操作时使用 isFinal=false，不能提前结束` })),
+                    })
                     tableText = formatElementTable(prepared.elements, call)
                 } catch (cause) {
                     await record('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall,
@@ -227,7 +243,7 @@ export async function runCreateLoop(
                     const { shapes } = parseCreateInput(call.function.arguments)
                     if (shapes.some(shape => shape.children?.some(id => !seenIds.has(id)))) throw new BoardProtocolError({
                         code: ERROR_CODES.INVALID_ARGUMENTS, message: '分组子对象不在本任务已提供的快照中',
-                        issues: [{ path: 'shapes', message: 'children 只能使用附件或本任务读取结果实际返回的 ID' }],
+                        issues: [{ path: 'shapes', message: 'children 只能使用附件、本任务读取或新增结果实际返回且未删除的 ID' }],
                     })
                 }
                 else {
@@ -236,7 +252,7 @@ export async function runCreateLoop(
                         : parseDeleteInput(call.function.arguments).ids
                     if (ids.some(id => !seenIds.has(id))) throw new BoardProtocolError({
                         code: ERROR_CODES.INVALID_ARGUMENTS, message: '目标不在本任务已提供的快照中',
-                        issues: [{ path: call.function.name === 'update_shapes' ? 'shapes' : 'ids', message: '仅使用附件或本任务读取结果实际返回的 ID；不能沿用历史 ID 或编造' }],
+                        issues: [{ path: call.function.name === 'update_shapes' ? 'shapes' : 'ids', message: '仅使用附件、本任务读取或新增结果实际返回且未删除的 ID；不能沿用历史 ID 或编造' }],
                     })
                 }
             } catch (cause) {
@@ -258,6 +274,7 @@ export async function runCreateLoop(
             run.signal.throwIfAborted()
             await emit({ type: 'plan', runId: run.id, text: `${formatTaskBrief(preparation.brief)}\n\n${tableText}` })
             await record('tool_call', { call })
+            callIds.add(call.id)
             const toolStarted = Date.now()
             let result: BoardToolOutput
             try {
@@ -281,10 +298,16 @@ export async function runCreateLoop(
                 reads++
             } else if ('answer' in result) asks++
             else {
-                // 结果接口已复核权限；写入成功后直接结束，不再进入下一轮推理的准备流程。
+                results.push({ callId: call.id, output: result })
+                stepKeys.forEach(key => coveredObjectKeys.add(key))
+                if ('ids' in result) result.ids.forEach(id => seenIds.delete(id))
+                else if (!('operation' in result)) result.shapes.forEach(shape => seenIds.add(shape.id))
                 run.signal.throwIfAborted()
-                await emit({ type: 'completed', runId: run.id, text: '已经执行草稿修改，请检查白板预览。', output: result })
-                return
+                if (isFinal) {
+                    await emit({ type: 'completed', runId: run.id, text: '已经执行草稿修改，请检查白板预览。', results })
+                    return
+                }
+                if (results.length >= MAX_BOARD_WRITES_PER_TASK) throw new Error('写入次数已达上限，任务尚未完成；已有内容保留在草稿中')
             }
 
             messages.push(

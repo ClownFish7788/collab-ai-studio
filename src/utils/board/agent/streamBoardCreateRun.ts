@@ -1,7 +1,7 @@
 import { isEqual } from '@tldraw/utils'
 import { MAX_CHAT_REQUEST_BYTES } from '../../chat/images'
 import { reportAgentOperation } from '../../agent-traces/client'
-import { MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
+import { MAX_BOARD_TOOL_ARGUMENT_CHARS, MAX_BOARD_WRITES_PER_TASK } from '../boardCapabilities'
 import { formatBoardJsonPreview } from './boardJsonPreview'
 import {
     validateBoardCreateEvent,
@@ -12,8 +12,10 @@ import {
     type BoardCreateRequest,
     type BoardToolCall,
     type BoardToolOutput,
-    type MutationToolSuccess,
+    type BoardMutationResult,
 } from './boardCreateProtocol'
+
+const MAX_EVENT_CHARS = 30000 * MAX_BOARD_WRITES_PER_TASK
 
 export type CreateAgentStep = {
     stage: 'request' | 'plan' | 'preview' | 'call' | 'result' | 'summary' | 'text'
@@ -68,7 +70,7 @@ export async function streamBoardCreateRun(
         reader = response.body.getReader()
         const decoder = new TextDecoder()
         let pending = ''
-        let localOutput: MutationToolSuccess | undefined
+        const localResults: BoardMutationResult[] = []
         const callIds = new Set<string>()
         let reads = 0
         let asks = 0
@@ -87,7 +89,7 @@ export async function streamBoardCreateRun(
                 const line = pending.slice(0, newline)
                 pending = pending.slice(newline + 1)
                 if (!line.trim()) continue
-                if (line.length > 30000) throw new Error('任务事件过大')
+                if (line.length > MAX_EVENT_CHARS) throw new Error('任务事件过大')
 
                 const event = validateBoardCreateEvent(JSON.parse(line))
                 transportSignal.throwIfAborted()
@@ -132,9 +134,11 @@ export async function streamBoardCreateRun(
                 }
 
                 if (event.type === 'tool') {
-                    if (localOutput || callIds.has(event.call.id)) throw new Error('收到重复或已结束的工具事件，已停止执行')
+                    if (callIds.has(event.call.id)) throw new Error('收到重复工具事件，已停止执行')
 
                     const call = event.call
+                    if (['create_shapes', 'update_shapes', 'delete_shapes'].includes(call.function.name)
+                        && localResults.length >= MAX_BOARD_WRITES_PER_TASK) throw new Error('工具写入预算已用尽')
                     if (call.function.name === 'get_board_snapshot' && ++reads > 2
                         || call.function.name === 'ask_user' && ++asks > 1) throw new Error('工具调用预算已用尽')
                     callIds.add(call.id)
@@ -154,7 +158,7 @@ export async function streamBoardCreateRun(
                     transportSignal.throwIfAborted()
                     if (!toolOutputMatchesCall(call, output)) throw new Error('浏览器工具结果与调用不匹配')
                     if (output.ok) {
-                        if ('shapes' in output || 'ids' in output) localOutput = output
+                        if ('shapes' in output || 'ids' in output) localResults.push({ callId: call.id, output })
                     }
                     onStep({ stage: 'result', message: '提交真实结果，等待后端确认', data: output })
                     const submitStarted = Date.now()
@@ -169,20 +173,20 @@ export async function streamBoardCreateRun(
                 }
 
                 if (event.type === 'completed') {
-                    const output = event.output
-                    if (!isEqual(localOutput, output)) {
+                    const results = event.results
+                    if (!isEqual(localResults, results)) {
                         throw new Error('后端完成结果与本地实际执行结果不一致')
                     }
 
-                    onStep({ stage: 'summary', message: output ? '草稿修改完成，等待用户确认' : '本轮未执行白板操作' })
+                    onStep({ stage: 'summary', message: results.length ? '草稿修改完成，等待用户确认' : '本轮未执行白板操作' })
                     void reportAgentOperation(traceId, 'stream_receive', 'success', undefined, Date.now() - began, fetcher)
-                    return { text: event.text, output, runId }
+                    return { text: event.text, results, runId }
                 }
 
                 throw new Error('未知任务事件')
             }
 
-            if (pending.length > 30000) throw new Error('任务事件过大')
+            if (pending.length > MAX_EVENT_CHARS) throw new Error('任务事件过大')
             if (chunk.done) throw new Error('任务连接中断，已完成的内容保留在草稿中')
         }
     } catch (cause) {

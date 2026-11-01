@@ -5,7 +5,7 @@ import type { CreateDraftShapeInput } from '../draft/draftShapeOperations'
 import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
 import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } from '../../chat/images'
-import { MAX_BOARD_WRITE_SHAPES, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
+import { MAX_BOARD_WRITE_SHAPES, MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
 
 /** 工具结果的快照传输上限；启动请求另外使用图文请求上限。 */
 export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_SNAPSHOT_BYTES + 20000
@@ -54,6 +54,8 @@ export type MutationToolSuccess = CreateToolSuccess
     | { ok: true; state: 'draft'; operation: 'update'; shapes: UpdateShapeParameters[] }
     | { ok: true; state: 'draft'; operation: 'delete'; ids: string[] }
 
+export type BoardMutationResult = { callId: string; output: MutationToolSuccess }
+
 export type SnapshotToolSuccess = {
     ok: true
     state: 'draft'
@@ -95,7 +97,7 @@ export type BoardCreateEvent =
     | { type: 'preview'; runId: string; source: 'preparation' | 'tool'; delta: string; start: boolean }
     | { type: 'text'; runId: string; text: string }
     | { type: 'tool'; runId: string; call: BoardToolCall }
-    | { type: 'completed'; runId: string; text: string; output?: MutationToolSuccess }
+    | { type: 'completed'; runId: string; text: string; results: BoardMutationResult[] }
     | { type: 'error'; runId: string; error: BoardAgentError }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -402,7 +404,7 @@ export function toolOutputMatchesCall(call: BoardToolCall, output: BoardToolOutp
     }
 }
 
-/** 任务事件是浏览器的信任边界；完成不等于新增，只有实际成功时才携带 output。 */
+/** 任务事件是浏览器的信任边界；结果列表仅记录真实写入成功，未写入时为空。 */
 export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
     record(value)
     if (typeof value.runId !== 'string' || !/^[\w-]{1,100}$/.test(value.runId)) {
@@ -433,13 +435,22 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
             fields(value, ['type', 'runId', 'error'])
             validateBoardAgentError(value.error)
             break
-        case 'completed':
-            fields(value, ['type', 'runId', 'text', 'output'])
+        case 'completed': {
+            fields(value, ['type', 'runId', 'text', 'results'])
             if (typeof value.text !== 'string' || !value.text.trim() || value.text.length > 8000) {
                 throw new Error('任务完成说明不合法')
             }
-            if (value.output !== undefined) validateMutationOutput(value.output)
+            if (!Array.isArray(value.results) || value.results.length > MAX_BOARD_WRITES_PER_TASK) throw new Error('写入结果列表不合法')
+            const resultIds = new Set<string>()
+            for (const result of value.results) {
+                record(result)
+                fields(result, ['callId', 'output'])
+                if (typeof result.callId !== 'string' || !result.callId.trim() || result.callId.length > 200 || resultIds.has(result.callId)) throw new Error('写入结果调用 ID 不合法或重复')
+                resultIds.add(result.callId)
+                validateMutationOutput(result.output)
+            }
             break
+        }
         default:
             throw new Error('未知任务事件')
     }

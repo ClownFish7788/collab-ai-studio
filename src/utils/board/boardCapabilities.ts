@@ -2,6 +2,7 @@ import { DefaultColorStyle } from '@tldraw/tlschema'
 import { DRAFT_SHAPE_TYPES } from './draft/draftShapeSchema'
 
 export const MAX_BOARD_WRITE_SHAPES = 30
+export const MAX_BOARD_WRITES_PER_TASK = 3
 export const MAX_BOARD_ELEMENT_ROWS = 30
 export const MAX_BOARD_TOOL_ARGUMENT_CHARS = 10000
 export const MAX_BOARD_ELEMENT_TABLE_CHARS = 6000
@@ -10,7 +11,7 @@ export const MAX_BOARD_ELEMENT_TABLE_CHARS = 6000
 export const boardAgentCapabilitiesPrompt = `以下是程序提供的真实能力边界，不是模型估计，也不表示已执行操作：
 <board_agent_capabilities>${JSON.stringify({
     maxShapesPerWrite: MAX_BOARD_WRITE_SHAPES,
-    maxWritesPerTask: 1,
+    maxWritesPerTask: MAX_BOARD_WRITES_PER_TASK,
     maxElementRows: MAX_BOARD_ELEMENT_ROWS,
     maxToolArgumentChars: MAX_BOARD_TOOL_ARGUMENT_CHARS,
     maxElementTableChars: MAX_BOARD_ELEMENT_TABLE_CHARS,

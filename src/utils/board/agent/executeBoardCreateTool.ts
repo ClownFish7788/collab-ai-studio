@@ -87,6 +87,7 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
                     invoked = true
                     const removed = remove(ids as TLShapeId[])
                     if (removed.length !== ids.length || removed.some((id, index) => id !== ids[index])) throw new Error('删除结果不匹配')
+                    removed.forEach(id => seenIds.delete(id))
                     return validateBoardToolOutput({ ok: true, state: 'draft', operation: 'delete', ids: removed })
                 }
                 if (call.function.name === 'update_shapes') {
@@ -131,7 +132,7 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
                 const inputs = input.shapes.map(shape => ({ ...shape, x: point.x + shape.x, y: point.y + shape.y } as CreateDraftShapeInput))
                 const shapes = create(inputs)
                 if (shapes.length !== inputs.length) throw new Error('新增数量不匹配')
-                return validateBoardToolOutput({
+                const result = validateBoardToolOutput({
                     ok: true, state: 'draft',
                     shapes: shapes.map((shape, index) => {
                         const requested = inputs[index]
@@ -143,6 +144,8 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
                         return { ...input.shapes[index], id: shape.id }
                     }),
                 })
+                if (result.ok && 'shapes' in result) result.shapes.forEach(shape => seenIds.add(shape.id as TLShapeId))
+                return result
             } catch (cause) {
                 return {
                     ok: false,

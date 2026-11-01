@@ -99,11 +99,10 @@ export function useChatSession({ boardDraft, isClosing }: {
                         if (call.function.name === 'ask_user') inputRef.current?.focus()
                     }
                 })
-                const output = result.output
-                const description = !output ? '本轮未更改白板' : 'ids' in output ? `草稿删除 ${output.ids.length} 个元素`
-                    : `草稿${'operation' in output ? '更新' : '新增'} ${output.shapes.length} 个元素`
+                const description = result.results.map(({ output }) => 'ids' in output ? `草稿删除 ${output.ids.length} 个元素`
+                    : `草稿${'operation' in output ? '更新' : '新增'} ${output.shapes.length} 个元素`).join('；') || '本轮未更改白板'
                 updateReply(message => ({ ...message, content: result.text, preview: undefined, status: undefined,
-                    execution: { description, ...(output && result.draftId ? { draftId: result.draftId } : {}) } }))
+                    execution: { description, ...(result.results.length && result.draftId ? { draftId: result.draftId } : {}) } }))
             } else {
                 await streamChat(toChatMessages(history), controller.signal,
                     text => updateReply(message => ({ ...message, content: message.content + text, status: undefined })))
