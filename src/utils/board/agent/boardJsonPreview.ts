@@ -49,7 +49,7 @@ export function formatBoardJsonPreview(source: 'preparation' | 'tool', json: str
             }
             if (path[0] === 'shapes') {
                 const props = object(row.props)
-                const values = { type: row.type, x: row.x, y: row.y, geo: props.geo, w: props.w, h: props.h, color: props.color }
+                const values = { objectKey: row.objectKey, type: row.type, x: row.x, y: row.y, geo: props.geo, w: props.w, h: props.h, color: props.color }
                 lines.push(`待执行图形 ${path[1] + 1}：${Object.entries(values).filter(([, v]) => ['string', 'number'].includes(typeof v)).map(([k, v]) => `${k}=${v}`).join('；')}`)
             }
         }

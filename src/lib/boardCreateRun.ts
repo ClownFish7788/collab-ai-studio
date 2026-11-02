@@ -227,7 +227,7 @@ export async function runCreateLoop(
                     if (missingObjects.length) throw new BoardProtocolError({
                         code: ERROR_CODES.INVALID_ARGUMENTS, message: '最终写入不能遗漏需求对象',
                         issues: missingObjects.map(object => ({
-                            path: ['update_shapes', 'delete_shapes'].includes(modelCall.function.name) ? 'references' : 'elements',
+                            path: 'references',
                             message: `尚未覆盖对象 ${object.key}；仅需保留或参照的已读取对象须加入本步参照项。补齐后若全部任务已完成，保持 isFinal=true；只有实际尚需其他写入时才用 false，不能重复已成功操作`,
                         })),
                     })
@@ -275,7 +275,7 @@ export async function runCreateLoop(
             await record('operation_result', { operation: 'tool_validation', outcome: 'success', callId: call.id })
             await checkAccess()
             run.signal.throwIfAborted()
-            await emit({ type: 'plan', runId: run.id, text: `${formatTaskBrief(preparation.brief)}\n\n${tableText}` })
+            await emit({ type: 'plan', runId: run.id, text: [formatTaskBrief(preparation.brief), tableText].filter(Boolean).join('\n\n') })
             await record('tool_call', { call })
             callIds.add(call.id)
             const toolStarted = Date.now()

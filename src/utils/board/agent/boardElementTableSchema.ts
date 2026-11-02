@@ -34,7 +34,7 @@ const baseRowSchema = z.strictObject({
 
 export type BoardElementRow = z.infer<typeof baseRowSchema>
 
-/** 模型说明与运行时解析共用同一工厂，按本任务对象和读写阶段确定规则。 */
+/** 程序生成的内部元素表契约，按本任务对象校验对应关系与写入完整性。 */
 export function getElementTableContract(sourceKeys?: readonly string[], forWrite = false) {
     const scopedSourceKeySchema = sourceKeys?.length ? z.enum(sourceKeys).optional() : z.never().optional()
     const base = baseRowSchema.extend({
@@ -62,8 +62,4 @@ export function getElementTableContract(sourceKeys?: readonly string[], forWrite
         .describe(forWrite
             ? '只列出本次写入及必要参照对象，按实际写入参数顺序排列；missing 必须为空，新增行有 type，已有行还有 shapeId。'
             : '覆盖全部需求对象，包括参照对象；通过 key 或 sourceKey 引用需求对象。可以有待读取、待询问或待计算的缺项。objects 为空时补齐对象并填写 role。')
-}
-
-export function getElementTableSchema(sourceKeys?: readonly string[], forWrite = false) {
-    return z.toJSONSchema(getElementTableContract(sourceKeys, forWrite), { target: 'draft-7' })
 }

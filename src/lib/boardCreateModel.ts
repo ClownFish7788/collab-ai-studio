@@ -2,7 +2,6 @@ import { boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, b
 import { z } from 'zod'
 import { getMutationIntentSchemas } from '../utils/board/agent/boardToolInputSchema'
 import { boardTaskBriefPrompt } from '../prompts/boardTaskBriefPrompt'
-import { getElementTableSchema } from '../utils/board/agent/boardElementTableSchema'
 import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../utils/board/boardCapabilities'
 import {
     validateBoardToolCall,
@@ -150,17 +149,10 @@ async function requestModel(
             messages: [{ role: 'system', content: boardAgentCapabilitiesPrompt }, ...messages],
             ...(allowedTools.length ? {
                 tools: [boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardAskTool].filter(tool => allowedTools.includes(tool.function.name)).map(tool => {
-                    const mutationSchema = tool.function.name === 'update_shapes' ? mutationSchemas.update : tool.function.name === 'delete_shapes' ? mutationSchemas.delete : undefined
-                    if (mutationSchema) return { ...tool, function: { ...tool.function, parameters: z.toJSONSchema(mutationSchema, { target: 'draft-7' }) } }
-                    const write = ['create_shapes', 'update_shapes', 'delete_shapes'].includes(tool.function.name)
-                    return {
-                        ...tool, function: { ...tool.function, parameters: { ...tool.function.parameters,
-                            required: [...(tool.function.parameters.required ?? []), 'elements', ...(write ? ['isFinal'] : [])],
-                            properties: { ...tool.function.parameters.properties, elements: getElementTableSchema(elementKeys, write),
-                                ...(write ? { isFinal: { type: 'boolean', description: '必填。本次写入成功后全部任务完成时为 true，仍需后续操作时为 false；程序据此继续或结束，不请求模型总结。' } } : {}),
-                            },
-                        } },
-                    }
+                    const schema = tool.function.name === 'create_shapes' ? mutationSchemas.create
+                        : tool.function.name === 'update_shapes' ? mutationSchemas.update
+                            : tool.function.name === 'delete_shapes' ? mutationSchemas.delete : undefined
+                    return schema ? { ...tool, function: { ...tool.function, parameters: z.toJSONSchema(schema, { target: 'draft-7' }) } } : tool
                 }),
             } : {}),
             tool_choice: allowedTools.length ? 'auto' : 'none',

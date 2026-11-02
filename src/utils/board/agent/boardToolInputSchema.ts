@@ -65,20 +65,30 @@ export const deleteShapesInputSchema = z.strictObject({
 export const snapshotInputSchema = z.strictObject({ range: z.enum(['viewport', 'page']) })
 export const askInputSchema = z.strictObject({ question: z.string().min(1).max(1000).regex(/\S/, '问题不能只包含空白') })
 
-/** 模型只表达目标和增量；原生类型与内部元素表由服务端生成。 */
+/** 模型只表达操作参数；内部元素表由服务端生成，已有对象类型取自实际读取结果。 */
 export function getMutationIntentSchemas(sourceKeys?: readonly string[]) {
-    const target = z.strictObject({
+    const identity = {
         objectKey: (sourceKeys?.length ? z.enum(sourceKeys) : taskObjectSchema.shape.key)
             .describe('原 task_brief.objects 的 key；同一语义对象展开为多个实际目标时可重复使用，程序保留来源。'),
-        shapeId: shapeIdSchema.describe('本任务实际附件、读取或新增结果中的真实 ID；每个目标只填一次。'),
         role: sourceKeys?.length === 0 ? taskObjectSchema.shape.role : taskObjectSchema.shape.role.optional(),
+    }
+    const target = z.strictObject({
+        ...identity,
+        shapeId: shapeIdSchema.describe('本任务实际附件、读取或新增结果中的真实 ID；每个目标只填一次。'),
     })
     const common = {
         references: z.array(target).max(MAX_BOARD_ELEMENT_ROWS).optional()
-            .describe('本步必要的已有参照对象，仅用于需求追踪，不参与修改或删除。'),
+            .describe('本步必要的已有参照对象，仅用于需求追踪，不参与本步写入。'),
         isFinal: z.boolean().describe('本次成功后全部任务完成时为 true；仍有后续写入时为 false。'),
     }
     return {
+        create: z.strictObject({
+            shapes: z.array(z.discriminatedUnion('type', [
+                createShapeInputSchema.options[0].extend(identity),
+                createShapeInputSchema.options[1].extend(identity),
+            ])).min(1).max(MAX_BOARD_WRITE_SHAPES),
+            ...common,
+        }),
         update: z.strictObject({
             changes: z.array(shapeChangesSchema.safeExtend(target.shape).meta(changeConstraint)).min(1).max(MAX_BOARD_WRITE_SHAPES),
             ...common,
