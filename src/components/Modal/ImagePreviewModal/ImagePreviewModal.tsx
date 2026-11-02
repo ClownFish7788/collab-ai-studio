@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import Modal from '../Modal'
 import styles from './ImagePreviewModal.module.scss'
@@ -8,6 +9,13 @@ import styles from './ImagePreviewModal.module.scss'
 interface Props {
     image: { name: string; dataUrl: string } | null
     closeFn: () => void
+}
+
+function PreviewImage({ image }: { image: NonNullable<Props['image']> }) {
+    const [failed, setFailed] = useState(false)
+    return failed
+        ? <p role="alert">图片加载失败，可能已失效、当前无访问权限或浏览器不支持此格式。</p>
+        : <Image src={image.dataUrl} alt={image.name} fill sizes="94vw" unoptimized onError={() => setFailed(true)} />
 }
 
 const ImagePreviewModal = ({ image, closeFn }: Props) => (
@@ -37,7 +45,7 @@ const ImagePreviewModal = ({ image, closeFn }: Props) => (
                 <X size={22} aria-hidden="true" />
             </button>
             <div className={styles.image}>
-                <Image src={image.dataUrl} alt={image.name} fill sizes="94vw" unoptimized />
+                <PreviewImage key={image.dataUrl} image={image} />
             </div>
         </section>}
     </Modal>
