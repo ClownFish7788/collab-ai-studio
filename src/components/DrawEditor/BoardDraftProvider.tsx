@@ -276,7 +276,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         <div className={styles.root}>
             <div className={styles.official} data-preview={!!preview} inert={!!preview}>{children}</div>
             {preview && <div className={styles.preview} aria-label="白板草稿预览" onPaste={event => event.stopPropagation()}>
-                <Tldraw key={preview.draft.runId} store={preview.draft.store} licenseKey={licenseKey} autoFocus={false}
+                <Tldraw key={preview.draft.runId} store={preview.draft.store} licenseKey={licenseKey} autoFocus={false} initialState="hand"
                     components={{ SharePanel: DraftChatSlot, Toolbar: null, StylePanel: null, MainMenu: null, PageMenu: null }}
                     onMount={mounted => {
                         if (activeRef.current !== preview.draft) return
@@ -291,6 +291,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                     }} />
                 <div className={styles.toolbar} role="region" aria-label="草稿操作">
                     <span role="status">{running ? 'AI 正在处理白板…' : '草稿待确认'} · 新增 {changes.added.length}，修改 {changes.updated.length}，删除 {changes.removed.length}</span>
+                    <button type="button" disabled={!ready} onClick={() => draftEditorRef.current?.setCurrentTool('hand').focus()}>拖动画布</button>
                     <button type="button" disabled={!ready || running || applying || !canEdit || !hasChanges(changes)} onClick={() => void apply()}>{applying ? '正在应用…' : '应用到白板'}</button>
                     <button type="button" onClick={discard}>{running ? '停止并放弃' : '放弃草稿'}</button>
                     {error && <p role="alert">{error}</p>}
