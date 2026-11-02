@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { defaultShapeSchemas } from '@tldraw/tlschema'
 import { DRAFT_SHAPE_TYPES, DERIVED_SHAPE_PROPS } from '../draft/draftShapeSchema'
-import { MAX_BOARD_WRITE_SHAPES } from '../boardCapabilities'
+import { MAX_BOARD_WRITE_SHAPES, MAX_BOARD_ELEMENT_ROWS } from '../boardCapabilities'
+import { taskObjectSchema } from './boardTaskObject'
 
 export const nativeShapePropsDescription = `仅传明确设置的原生属性，省略使用原生默认值（更新时保留原值）。w/h 为 1～2000。文字使用 richText={"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"文字"}]}]}。属性按 type 校验，可写字段：${DRAFT_SHAPE_TYPES.map(type => `${type}: ${Object.keys(defaultShapeSchemas[type].props).filter(key => !DERIVED_SHAPE_PROPS[type]?.includes(key)).join('/')}`).join('；')}。text 设置 w 时同时指定 autoSize=false；note 尺寸用 scale。arrow.start/end 和 line.points 是元素局部坐标。draw/highlight 的 segments 必须是有效原生编码。image/video 仅引用已有 assetId，不能编造资产。`
 
@@ -40,17 +41,21 @@ export const createShapesInputSchema = z.strictObject({
 export type CreateShapeParameters = z.infer<typeof createShapeInputSchema>
 export type CreateShapesInput = z.infer<typeof createShapesInputSchema>
 
-export const updateShapeInputSchema = z.strictObject({
-    id: shapeIdSchema,
-    type: z.enum(DRAFT_SHAPE_TYPES),
+const changeConstraint = {
+    // 自定义的“至少一项修改”条件需要同时提供 JSON Schema 表达。
+    anyOf: [{ required: ['x'] }, { required: ['y'] }, { required: ['props'], properties: { props: { minProperties: 1 } } }],
+}
+const shapeChangesSchema = z.strictObject({
     x: coordinateSchema.optional(),
     y: coordinateSchema.optional(),
     props: commonFields.props,
 }).refine(shape => shape.x !== undefined || shape.y !== undefined || !!shape.props && Object.keys(shape.props).length > 0,
-    '至少指定一个坐标或属性修改').meta({
-    // 自定义的“至少一项修改”条件需要同时提供 JSON Schema 表达。
-    anyOf: [{ required: ['x'] }, { required: ['y'] }, { required: ['props'], properties: { props: { minProperties: 1 } } }],
-})
+    '至少指定一个坐标或属性修改')
+
+export const updateShapeInputSchema = shapeChangesSchema.safeExtend({
+    id: shapeIdSchema,
+    type: z.enum(DRAFT_SHAPE_TYPES),
+}).meta(changeConstraint)
 
 export const updateShapesInputSchema = z.strictObject({ shapes: z.array(updateShapeInputSchema).min(1).max(MAX_BOARD_WRITE_SHAPES) })
 export const deleteShapesInputSchema = z.strictObject({
@@ -59,6 +64,28 @@ export const deleteShapesInputSchema = z.strictObject({
 })
 export const snapshotInputSchema = z.strictObject({ range: z.enum(['viewport', 'page']) })
 export const askInputSchema = z.strictObject({ question: z.string().min(1).max(1000).regex(/\S/, '问题不能只包含空白') })
+
+/** 模型只表达目标和增量；原生类型与内部元素表由服务端生成。 */
+export function getMutationIntentSchemas(sourceKeys?: readonly string[]) {
+    const target = z.strictObject({
+        objectKey: (sourceKeys?.length ? z.enum(sourceKeys) : taskObjectSchema.shape.key)
+            .describe('原 task_brief.objects 的 key；同一语义对象展开为多个实际目标时可重复使用，程序保留来源。'),
+        shapeId: shapeIdSchema.describe('本任务实际附件、读取或新增结果中的真实 ID；每个目标只填一次。'),
+        role: sourceKeys?.length === 0 ? taskObjectSchema.shape.role : taskObjectSchema.shape.role.optional(),
+    })
+    const common = {
+        references: z.array(target).max(MAX_BOARD_ELEMENT_ROWS).optional()
+            .describe('本步必要的已有参照对象，仅用于需求追踪，不参与修改或删除。'),
+        isFinal: z.boolean().describe('本次成功后全部任务完成时为 true；仍有后续写入时为 false。'),
+    }
+    return {
+        update: z.strictObject({
+            changes: z.array(shapeChangesSchema.safeExtend(target.shape).meta(changeConstraint)).min(1).max(MAX_BOARD_WRITE_SHAPES),
+            ...common,
+        }),
+        delete: z.strictObject({ targets: z.array(target).min(1).max(MAX_BOARD_WRITE_SHAPES), ...common }),
+    }
+}
 
 export type UpdateShapeParameters = z.infer<typeof updateShapeInputSchema>
 export type UpdateShapesInput = z.infer<typeof updateShapesInputSchema>

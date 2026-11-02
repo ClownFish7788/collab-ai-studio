@@ -36,6 +36,12 @@ export function formatBoardJsonPreview(source: 'preparation' | 'tool', json: str
             if (path[0] === 'ids' && typeof value === 'string') lines.push(`待删除对象 ${path[1] + 1}：${value}`)
             if (!value || typeof value !== 'object' || Array.isArray(value)) return
             const row = object(value)
+            if (['changes', 'targets', 'references'].includes(String(path[0]))) {
+                const labels: Record<string, string> = { changes: '待修改对象', targets: '待删除对象', references: '参照对象' }
+                const values = { x: row.x, y: row.y, ...object(row.props) }
+                const changes = Object.entries(values).filter(([, v]) => ['string', 'number', 'boolean'].includes(typeof v)).map(([k, v]) => `${k}=${v}`)
+                lines.push(`${labels[String(path[0])]} ${path[1] + 1}：${string(row.objectKey)}；${string(row.shapeId)}${changes.length ? `；${changes.join('；')}` : ''}`)
+            }
             if (path[0] === 'elements') {
                 const known = Object.entries(object(row.known)).filter(([, v]) => ['string', 'number', 'boolean'].includes(typeof v)).map(([k, v]) => `${k}=${v}`)
                 const missing = Array.isArray(row.missing) ? row.missing.map(item => string(object(item).field)).filter(Boolean) : []

@@ -1,4 +1,6 @@
 import { boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardAskTool } from './boardCreateTool'
+import { z } from 'zod'
+import { getMutationIntentSchemas } from '../utils/board/agent/boardToolInputSchema'
 import { boardTaskBriefPrompt } from '../prompts/boardTaskBriefPrompt'
 import { getElementTableSchema } from '../utils/board/agent/boardElementTableSchema'
 import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../utils/board/boardCapabilities'
@@ -139,6 +141,7 @@ async function requestModel(
     elementKeys?: readonly string[],
     onArguments?: (text: string) => void,
 ): Promise<BoardCreateReply> {
+    const mutationSchemas = getMutationIntentSchemas(elementKeys)
     const response = await fetcher(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
@@ -147,6 +150,8 @@ async function requestModel(
             messages: [{ role: 'system', content: boardAgentCapabilitiesPrompt }, ...messages],
             ...(allowedTools.length ? {
                 tools: [boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardAskTool].filter(tool => allowedTools.includes(tool.function.name)).map(tool => {
+                    const mutationSchema = tool.function.name === 'update_shapes' ? mutationSchemas.update : tool.function.name === 'delete_shapes' ? mutationSchemas.delete : undefined
+                    if (mutationSchema) return { ...tool, function: { ...tool.function, parameters: z.toJSONSchema(mutationSchema, { target: 'draft-7' }) } }
                     const write = ['create_shapes', 'update_shapes', 'delete_shapes'].includes(tool.function.name)
                     return {
                         ...tool, function: { ...tool.function, parameters: { ...tool.function.parameters,

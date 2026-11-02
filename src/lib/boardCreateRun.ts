@@ -151,7 +151,7 @@ export async function runCreateLoop(
         { role: 'user', content: request.snapshot ? appendChatSnapshot(content(request.prompt, request.images), request.snapshot) : content(request.prompt, request.images) },
     ]
     let reference = request.snapshot ? { ...request.snapshot.reference } : undefined
-    const seenIds = new Set(request.snapshot?.shapes.map(shape => shape.id as string))
+    const observedTypes = new Map(request.snapshot?.shapes.map(shape => [shape.id as string, shape.type]))
     let repaired = false
     let reads = 0
     let asks = 0
@@ -198,7 +198,7 @@ export async function runCreateLoop(
             if (asks < 1) allowedTools.push('ask_user')
             if (reference) {
                 allowedTools.push('create_shapes')
-                if (seenIds.size) allowedTools.push('update_shapes', 'delete_shapes')
+                if (observedTypes.size) allowedTools.push('update_shapes', 'delete_shapes')
             }
             const reply = await model(messages, allowedTools, elementKeys)
             run.signal.throwIfAborted()
@@ -219,14 +219,17 @@ export async function runCreateLoop(
                 const elementsStarted = Date.now()
                 let prepared: ReturnType<typeof prepareElementTableCall>
                 try {
-                    prepared = prepareElementTableCall(modelCall, preparation.brief, seenIds)
+                    prepared = prepareElementTableCall(modelCall, preparation.brief, observedTypes)
                     call = prepared.call
                     isFinal = prepared.isFinal
                     stepKeys = prepared.elements.map(row => row.sourceKey ?? row.key)
                     const missingObjects = isFinal ? preparation.brief.objects.filter(object => !coveredObjectKeys.has(object.key) && !stepKeys.includes(object.key)) : []
                     if (missingObjects.length) throw new BoardProtocolError({
                         code: ERROR_CODES.INVALID_ARGUMENTS, message: '最终写入不能遗漏需求对象',
-                        issues: missingObjects.map(object => ({ path: 'isFinal', message: `尚未覆盖对象 ${object.key}；仍需后续操作时使用 isFinal=false，不能提前结束` })),
+                        issues: missingObjects.map(object => ({
+                            path: ['update_shapes', 'delete_shapes'].includes(modelCall.function.name) ? 'references' : 'elements',
+                            message: `尚未覆盖对象 ${object.key}；仅需保留或参照的已读取对象须加入本步参照项。补齐后若全部任务已完成，保持 isFinal=true；只有实际尚需其他写入时才用 false，不能重复已成功操作`,
+                        })),
                     })
                     tableText = formatElementTable(prepared.elements, call)
                 } catch (cause) {
@@ -241,7 +244,7 @@ export async function runCreateLoop(
                 else if (call.function.name === 'ask_user') parseAskInput(call.function.arguments)
                 else if (call.function.name === 'create_shapes') {
                     const { shapes } = parseCreateInput(call.function.arguments)
-                    if (shapes.some(shape => shape.children?.some(id => !seenIds.has(id)))) throw new BoardProtocolError({
+                    if (shapes.some(shape => shape.children?.some(id => !observedTypes.has(id)))) throw new BoardProtocolError({
                         code: ERROR_CODES.INVALID_ARGUMENTS, message: '分组子对象不在本任务已提供的快照中',
                         issues: [{ path: 'shapes', message: 'children 只能使用附件、本任务读取或新增结果实际返回且未删除的 ID' }],
                     })
@@ -250,7 +253,7 @@ export async function runCreateLoop(
                     const ids = call.function.name === 'update_shapes'
                         ? parseUpdateInput(call.function.arguments).shapes.map(shape => shape.id)
                         : parseDeleteInput(call.function.arguments).ids
-                    if (ids.some(id => !seenIds.has(id))) throw new BoardProtocolError({
+                    if (ids.some(id => !observedTypes.has(id))) throw new BoardProtocolError({
                         code: ERROR_CODES.INVALID_ARGUMENTS, message: '目标不在本任务已提供的快照中',
                         issues: [{ path: call.function.name === 'update_shapes' ? 'shapes' : 'ids', message: '仅使用附件、本任务读取或新增结果实际返回且未删除的 ID；不能沿用历史 ID 或编造' }],
                     })
@@ -294,14 +297,14 @@ export async function runCreateLoop(
                     throw new Error('任务快照参照点发生变化')
                 }
                 reference ??= { ...point }
-                result.snapshot.shapes.forEach(shape => seenIds.add(shape.id))
+                result.snapshot.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
                 reads++
             } else if ('answer' in result) asks++
             else {
                 results.push({ callId: call.id, output: result })
                 stepKeys.forEach(key => coveredObjectKeys.add(key))
-                if ('ids' in result) result.ids.forEach(id => seenIds.delete(id))
-                else if (!('operation' in result)) result.shapes.forEach(shape => seenIds.add(shape.id))
+                if ('ids' in result) result.ids.forEach(id => observedTypes.delete(id))
+                else if (!('operation' in result)) result.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
                 run.signal.throwIfAborted()
                 if (isFinal) {
                     await emit({ type: 'completed', runId: run.id, text: '已经执行草稿修改，请检查白板预览。', results })

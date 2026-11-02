@@ -149,7 +149,7 @@ function validateShapeProps(shape: { props?: unknown }, type: DraftShapeType, pa
     }
 }
 
-function validateToolInput<T extends z.ZodType>(schema: T, value: unknown, message: string): z.output<T> {
+export function validateToolInput<T extends z.ZodType>(schema: T, value: unknown, message: string): z.output<T> {
     const parsed = schema.safeParse(value, { error: z.locales.zhCN().localeError })
     if (!parsed.success) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message,
         issues: parsed.error.issues.slice(0, 40).map(issue => ({

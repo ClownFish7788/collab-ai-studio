@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { MAX_BOARD_WRITE_SHAPES } from '../utils/board/boardCapabilities'
-import { createShapesInputSchema, updateShapesInputSchema, deleteShapesInputSchema, snapshotInputSchema, askInputSchema } from '../utils/board/agent/boardToolInputSchema'
+import { createShapesInputSchema, getMutationIntentSchemas, snapshotInputSchema, askInputSchema } from '../utils/board/agent/boardToolInputSchema'
 
 /** 仅由后端提供给模型的工具定义，不包含浏览器执行逻辑。 */
 export const boardCreateTool = {
@@ -17,8 +17,8 @@ export const boardUpdateTool = {
     type: 'function',
     function: {
         name: 'update_shapes',
-        description: `在草稿更新 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。每项提交真实 id 和匹配的 type，至少提供 x/y 或一个 props 修改字段；省略字段保留原值。x/y 是元素原点相对固定参照点的坐标。不能转换 type。对象不唯一先读取或询问；整批失败不执行，不提交正式白板。`,
-        parameters: z.toJSONSchema(updateShapesInputSchema, { target: 'draft-7' }),
+        description: `在草稿更新 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。changes 每项只提交 objectKey、真实 shapeId 和明确修改的 x/y/props；程序生成 type 和元素表，不提交 shapes/elements/known/missing。省略字段保留原值，不能转换 type。x/y 是元素原点相对固定参照点的坐标。必要参照放 references；对象不唯一先读取或询问；整批失败不执行，不提交正式白板。`,
+        parameters: z.toJSONSchema(getMutationIntentSchemas().update, { target: 'draft-7' }),
     },
 } as const
 
@@ -27,8 +27,8 @@ export const boardDeleteTool = {
     type: 'function',
     function: {
         name: 'delete_shapes',
-        description: `在草稿删除 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。容器后代和受影响箭头也必须已读取，越界副作用使整批回滚。ids 不重复、不编造；目标不明确先读取或询问。只生成待确认的删除草稿，不提交正式白板。`,
-        parameters: z.toJSONSchema(deleteShapesInputSchema, { target: 'draft-7' }),
+        description: `在草稿删除 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。targets 每项只提交 objectKey 和真实 shapeId，程序生成 ids 和元素表，不提交 ids/elements/type/known/missing。必要参照放 references，不能参与删除。容器后代和受影响箭头也必须已读取，越界副作用使整批回滚。目标不明确先读取或询问。只生成待确认的删除草稿，不提交正式白板。`,
+        parameters: z.toJSONSchema(getMutationIntentSchemas().delete, { target: 'draft-7' }),
     },
 } as const
 
