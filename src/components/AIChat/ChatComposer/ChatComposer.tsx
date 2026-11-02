@@ -1,8 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { ImagePlus, Send, Square, X } from 'lucide-react'
-import Image from 'next/image'
+import { ImagePlus, Send, Square } from 'lucide-react'
 import { useStore } from 'zustand'
 import { useBoardDraft } from '../../DrawEditor/BoardDraftProvider'
 import { useBoardSelectionStore } from '../BoardSelectionProvider'
@@ -11,7 +10,8 @@ import SelectedElementsAttachment from '../../SelectBoardElementsButton/Selected
 import { IMAGE_MIME_TYPES, MAX_IMAGES_PER_MESSAGE, type ImageAttachment } from '../../../utils/chat/images'
 import type { useChatSession } from '../../../hooks/useChatSession'
 import styles from './ChatComposer.module.scss'
-import attachmentStyles from '../ChatAttachments/ChatAttachments.module.scss'
+import ChatAttachments from '../ChatAttachments/ChatAttachments'
+import { BOARD_ANSWER_TIMEOUT_MS } from '../../../utils/board/boardCapabilities'
 
 export default function ChatComposer({ session, inputHintId, isSelecting, onSelectingChange, isClosing, onPreview }: {
     session: ReturnType<typeof useChatSession>
@@ -31,23 +31,10 @@ export default function ChatComposer({ session, inputHintId, isSelecting, onSele
     return (
         <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send() }}>
             {error && <p className={styles.error} role="alert">{error}</p>}
-            {boardDraft.question && <p className={styles.notice} role="status">{boardDraft.question.text}（最多等待 45 秒）</p>}
+            {boardDraft.question && <p className={styles.notice} role="status">{boardDraft.question.text}（可上传图片或选择元素，最多等待 {BOARD_ANSWER_TIMEOUT_MS / 1000} 秒）</p>}
             <SelectedElementsAttachment onRemove={() => inputRef.current?.focus()} />
-            {!!images.length && <div className={attachmentStyles.attachments} aria-label="待发送图片">
-                {images.map(image => <figure key={image.id} className={attachmentStyles.attachment}>
-                    <button type="button" className={attachmentStyles.thumbnail} aria-label={`放大预览 ${image.name}`} onClick={event => onPreview(image, event.currentTarget)}>
-                        <Image src={image.dataUrl} alt={image.name} width={72} height={72} unoptimized />
-                    </button>
-                    <figcaption title={image.name}>{image.name}</figcaption>
-                    <button
-                        type="button"
-                        className={styles.removeImage}
-                        aria-label={`移除图片 ${image.name}`}
-                        disabled={isReadingImages}
-                        onClick={() => setImages(previous => previous.filter(item => item.id !== image.id))}
-                    ><X size={12} aria-hidden="true" /></button>
-                </figure>)}
-            </div>}
+            <ChatAttachments images={images} onPreview={onPreview} removingDisabled={isReadingImages}
+                onRemove={id => setImages(previous => previous.filter(image => image.id !== id))} />
             {isReadingImages && <p className={styles.footnote} role="status">正在读取图片…</p>}
             <input
                 ref={fileInputRef}
@@ -83,18 +70,18 @@ export default function ChatComposer({ session, inputHintId, isSelecting, onSele
                     editor={boardDraft.editor}
                     isSelecting={isSelecting}
                     onSelectingChange={onSelectingChange}
-                    disabled={isClosing || isStreaming || boardDraft.active}
+                    disabled={isClosing || !boardDraft.question && (isStreaming || boardDraft.active)}
                 />}
                 <button
                     type="button"
                     className={styles.uploadButton}
                     aria-label="上传图片"
                     title={`上传图片（${images.length}/${MAX_IMAGES_PER_MESSAGE}），单张小于 5MB`}
-                    disabled={isStreaming || isReadingImages}
+                    disabled={isClosing || isStreaming && !boardDraft.question || isReadingImages}
                     onClick={() => fileInputRef.current?.click()}
                 ><ImagePlus size={18} aria-hidden="true" /></button>
                 <span id={inputHintId}>Enter 发送 · Shift + Enter 换行</span>
-                {boardDraft.question && <button type="submit" className={styles.sendButton} disabled={!input.trim()}>回答并继续</button>}
+                {boardDraft.question && <button type="submit" className={styles.sendButton} disabled={(!input.trim() && !images.length && !hasSelection) || isReadingImages || isSelecting}>回答并继续</button>}
                 {isStreaming ? <button type="button" className={styles.sendButton} onClick={stop}>
                     <Square size={14} aria-hidden="true" />
                     停止生成

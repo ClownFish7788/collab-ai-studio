@@ -2,12 +2,12 @@
 
 import { useEffect, useRef } from 'react'
 import { Bot } from 'lucide-react'
-import Image from 'next/image'
 import type { ImageAttachment } from '../../../utils/chat/images'
 import type { useBoardDraft } from '../../DrawEditor/BoardDraftProvider'
 import type { ChatMessage } from '../types'
 import styles from './ChatMessageList.module.scss'
-import attachmentStyles from '../ChatAttachments/ChatAttachments.module.scss'
+import ChatAttachments from '../ChatAttachments/ChatAttachments'
+import SelectedElementsAttachment from '../../SelectBoardElementsButton/SelectedElementsAttachment'
 
 export default function ChatMessageList({ messages, isOpen, resolutions, onPreview }: {
     messages: ChatMessage[]
@@ -34,17 +34,12 @@ export default function ChatMessageList({ messages, isOpen, resolutions, onPrevi
                 <article key={message.id} className={styles.message} data-role={message.role}>
                     <span className={styles.messageRole}>{message.role === 'user' ? '你' : 'AI 助手'}</span>
                     {!!message.snapshot?.shapes.length && <span className={styles.messageRole}>已附加 {message.snapshot.shapes.length} 个白板元素</span>}
-                    {!!message.images?.length && <div className={attachmentStyles.attachments}>
-                        {message.images.map(image => <figure key={image.id} className={attachmentStyles.attachment}>
-                            <button type="button" className={attachmentStyles.thumbnail} aria-label={`放大预览 ${image.name}`} onClick={event => onPreview(image, event.currentTarget)}>
-                                <Image src={image.dataUrl} alt={image.name} width={128} height={96} unoptimized />
-                            </button>
-                            <figcaption title={image.name}>{image.name}</figcaption>
-                        </figure>)}
-                    </div>}
+                    <ChatAttachments images={message.images} onPreview={onPreview} />
                     {message.clarification && <div className={styles.bubble}>
                         <p>{message.clarification.question}</p>
                         {message.clarification.answer && <p>你的回答：{message.clarification.answer}</p>}
+                        <SelectedElementsAttachment count={message.clarification.snapshot?.shapes.length ?? 0} />
+                        <ChatAttachments images={message.clarification.images} onPreview={onPreview} />
                     </div>}
                     {message.plan && <details className={styles.bubble} open>
                         <summary>需求拆分</summary>

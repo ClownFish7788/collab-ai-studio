@@ -9,13 +9,14 @@ import { applyBoardDraft, createBoardDraft, discardBoardDraft, getDraftChanges, 
 import { createDraftShapes, updateDraftShapes, deleteDraftShapes } from '@/utils/board/draft/draftShapeOperations'
 import { getConfirmedRoomRole } from '@/utils/collaboration/roomAccess'
 import { createBoardToolRunner } from '@/utils/board/agent/executeBoardCreateTool'
-import { captureBoardSnapshot } from '@/utils/board/agent/boardAgentSnapshot'
+import { captureBoardSnapshot, captureBoardScreenshot } from '@/utils/board/agent/boardAgentSnapshot'
 import { requestBoardAnswer, type BoardQuestion } from '@/utils/board/agent/boardAgentQuestion'
 import { validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
 import { BoardProtocolError, ERROR_CODES, type BoardCreateRequest } from '@/utils/board/agent/boardCreateProtocol'
 import { reportAgentOperation } from '@/utils/agent-traces/client'
 import { streamBoardCreateRun, type CreateAgentStep } from '@/utils/board/agent/streamBoardCreateRun'
 import { toast } from '@/components/Toast'
+import { BOARD_RUN_TIMEOUT_MS } from '@/utils/board/boardCapabilities'
 import styles from './BoardDraft.module.scss'
 
 type AgentInput = Omit<BoardCreateRequest, 'roomId'>
@@ -137,7 +138,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         callerSignal.throwIfAborted()
         if (input.snapshot) validateChatSnapshot(input.snapshot)
         const controller = new AbortController()
-        const signal = AbortSignal.any([callerSignal, controller.signal, AbortSignal.timeout(55000)])
+        const signal = AbortSignal.any([callerSignal, controller.signal, AbortSignal.timeout(BOARD_RUN_TIMEOUT_MS)])
         const pageId = editor.getCurrentPageId()
         let draft = activeRef.current
         let draftEditor = draftEditorRef.current
@@ -156,7 +157,9 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
                 || draft && (draft.status !== 'active' || activeRef.current !== draft)
                 || draftEditor && (draftEditor.isDisposed || draftEditor.getCurrentPageId() !== pageId)) throw new Error('任务、页面或编辑权限已失效')
         }
-        const ensureEditor = async () => {
+        let mounting: Promise<void> | undefined
+        const ensureEditor = () => mounting ??= mountEditor()
+        const mountEditor = async () => {
             assertActive()
             if (draftEditor) { linkTrace(); return }
             if (!draft) {
@@ -194,6 +197,9 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             snapshot: input.snapshot, pageId, assertActive,
             getShape: id => draftEditor?.getShape(id),
             read: (range, reference) => captureBoardSnapshot(target().editor, range, reference),
+            readSelection: async (ids, reference) => { await ensureEditor(); return captureBoardSnapshot(target().editor, 'page', reference, ids) },
+            screenshot: (range, reference) => captureBoardScreenshot(target().editor, range, reference),
+            onReadRetry: (callId, attempt) => { void reportAgentOperation(traceId, 'tool_retry', 'error', new Error(`调用 ${callId} 第${attempt}次读取失败，正在重试`)) },
             authorize: ids => { const current = target(); ids.forEach(id => current.draft.scope.add(id)) },
             ask: text => requestBoardAnswer(text, signal, pending => {
                 if (agentRef.current === controller) setQuestion(pending)
@@ -270,7 +276,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
         }
     }
 
-    return <BoardDraftContext.Provider value={{ editor, launcherHost: preview ? launcherHosts.draft : launcherHosts.official, registerLauncher,
+    return <BoardDraftContext.Provider value={{ editor: question && preview ? draftEditorRef.current : editor, launcherHost: preview ? launcherHosts.draft : launcherHosts.official, registerLauncher,
         canRun, active: !!preview, draftId: preview?.draft.runId,
         changes, running, applying, question, resolutions, error, run, cancel: () => agentRef.current?.abort(), apply, discard }}>
         <div className={styles.root}>

@@ -14,8 +14,8 @@ const record = (value: unknown): value is Record<string, unknown> => !!value && 
 
 /** 读取/询问只检查自身参数；写入验证对象对应关系并移除模型元数据。 */
 export function prepareElementTableCall(call: BoardToolCall, brief: TaskBrief, observedTypes: ReadonlyMap<string, string>): { call: BoardToolCall; elements: BoardElementRow[]; isFinal?: boolean } {
-    if (call.function.name === 'get_board_snapshot' || call.function.name === 'ask_user') {
-        const args = call.function.name === 'get_board_snapshot' ? parseSnapshotInput(call.function.arguments) : parseAskInput(call.function.arguments)
+    if (call.function.name === 'get_board_snapshot' || call.function.name === 'get_board_screenshot' || call.function.name === 'ask_user') {
+        const args = call.function.name === 'ask_user' ? parseAskInput(call.function.arguments) : parseSnapshotInput(call.function.arguments)
         return { call: { ...call, function: { ...call.function, arguments: JSON.stringify(args) } }, elements: [] }
     }
     const invalid = (path: string, message: string): never => { throw new BoardProtocolError({

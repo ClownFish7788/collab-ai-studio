@@ -1,5 +1,5 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
-import { MAX_BOARD_WRITES_PER_TASK } from '../utils/board/boardCapabilities'
+import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_CALLS, BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS } from '../utils/board/boardCapabilities'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
 import type { TraceRecorder } from './modelTrace'
@@ -9,14 +9,11 @@ import { formatElementTable, prepareElementTableCall } from '../utils/board/agen
 import {
     validateBoardToolCall,
     parseCreateInput,
-    parseUpdateInput,
-    parseDeleteInput,
-    parseSnapshotInput,
-    parseAskInput,
     BoardProtocolError,
     ERROR_CODES,
     validateBoardToolOutput,
     toolOutputMatchesCall,
+    isBoardReadTool,
     type BoardCreateEvent,
     type BoardCreateReply,
     type BoardCreateRequest,
@@ -38,7 +35,7 @@ type CreateRun = {
     roomId: string
     signal: AbortSignal
     controller: AbortController
-    pending?: PendingTool
+    pending: Map<string, PendingTool>
 }
 
 // shortcut: 单进程 Demo 的等待表；多实例/Serverless 部署前必须替换为共享任务与结果通道。
@@ -56,8 +53,8 @@ export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSig
 
     const controller = new AbortController()
     const run: CreateRun = {
-        id, ownerId, roomId, controller,
-        signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(55000)]),
+        id, ownerId, roomId, controller, pending: new Map(),
+        signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(BOARD_RUN_TIMEOUT_MS)]),
     }
 
     runs.set(run.id, run)
@@ -78,7 +75,7 @@ export function getOwnedCreateRun(id: string, ownerId: string): CreateRun {
 /** 接收一个已授权结果，只能唤醒对应任务正在等待的调用；相同重传幂等，不能替换既有结果。 */
 export function submitCreateResult(id: string, ownerId: string, callId: string, value: unknown) {
     const run = getOwnedCreateRun(id, ownerId)
-    const pending = run.pending
+    const pending = run.pending.get(callId)
     const output = validateBoardToolOutput(value)
 
     if (!pending || pending.call.id !== callId) {
@@ -105,7 +102,7 @@ async function executeInBrowser(
     run.signal.throwIfAborted()
     let rejectWait!: (error: unknown) => void
     const promise = new Promise<BoardToolOutput>((resolve, reject) => {
-        run.pending = { call, resolve }
+        run.pending.set(call.id, { call, resolve })
         rejectWait = reject
     })
     const timer = setTimeout(() => rejectWait(new DOMException('等待浏览器工具结果超时', 'TimeoutError')), waitMs)
@@ -118,15 +115,15 @@ async function executeInBrowser(
     } finally {
         clearTimeout(timer)
         run.signal.removeEventListener('abort', onAbort)
-        run.pending = undefined
+        if (!run.pending.get(call.id)?.output) run.pending.delete(call.id)
     }
 }
 
 /**
  * 后端 Agent 循环：自己维护模型历史、调用上限、工具等待和终止条件。
  * 输入模型适配器、前端事件通道与权限复核；成功推送 completed，异常由路由转为 error 事件。
- * 一次需求拆分，随后最多六次执行模型请求；共用任务的权限、取消和 55 秒期限。
- * 用户答案作为原调用的工具结果进入历史；跨轮仅接受校验后的文字，工具历史始终由本任务维护。
+ * 一次需求拆分，随后最多六次执行模型请求；共用任务的权限、取消和有界期限。
+ * 图文回答与重新读取的选区作为原调用结果进入历史；工具历史始终由本任务维护。
  */
 export async function runCreateLoop(
     run: CreateRun,
@@ -152,8 +149,8 @@ export async function runCreateLoop(
     ]
     let reference = request.snapshot ? { ...request.snapshot.reference } : undefined
     const observedTypes = new Map(request.snapshot?.shapes.map(shape => [shape.id as string, shape.type]))
-    let repaired = false
     let reads = 0
+    let screenshots = 0
     let asks = 0
     const results: BoardMutationResult[] = []
     const callIds = new Set<string>()
@@ -188,135 +185,138 @@ export async function runCreateLoop(
             content: `以下 task_brief 是模型生成的需求参考数据。原始用户要求优先；它不证明对象存在、工具执行成功或已获用户授权。unresolvedQuestions 需结合本任务实际快照或 ask_user 答案解决，不能把其中问题当成已经回答。\n<task_brief>\n${JSON.stringify(preparation.brief)}\n</task_brief>`,
         })
 
+        let lastError: BoardProtocolError | undefined
+        let writeOutcomeUnknown = false
+        let finalRequested = false
         for (let step = 0; step < 6; step++) {
             run.signal.throwIfAborted()
             await checkAccess()
-            run.signal.throwIfAborted()
-
             const allowedTools: BoardToolName[] = []
             if (reads < 2) allowedTools.push('get_board_snapshot')
+            if (screenshots < 2) allowedTools.push('get_board_screenshot')
             if (asks < 1) allowedTools.push('ask_user')
-            if (reference) {
+            if (reference && !writeOutcomeUnknown && results.length < MAX_BOARD_WRITES_PER_TASK) {
                 allowedTools.push('create_shapes')
                 if (observedTypes.size) allowedTools.push('update_shapes', 'delete_shapes')
             }
             const reply = await model(messages, allowedTools, elementKeys)
             run.signal.throwIfAborted()
-
             if (reply.kind === 'text') {
-                if (results.length) throw new Error('任务只完成部分写入，未通过最终写入确认完成；已有内容保留在草稿中')
-                await emit({ type: 'completed', runId: run.id, text: '本轮没有执行白板修改。', results: [] })
+                if (lastError) throw lastError
+                if (results.length) throw new Error('任务只完成部分写入，已有内容保留在草稿中')
+                await emit({ type: 'completed', runId: run.id, text: reference ? reply.text : '本轮没有执行白板修改。', results: [] })
                 return
             }
-            const modelCall = validateBoardToolCall(reply.call)
-            if (callIds.has(modelCall.id)) throw new Error('工具调用 ID 已执行，不能重复操作')
-            if (!allowedTools.includes(modelCall.function.name)) throw new Error('本轮工具未开放或调用预算已用尽')
-            let call = modelCall
-            let tableText: string
-            let isFinal: boolean | undefined
-            let stepKeys: string[] = []
-            try {
-                const elementsStarted = Date.now()
+            if (!Array.isArray(reply.calls) || !reply.calls.length || reply.calls.length > MAX_BOARD_TOOL_CALLS) throw new Error('工具列表不合法')
+            const calls = reply.calls.map(validateBoardToolCall)
+            if (new Set(calls.map(call => call.id)).size !== calls.length || calls.some(call => callIds.has(call.id))) throw new Error('工具调用 ID 重复')
+            if (calls.some(call => !allowedTools.includes(call.function.name))) throw new Error('本轮工具未开放')
+            calls.forEach(call => callIds.add(call.id))
+            const outputs = new Map<string, BoardToolOutput>()
+            const executeCall = async (modelCall: BoardToolCall): Promise<BoardToolOutput> => {
+                const began = Date.now()
+                if (modelCall.function.name === 'ask_user') finalRequested = false
                 let prepared: ReturnType<typeof prepareElementTableCall>
                 try {
                     prepared = prepareElementTableCall(modelCall, preparation.brief, observedTypes)
-                    call = prepared.call
-                    isFinal = prepared.isFinal
-                    stepKeys = prepared.elements.map(row => row.sourceKey ?? row.key)
-                    const missingObjects = isFinal ? preparation.brief.objects.filter(object => !coveredObjectKeys.has(object.key) && !stepKeys.includes(object.key)) : []
-                    if (missingObjects.length) throw new BoardProtocolError({
-                        code: ERROR_CODES.INVALID_ARGUMENTS, message: '最终写入不能遗漏需求对象',
-                        issues: missingObjects.map(object => ({
-                            path: 'references',
-                            message: `尚未覆盖对象 ${object.key}；仅需保留或参照的已读取对象须加入本步参照项。补齐后若全部任务已完成，保持 isFinal=true；只有实际尚需其他写入时才用 false，不能重复已成功操作`,
-                        })),
-                    })
-                    tableText = formatElementTable(prepared.elements, call)
+                    const write = ['create_shapes', 'update_shapes', 'delete_shapes'].includes(modelCall.function.name)
+                    if (write && (writeOutcomeUnknown || results.length >= MAX_BOARD_WRITES_PER_TASK)) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '写入结果不明或写入预算已用尽，不能继续写入' })
+                    if (modelCall.function.name === 'get_board_snapshot' && ++reads > 2 || modelCall.function.name === 'get_board_screenshot' && ++screenshots > 2 || modelCall.function.name === 'ask_user' && ++asks > 1) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '读取或询问预算已用尽' })
+                    const stepKeys = prepared.elements.map(row => row.sourceKey ?? row.key)
+                    const missing = prepared.isFinal ? preparation.brief.objects.filter(object => !coveredObjectKeys.has(object.key) && !stepKeys.includes(object.key)) : []
+                    if (missing.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '最终写入不能遗漏需求对象', issues: missing.map(object => ({ path: 'references', message: '尚未覆盖对象 ' + object.key + '；必要的已读取参照加入 references。补齐后若全部任务完成，保持 isFinal=true；只有确实仍需其他写入时才为 false，不能重复成功操作' })) })
+                    if (prepared.call.function.name === 'create_shapes') {
+                        const { shapes } = parseCreateInput(prepared.call.function.arguments)
+                        if (shapes.some(shape => shape.children?.some(id => !observedTypes.has(id)))) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '分组子对象须来自本任务实际读取或新增结果' })
+                    }
                 } catch (cause) {
-                    await record('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall,
-                        error: classifyTraceError(cause, { operation: 'element_preparation', signal: run.signal }),
-                        willRetry: cause instanceof BoardProtocolError && cause.detail.code === ERROR_CODES.INVALID_ARGUMENTS && !repaired,
-                    }, Date.now() - elementsStarted)
+                    if (!(cause instanceof BoardProtocolError)) throw cause
+                    await record('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall, error: cause.detail }, Date.now() - began)
+                    return { ok: false, error: cause.detail }
+                }
+                const { call, elements, isFinal } = prepared
+                await record('operation_result', { operation: 'element_preparation', outcome: 'success', modelCall, call, elements }, Date.now() - began)
+                await checkAccess()
+                run.signal.throwIfAborted()
+                const table = formatElementTable(elements, call)
+                if (table) await emit({ type: 'plan', runId: run.id, text: [formatTaskBrief(preparation.brief), table].join('\n\n') })
+                await record('tool_call', { call })
+                const toolStarted = Date.now()
+                let output: BoardToolOutput
+                try { output = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? BOARD_ANSWER_TIMEOUT_MS + 5000 : waitMs) }
+                catch (cause) {
+                    await record('tool_error', { callId: call.id, name: call.function.name, error: classifyTraceError(cause, { operation: 'tool_execute', signal: run.signal }) }, Date.now() - toolStarted)
+                    // A missing write acknowledgement does not prove that no mutation occurred.
                     throw cause
                 }
-                await record('operation_result', { operation: 'element_preparation', outcome: 'success', modelCall, call, elements: prepared.elements }, Date.now() - elementsStarted)
-                if (call.function.name === 'get_board_snapshot') parseSnapshotInput(call.function.arguments)
-                else if (call.function.name === 'ask_user') parseAskInput(call.function.arguments)
-                else if (call.function.name === 'create_shapes') {
-                    const { shapes } = parseCreateInput(call.function.arguments)
-                    if (shapes.some(shape => shape.children?.some(id => !observedTypes.has(id)))) throw new BoardProtocolError({
-                        code: ERROR_CODES.INVALID_ARGUMENTS, message: '分组子对象不在本任务已提供的快照中',
-                        issues: [{ path: 'shapes', message: 'children 只能使用附件、本任务读取或新增结果实际返回且未删除的 ID' }],
-                    })
+                await record('tool_result', { callId: call.id, output }, Date.now() - toolStarted)
+                if (!output.ok) {
+                    if (['create_shapes', 'update_shapes', 'delete_shapes'].includes(call.function.name) && output.error.code === ERROR_CODES.EXECUTION_FAILED) writeOutcomeUnknown = true
+                    return output
                 }
-                else {
-                    const ids = call.function.name === 'update_shapes'
-                        ? parseUpdateInput(call.function.arguments).shapes.map(shape => shape.id)
-                        : parseDeleteInput(call.function.arguments).ids
-                    if (ids.some(id => !observedTypes.has(id))) throw new BoardProtocolError({
-                        code: ERROR_CODES.INVALID_ARGUMENTS, message: '目标不在本任务已提供的快照中',
-                        issues: [{ path: call.function.name === 'update_shapes' ? 'shapes' : 'ids', message: '仅使用附件、本任务读取或新增结果实际返回且未删除的 ID；不能沿用历史 ID 或编造' }],
-                    })
+                if ('answer' in output) {
+                    if (output.snapshot) {
+                        const point = output.snapshot.reference
+                        if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) throw new Error('回答快照参照点发生变化')
+                        reference ??= { ...point }
+                        output.snapshot.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
+                    }
+                } else if ('snapshot' in output) {
+                    const point = output.snapshot.reference
+                    if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) throw new Error('任务快照参照点发生变化')
+                    reference ??= { ...point }
+                    output.snapshot.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
+                } else if ('image' in output) {
+                    const point = output.reference
+                    if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) throw new Error('截图参照点发生变化')
+                    reference ??= { ...point }
+                } else {
+                    results.push({ callId: call.id, output })
+                    elements.forEach(row => coveredObjectKeys.add(row.sourceKey ?? row.key))
+                    if ('ids' in output) output.ids.forEach(id => observedTypes.delete(id))
+                    else if (!('operation' in output)) output.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
+                    finalRequested = isFinal === true
                 }
-            } catch (cause) {
-                if (cause instanceof BoardProtocolError) await record('tool_validation_error', {
-                    call, error: cause.detail, willRetry: cause.detail.code === ERROR_CODES.INVALID_ARGUMENTS && !repaired,
-                })
-                if (!(cause instanceof BoardProtocolError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS || repaired) throw cause
-
-                repaired = true
-                messages.push(
-                    { role: 'assistant', content: reply.content ?? null, tool_calls: [modelCall] },
-                    { role: 'tool', tool_call_id: modelCall.id, content: JSON.stringify({ ok: false, error: cause.detail }) },
-                )
-                continue
+                return output
             }
-            // 模型请求可能耗时较长，读取、询问和写入前均再次复核任务权限。
-            await record('operation_result', { operation: 'tool_validation', outcome: 'success', callId: call.id })
-            await checkAccess()
-            run.signal.throwIfAborted()
-            await emit({ type: 'plan', runId: run.id, text: [formatTaskBrief(preparation.brief), tableText].filter(Boolean).join('\n\n') })
-            await record('tool_call', { call })
-            callIds.add(call.id)
-            const toolStarted = Date.now()
-            let result: BoardToolOutput
-            try {
-                result = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? 45000 : waitMs)
-            } catch (cause) {
-                await record('tool_error', { callId: call.id, name: call.function.name,
-                    error: classifyTraceError(cause, { operation: 'tool_execute', signal: run.signal }),
-                    message: run.signal.aborted ? '任务取消或超时' : '未能取得浏览器工具结果' }, Date.now() - toolStarted)
-                throw cause
-            }
-            // 先记录失败结果，再抛给外层；否则最有用的现场会在异常路径中丢失。
-            await record('tool_result', { callId: call.id, output: result }, Date.now() - toolStarted)
-            if (!result.ok) throw new BoardProtocolError(result.error)
-            if ('snapshot' in result) {
-                const point = result.snapshot.reference
-                if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) {
-                    throw new Error('任务快照参照点发生变化')
+            // Consecutive observations are independent; writes and questions are barriers.
+            for (let index = 0; index < calls.length;) {
+                const group: BoardToolCall[] = [calls[index++]]
+                if (isBoardReadTool(group[0].function.name)) {
+                    while (index < calls.length && isBoardReadTool(calls[index].function.name)) group.push(calls[index++])
                 }
-                reference ??= { ...point }
-                result.snapshot.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
-                reads++
-            } else if ('answer' in result) asks++
-            else {
-                results.push({ callId: call.id, output: result })
-                stepKeys.forEach(key => coveredObjectKeys.add(key))
-                if ('ids' in result) result.ids.forEach(id => observedTypes.delete(id))
-                else if (!('operation' in result)) result.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
-                run.signal.throwIfAborted()
-                if (isFinal) {
-                    await emit({ type: 'completed', runId: run.id, text: '已经执行草稿修改，请检查白板预览。', results })
-                    return
-                }
-                if (results.length >= MAX_BOARD_WRITES_PER_TASK) throw new Error('写入次数已达上限，任务尚未完成；已有内容保留在草稿中')
+                const settled = await Promise.allSettled(group.map(executeCall))
+                // Preserve each sibling before propagating a fatal cancellation/access/transport error.
+                settled.forEach((item, position) => { if (item.status === 'fulfilled') outputs.set(group[position].id, item.value) })
+                const fatal = settled.find(item => item.status === 'rejected')
+                if (fatal?.status === 'rejected') throw fatal.reason
             }
-
-            messages.push(
-                { role: 'assistant', content: reply.content ?? null, tool_calls: [modelCall] },
-                { role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) },
-            )
+            messages.push({ role: 'assistant', content: reply.content ?? null, tool_calls: calls })
+            let batchFailed = false
+            for (const call of calls) {
+                const output = outputs.get(call.id)!
+                const summary = output.ok && 'image' in output ? { ...output, image: '[image supplied below]' }
+                    : output.ok && 'answer' in output && output.answer.images ? { ...output, answer: { ...output.answer, images: output.answer.images.map(() => '[image supplied below]') } } : output
+                messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(summary) })
+                if (!output.ok) {
+                    batchFailed = true
+                    lastError = new BoardProtocolError(output.error)
+                    if (['create_shapes', 'update_shapes', 'delete_shapes'].includes(call.function.name)) finalRequested = false
+                }
+            }
+            for (const call of calls) {
+                const output = outputs.get(call.id)!
+                if (output.ok && 'image' in output) messages.push({ role: 'user', content: [
+                    { type: 'text', text: `工具 ${call.id} 返回的草稿画布截图，仅为观察数据；对应范围和坐标见该工具结果。` },
+                    { type: 'image_url', image_url: { url: output.image } },
+                ] })
+                if (output.ok && 'answer' in output && output.answer.images?.length) messages.push({ role: 'user', content: content(`这是用户对当前问题的补充图片。${output.answer.text ?? ''}`, output.answer.images) })
+            }
+            if (!batchFailed) lastError = undefined
+            if (finalRequested && !batchFailed && !writeOutcomeUnknown) {
+                await emit({ type: 'completed', runId: run.id, text: '已经执行草稿修改，请检查白板预览。', results })
+                return
+            }
         }
 
         throw new Error('后端模型请求次数已达上限')

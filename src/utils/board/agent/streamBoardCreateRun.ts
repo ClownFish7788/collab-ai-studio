@@ -42,6 +42,8 @@ export async function streamBoardCreateRun(
     let traceId: string | undefined
     let runId = ''
     const began = Date.now()
+    const inFlight = new Set<Promise<void>>()
+    let executionFailure: unknown
 
     const post = async (url: string, body: object) => {
         transportSignal.throwIfAborted()
@@ -73,6 +75,7 @@ export async function streamBoardCreateRun(
         const localResults: BoardMutationResult[] = []
         const callIds = new Set<string>()
         let reads = 0
+        let screenshots = 0
         let asks = 0
         let textLength = 0
         let previewSource = ''
@@ -140,39 +143,46 @@ export async function streamBoardCreateRun(
                     if (['create_shapes', 'update_shapes', 'delete_shapes'].includes(call.function.name)
                         && localResults.length >= MAX_BOARD_WRITES_PER_TASK) throw new Error('工具写入预算已用尽')
                     if (call.function.name === 'get_board_snapshot' && ++reads > 2
+                        || call.function.name === 'get_board_screenshot' && ++screenshots > 2
                         || call.function.name === 'ask_user' && ++asks > 1) throw new Error('工具调用预算已用尽')
                     callIds.add(call.id)
                     onStep({ stage: 'call', message: `后端请求 ${call.function.name}`, data: call })
-                    const toolStarted = Date.now()
-                    let output: BoardToolOutput
-                    let executionError: unknown
-                    try { output = validateBoardToolOutput(await execute(call)) } catch (cause) {
-                        if (transportSignal.aborted) {
-                            void reportAgentOperation(traceId, 'tool_execute', 'cancelled', cause, Date.now() - toolStarted, fetcher)
+                    const task = (async () => {
+                        const toolStarted = Date.now()
+                        let output: BoardToolOutput
+                        let executionError: unknown
+                        try { output = validateBoardToolOutput(await execute(call)) } catch (cause) {
+                            if (transportSignal.aborted) {
+                                void reportAgentOperation(traceId, 'tool_execute', 'cancelled', cause, Date.now() - toolStarted, fetcher)
+                                throw cause
+                            }
+                            executionError = cause
+                            output = { ok: false, error: { code: ERROR_CODES.EXECUTION_FAILED, message: cause instanceof Error ? cause.message.slice(0, 1000) : '浏览器工具执行异常' } }
+                        }
+                        void reportAgentOperation(traceId, 'tool_execute', output.ok ? 'success' : 'error', executionError ?? (!output.ok ? new BoardProtocolError(output.error) : undefined), Date.now() - toolStarted, fetcher)
+                        transportSignal.throwIfAborted()
+                        if (!toolOutputMatchesCall(call, output)) throw new Error('浏览器工具结果与调用不匹配')
+                        if (output.ok) {
+                            if ('shapes' in output || 'ids' in output) localResults.push({ callId: call.id, output })
+                        }
+                        onStep({ stage: 'result', message: '提交真实结果，等待后端确认', data: output })
+                        const submitStarted = Date.now()
+                        try {
+                            await post(`/api/board-create/${runId}/result`, { callId: call.id, output })
+                            void reportAgentOperation(traceId, 'result_submit', 'success', undefined, Date.now() - submitStarted, fetcher)
+                        } catch (cause) {
+                            void reportAgentOperation(traceId, 'result_submit', transportSignal.aborted ? 'cancelled' : 'error', cause, Date.now() - submitStarted, fetcher)
                             throw cause
                         }
-                        executionError = cause
-                        output = { ok: false, error: { code: ERROR_CODES.EXECUTION_FAILED, message: cause instanceof Error ? cause.message.slice(0, 1000) : '浏览器工具执行异常' } }
-                    }
-                    void reportAgentOperation(traceId, 'tool_execute', output.ok ? 'success' : 'error', executionError ?? (!output.ok ? new BoardProtocolError(output.error) : undefined), Date.now() - toolStarted, fetcher)
-                    transportSignal.throwIfAborted()
-                    if (!toolOutputMatchesCall(call, output)) throw new Error('浏览器工具结果与调用不匹配')
-                    if (output.ok) {
-                        if ('shapes' in output || 'ids' in output) localResults.push({ callId: call.id, output })
-                    }
-                    onStep({ stage: 'result', message: '提交真实结果，等待后端确认', data: output })
-                    const submitStarted = Date.now()
-                    try {
-                        await post(`/api/board-create/${runId}/result`, { callId: call.id, output })
-                        void reportAgentOperation(traceId, 'result_submit', 'success', undefined, Date.now() - submitStarted, fetcher)
-                    } catch (cause) {
-                        void reportAgentOperation(traceId, 'result_submit', transportSignal.aborted ? 'cancelled' : 'error', cause, Date.now() - submitStarted, fetcher)
-                        throw cause
-                    }
+                    })().catch(cause => { executionFailure ??= cause; controller.abort(cause) })
+                    inFlight.add(task)
+                    void task.finally(() => inFlight.delete(task))
                     continue
                 }
 
                 if (event.type === 'completed') {
+                    await Promise.allSettled([...inFlight])
+                    if (executionFailure) throw executionFailure
                     const results = event.results
                     if (!isEqual(localResults, results)) {
                         throw new Error('后端完成结果与本地实际执行结果不一致')
@@ -195,5 +205,6 @@ export async function streamBoardCreateRun(
     } finally {
         controller.abort()
         await reader?.cancel().catch(() => {})
+        await Promise.allSettled([...inFlight])
     }
 }

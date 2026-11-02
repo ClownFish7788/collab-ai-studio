@@ -7,7 +7,7 @@ import { traceAgentRequest, type AgentTrace } from '@/lib/agentTraceRequest'
 import { classifyTraceError } from '@/utils/agent-traces/outcomes'
 import { observeModelFetch } from '@/lib/modelTrace'
 
-export const maxDuration = 60
+export const maxDuration = 180
 
 // shortcut: Demo 进程内限流，多实例公开部署前使用共享限流存储。
 const windows = new Map<string, { start: number; count: number }>()

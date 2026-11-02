@@ -4,7 +4,7 @@ import type { RegionSnapshot } from '../board/snapshot/collectRegionSnapshot'
 
 type ChatHistoryMessage = {
     role: 'user' | 'assistant'; content: string; images?: ImageAttachment[]; failed?: boolean
-    snapshot?: RegionSnapshot; clarification?: { question: string; answer?: string }
+    snapshot?: RegionSnapshot; clarification?: { question: string; answer?: string; images?: ImageAttachment[] }
 }
 
 /** 仅回传完成的完整轮次；保留图片与真实回答，旧快照和工具结果不承担新任务授权。 */
@@ -18,6 +18,8 @@ export function toAgentHistory(messages: readonly ChatHistoryMessage[]): BoardCo
         if (reply.length > 8000) continue // 不截断一个轮次里的问答含义。
         turns.push({ prompt: user.content || (user.images?.length ? '' : '附加的白板选区'), reply,
             ...(user.images?.length ? { images: user.images.map(image => image.dataUrl) } : {}) })
+        if (answer?.images?.length) turns.push({ prompt: `对问题“${answer.question}”的图片补充：${answer.answer ?? ''}`, reply: assistant.content,
+            images: answer.images.map(image => image.dataUrl) })
     }
     return getBoardConversationHistory(turns)
 }

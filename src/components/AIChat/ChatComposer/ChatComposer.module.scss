@@ -63,14 +63,3 @@
     background: transparent;
     color: var(--text-color);
 }
-
-.removeImage {
-    position: absolute;
-    top: 0;
-    right: 0;
-    display: grid;
-    place-items: center;
-    padding: 3px;
-    background: var(--bg-color);
-    color: var(--text-color);
-}

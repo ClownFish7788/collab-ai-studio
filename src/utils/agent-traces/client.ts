@@ -1,4 +1,4 @@
-export const clientOperations = ['stream_receive', 'tool_execute', 'result_submit', 'draft_apply', 'draft_discard'] as const
+export const clientOperations = ['stream_receive', 'tool_execute', 'tool_retry', 'result_submit', 'draft_apply', 'draft_discard'] as const
 export type ClientOperation = typeof clientOperations[number]
 export type ClientTraceEvent = {
     operation: ClientOperation; outcome: 'success' | 'error' | 'cancelled'; durationMs?: number

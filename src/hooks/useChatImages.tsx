@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import { MAX_IMAGES_PER_MESSAGE, readImage, type ImageAttachment } from '../utils/chat/images'
 
-export function useChatImages({ requestRef, isClosing, setError }: {
+export function useChatImages({ requestRef, isClosing, setError, allowDuringRequest = false }: {
     requestRef: RefObject<AbortController | null>
     isClosing: boolean
     setError: Dispatch<SetStateAction<string>>
+    allowDuringRequest?: boolean
 }) {
     const [images, setImages] = useState<ImageAttachment[]>([])
     const [isReadingImages, setIsReadingImages] = useState(false)
@@ -20,8 +21,9 @@ export function useChatImages({ requestRef, isClosing, setError }: {
     }
 
     const addImages = async (files: File[]) => {
-        if (!files.length || requestRef.current || isReadingImages || isClosing) return
+        if (!files.length || requestRef.current && !allowDuringRequest || isReadingImages || isClosing) return
         const version = ++imageReadVersionRef.current
+        const owner = requestRef.current
         setIsReadingImages(true)
         setError('')
         const accepted: ImageAttachment[] = [], errors: string[] = []
@@ -35,7 +37,7 @@ export function useChatImages({ requestRef, isClosing, setError }: {
             } catch (error) {
                 errors.push(error instanceof Error ? error.message : '图片读取失败')
             }
-            if (version !== imageReadVersionRef.current) return
+            if (version !== imageReadVersionRef.current || requestRef.current !== owner) return
         }
         setImages(previous => [...previous, ...accepted])
         setError(errors.join('；'))

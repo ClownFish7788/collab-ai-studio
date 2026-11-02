@@ -8,15 +8,16 @@ import {
     type DeleteShapesInput, type SnapshotRange, type SnapshotInput, type AskInput,
 } from './boardToolInputSchema'
 import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
-import { MAX_CHAT_SNAPSHOT_BYTES, validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
+import { validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } from '../../chat/images'
 import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
 
 /** 工具结果的快照传输上限；启动请求另外使用图文请求上限。 */
-export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_SNAPSHOT_BYTES + 20000
+export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_REQUEST_BYTES
 export const MAX_BOARD_SNAPSHOT_SHAPES = 30
 export type { CreateShapeParameters, UpdateShapeParameters, SnapshotRange } from './boardToolInputSchema'
-export type BoardToolName = 'create_shapes' | 'update_shapes' | 'delete_shapes' | 'get_board_snapshot' | 'ask_user'
+export type BoardToolName = 'create_shapes' | 'update_shapes' | 'delete_shapes' | 'get_board_snapshot' | 'get_board_screenshot' | 'ask_user'
+export const isBoardReadTool = (name: BoardToolName) => name === 'get_board_snapshot' || name === 'get_board_screenshot'
 export type BoardToolCall = {
     id: string
     type: 'function'
@@ -66,7 +67,28 @@ export type SnapshotToolSuccess = {
     truncated: boolean
 }
 
-export type BoardToolOutput = CreateToolOutput | MutationToolSuccess | SnapshotToolSuccess | { ok: true; answer: string }
+export type ScreenshotToolSuccess = {
+    ok: true; state: 'draft'; range: SnapshotRange; image: string
+    reference: RegionSnapshot['reference']
+    bounds: { x: number; y: number; w: number; h: number }
+}
+export type BoardAnswer = { text?: string; images?: string[]; selectedShapeIds?: string[] }
+export type AnswerToolSuccess = { ok: true; answer: BoardAnswer; snapshot?: RegionSnapshot }
+export type BoardToolOutput = CreateToolOutput | MutationToolSuccess | SnapshotToolSuccess | ScreenshotToolSuccess | AnswerToolSuccess
+
+export function validateBoardAnswer(value: unknown): BoardAnswer {
+    record(value)
+    fields(value, ['text', 'images', 'selectedShapeIds'])
+    if (value.text !== undefined && (typeof value.text !== 'string' || value.text.length > 1000)) throw new Error('回答文字不合法')
+    if (value.images !== undefined) validateBoardImages(value.images)
+    if (value.selectedShapeIds !== undefined && (!Array.isArray(value.selectedShapeIds) || value.selectedShapeIds.length > MAX_BOARD_SNAPSHOT_SHAPES
+        || value.selectedShapeIds.some(id => !validShapeId(id)) || new Set(value.selectedShapeIds).size !== value.selectedShapeIds.length)) throw new Error('回答选区不合法')
+    const text = typeof value.text === 'string' ? value.text.trim() : ''
+    const images = value.images as string[] | undefined
+    const selectedShapeIds = value.selectedShapeIds as string[] | undefined
+    if (!text && !images?.length && !selectedShapeIds?.length) throw new Error('请提供文字、图片或选择元素')
+    return { ...(text ? { text } : {}), ...(images?.length ? { images } : {}), ...(selectedShapeIds?.length ? { selectedShapeIds } : {}) }
+}
 
 export type BoardConversationTurn = { prompt: string; reply: string; images?: string[] }
 const MAX_CONVERSATION_TURNS = 6
@@ -89,7 +111,7 @@ export type BoardCreateRequest = {
 }
 
 export type BoardCreateReply =
-    | { kind: 'tool'; call: BoardToolCall; content?: string }
+    | { kind: 'tool'; calls: BoardToolCall[]; content?: string }
     | { kind: 'text'; text: string }
 
 /** 后端推送完整事件；前端只处理事件，不决定是否继续调用模型。 */
@@ -248,7 +270,7 @@ export function validateBoardToolCall(value: unknown): BoardToolCall {
     fields(value.function, ['name', 'arguments'])
 
     if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 200
-        || value.type !== 'function' || !['create_shapes', 'update_shapes', 'delete_shapes', 'get_board_snapshot', 'ask_user'].includes(value.function.name as string)
+        || value.type !== 'function' || !['create_shapes', 'update_shapes', 'delete_shapes', 'get_board_snapshot', 'get_board_screenshot', 'ask_user'].includes(value.function.name as string)
         || typeof value.function.arguments !== 'string' || value.function.arguments.length > MAX_BOARD_TOOL_ARGUMENT_CHARS) {
         throw new Error('白板工具调用格式不合法')
     }
@@ -315,6 +337,24 @@ export function validateCreateOutput(value: unknown): CreateToolOutput {
 /** 校验读取、回答或新增的结果；成功结构不能混合，错误统一使用受控诊断。 */
 export function validateBoardToolOutput(value: unknown): BoardToolOutput {
     record(value)
+    if (value.ok === true && 'answer' in value) {
+        fields(value, ['ok', 'answer', 'snapshot'])
+        const answer = validateBoardAnswer(value.answer)
+        if (answer.selectedShapeIds?.length) {
+            validateRegionSnapshot(value.snapshot)
+            if (value.snapshot.shapes.length !== answer.selectedShapeIds.length || value.snapshot.shapes.some(shape => !answer.selectedShapeIds!.includes(shape.id))) throw new Error('回答选区与真实快照不匹配')
+        } else if (value.snapshot !== undefined) throw new Error('回答快照须来自明确选区')
+        return value as AnswerToolSuccess
+    }
+    if (value.ok === true && 'image' in value) {
+        fields(value, ['ok', 'state', 'range', 'image', 'reference', 'bounds'])
+        if (value.state !== 'draft' || !['viewport', 'page'].includes(value.range as string)) throw new Error('截图范围不合法')
+        validateImageDataUrl(value.image)
+        validateRegionSnapshot({ reference: value.reference, shapes: [], viewport: value.bounds })
+        record(value.bounds)
+        if ((value.bounds.w as number) <= 0 || (value.bounds.h as number) <= 0) throw new Error('截图范围须为正数')
+        return value as ScreenshotToolSuccess
+    }
     if (value.ok === true && 'operation' in value) {
         if (value.state !== 'draft') throw new Error('写入结果须属于草稿')
         if (value.operation === 'update') {
@@ -335,13 +375,6 @@ export function validateBoardToolOutput(value: unknown): BoardToolOutput {
         if (value.snapshot.shapes.length > MAX_BOARD_SNAPSHOT_SHAPES) throw new Error('快照结果超过元素上限')
         return value as SnapshotToolSuccess
     }
-    if (value.ok === true && 'answer' in value) {
-        fields(value, ['ok', 'answer'])
-        if (typeof value.answer !== 'string' || !value.answer.trim() || value.answer.length > 1000) {
-            throw new Error('用户回答不合法')
-        }
-        return value as { ok: true; answer: string }
-    }
     return validateCreateOutput(value)
 }
 
@@ -356,7 +389,8 @@ export function validateMutationOutput(value: unknown): MutationToolSuccess {
 export function toolOutputMatchesCall(call: BoardToolCall, output: BoardToolOutput): boolean {
     if (!output.ok) return true
     switch (call.function.name) {
-        case 'get_board_snapshot': return 'snapshot' in output && output.range === parseSnapshotInput(call.function.arguments).range
+        case 'get_board_snapshot': return !('answer' in output) && 'snapshot' in output && output.range === parseSnapshotInput(call.function.arguments).range
+        case 'get_board_screenshot': return 'image' in output && output.range === parseSnapshotInput(call.function.arguments).range
         case 'ask_user': return 'answer' in output
         case 'create_shapes': {
             if (!('shapes' in output) || 'operation' in output) return false

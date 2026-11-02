@@ -1,4 +1,7 @@
-export type BoardQuestion = { text: string; submit: (answer: string) => void }
+import { validateBoardAnswer, type BoardAnswer } from './boardCreateProtocol'
+import { BOARD_ANSWER_TIMEOUT_MS } from '../boardCapabilities'
+
+export type BoardQuestion = { text: string; submit: (answer: BoardAnswer) => void }
 
 /**
  * 展示一个问题并等待真实提交，返回去空格后的非空回答；取消和超时均拒绝等待并清理界面。
@@ -9,11 +12,11 @@ export function requestBoardAnswer(
     signal: AbortSignal,
     onChange: (question: BoardQuestion | null) => void,
     abortTask: (reason: Error) => void,
-): Promise<string> {
+): Promise<BoardAnswer> {
     signal.throwIfAborted()
     return new Promise((resolve, reject) => {
         let settled = false
-        const finish = (result: { answer: string } | { error: unknown }) => {
+        const finish = (result: { answer: BoardAnswer } | { error: unknown }) => {
             if (settled) return
             settled = true
             clearTimeout(timer)
@@ -27,13 +30,12 @@ export function requestBoardAnswer(
             const reason = new Error('等待用户回答超时，请重新发起任务')
             abortTask(reason)
             finish({ error: reason })
-        }, 45000)
+        }, BOARD_ANSWER_TIMEOUT_MS)
         signal.addEventListener('abort', onAbort, { once: true })
         onChange({
             text: question,
             submit: value => {
-                const answer = value.trim()
-                if (answer && answer.length <= 1000) finish({ answer })
+                try { finish({ answer: validateBoardAnswer(value) }) } catch { /* 无效提交保持等待，让用户补充。 */ }
             },
         })
     })

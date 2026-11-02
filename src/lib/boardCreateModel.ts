@@ -1,14 +1,15 @@
-import { boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardAskTool } from './boardCreateTool'
+import { boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardScreenshotTool, boardAskTool } from './boardCreateTool'
 import { z } from 'zod'
 import { getMutationIntentSchemas } from '../utils/board/agent/boardToolInputSchema'
 import { boardTaskBriefPrompt } from '../prompts/boardTaskBriefPrompt'
-import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../utils/board/boardCapabilities'
+import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS, MAX_BOARD_TOOL_CALLS } from '../utils/board/boardCapabilities'
 import {
     validateBoardToolCall,
     BoardProtocolError,
     ERROR_CODES,
     type BoardCreateReply,
     type BoardToolName,
+    type BoardToolCall,
 } from '../utils/board/agent/boardCreateProtocol'
 
 /** 只携带本模块生成的安全诊断，不转发上游响应正文或连接配置。 */
@@ -24,7 +25,7 @@ async function readModelStream(response: Response, signal: AbortSignal, onText?:
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let pending = '', text = '', role: string | undefined, finish: string | undefined, done = false
-    let call: { id: string; type: string; function: { name: string; arguments: string } } | undefined
+    const calls = new Map<number, { id: string; type: string; function: { name: string; arguments: string } }>()
     const invalid = () => new BoardCreateModelError('模型流不完整、过大或包含非法分片，本轮没有执行工具')
     const consume = (block: string) => {
         if (block.length > 30000) throw invalid()
@@ -48,21 +49,26 @@ async function readModelStream(response: Response, signal: AbortSignal, onText?:
             if (delta.content) onText?.(delta.content)
         }
         if (delta.tool_calls != null) {
-            if (!Array.isArray(delta.tool_calls) || delta.tool_calls.length !== 1) throw invalid()
-            const fragment = delta.tool_calls[0]
-            if (fragment.index !== 0 || fragment.type !== undefined && fragment.type !== 'function'
-                || fragment.id !== undefined && (typeof fragment.id !== 'string' || fragment.id && call?.id && call.id !== fragment.id)) throw invalid()
-            call ??= { id: '', type: 'function', function: { name: '', arguments: '' } }
-            // 兼容服务在后续分片使用空 ID 占位；真实非空 ID 仍必须保持一致。
-            if (fragment.id) call.id = fragment.id
-            for (const key of ['name', 'arguments'] as const) {
-                const part = fragment.function?.[key]
-                if (part === undefined) continue
-                if (typeof part !== 'string') throw invalid()
-                call.function[key] += part
+            if (!Array.isArray(delta.tool_calls) || delta.tool_calls.length > MAX_BOARD_TOOL_CALLS) throw invalid()
+            for (const fragment of delta.tool_calls) {
+                if (!Number.isInteger(fragment.index) || fragment.index < 0 || fragment.index >= MAX_BOARD_TOOL_CALLS) throw invalid()
+                let call = calls.get(fragment.index)
+                if (fragment.type !== undefined && fragment.type !== 'function'
+                    || fragment.id !== undefined && (typeof fragment.id !== 'string' || fragment.id && call?.id && call.id !== fragment.id)) throw invalid()
+                call ??= { id: '', type: 'function', function: { name: '', arguments: '' } }
+                calls.set(fragment.index, call)
+                // 兼容服务在后续分片使用空 ID 占位；真实非空 ID 仍必须保持一致。
+                if (fragment.id) call.id = fragment.id
+                for (const key of ['name', 'arguments'] as const) {
+                    const part = fragment.function?.[key]
+                    if (part === undefined) continue
+                    if (typeof part !== 'string') throw invalid()
+                    call.function[key] += part
+                }
+                if (call.id.length > 200 || call.function.name.length > 100 || call.function.arguments.length > MAX_BOARD_TOOL_ARGUMENT_CHARS) throw invalid()
+                // 预览只展示首个调用，避免不同工具的 JSON 分片混在一起。
+                if (fragment.index === 0 && fragment.function?.arguments) onArguments?.(fragment.function.arguments)
             }
-            if (call.id.length > 200 || call.function.name.length > 100 || call.function.arguments.length > MAX_BOARD_TOOL_ARGUMENT_CHARS) throw invalid()
-            if (fragment.function?.arguments) onArguments?.(fragment.function.arguments)
         }
         if (choice.finish_reason != null) {
             if (!['stop', 'tool_calls'].includes(choice.finish_reason)) throw invalid()
@@ -86,7 +92,9 @@ async function readModelStream(response: Response, signal: AbortSignal, onText?:
             if (chunk.done) { if (pending.trim()) consume(pending); break }
         }
         if (!done || !finish || role !== 'assistant') throw invalid()
-        return { choices: [{ finish_reason: finish, message: { role, content: text, ...(call ? { tool_calls: [call] } : {}) } }] }
+        const ordered = [...calls].sort(([a], [b]) => a - b)
+        if (ordered.some(([index], position) => index !== position)) throw invalid()
+        return { choices: [{ finish_reason: finish, message: { role, content: text, ...(calls.size ? { tool_calls: ordered.map(([, call]) => call) } : {}) } }] }
     } finally {
         signal.removeEventListener('abort', cancel)
         await reader.cancel().catch(() => {})
@@ -95,7 +103,7 @@ async function readModelStream(response: Response, signal: AbortSignal, onText?:
 
 /**
  * 后端只构造模型消息，不访问前端 Editor。
- * 输入任务历史、模型配置、停止信号和本轮开放工具名；只返回白名单内的一次完整调用或普通文本。
+ * 输入任务历史、模型配置、停止信号和本轮开放工具名；只返回白名单内的完整调用列表或普通文本。
  */
 export async function requestBoardCreateModel(
     messages: readonly object[],
@@ -110,7 +118,7 @@ export async function requestBoardCreateModel(
     if (!allowedTools.length) throw new BoardCreateModelError('没有可调用的工具，本轮不请求执行模型')
     // 用户回答不会建立画布参照点；每轮明确运行状态，避免沿用前轮工具或跳过读取。
     return requestModel([...messages, { role: 'system', content:
-        `本轮仅允许这些工具：${allowedTools.join('、')}。其他工具即使出现在历史也不能调用。本任务已经执行哪些操作，以本任务真实工具结果为准；读取快照和回答不表示写入成功，历史任务的成功也不算本任务的执行。若当前用户操作已明确且信息齐全，必须实际调用对应写入工具，不能用 content 声称已新增、更新或删除。每次写入须提供 isFinal；仍需后续操作时为 false，最后一次写入为 true，成功后程序直接结束任务，不再请求总结。${allowedTools.includes('get_board_snapshot') && !allowedTools.includes('create_shapes')
+        `本轮仅允许这些工具：${allowedTools.join('、')}。其他工具即使出现在历史也不能调用。本任务已经执行哪些操作，以本任务真实工具结果为准；读取快照和回答不表示写入成功，历史任务的成功也不算本任务的执行。仅当用户要求新增、修改或删除且信息齐全时，实际调用对应写入工具。查看、截图、统计、分类是只读任务，实际读取后用content返回结果，不写入；用户要求截图时实际调用get_board_screenshot，不能声称工具不存在。不能用content声称未实际执行的写入。每次写入须提供isFinal，仍需后续操作为false，最后一次写入为true。${allowedTools.includes('get_board_snapshot') && !allowedTools.includes('create_shapes')
             ? '当前尚未取得首份白板快照，用户回答不等于快照。继续白板操作前必须先调用 get_board_snapshot；禁止直接写入。' : ''}${allowedTools.includes('ask_user')
             ? '已明确的白板任务若缺少必要信息或有多个候选，必须真正调用 ask_user 等待答案；不能仅在 content 中写问题并结束。用户按描述指定更新或删除目标，而该范围快照 truncated=true 时，即使只返回一个匹配项也不能确认唯一，必须先询问用户是否操作这个已读取对象；用户已明确指定真实 ID 或已明确选定目标时例外。这是继续当前任务的协议要求。' : ''}`
         }], config, signal, allowedTools, fetcher, onText, undefined, elementKeys, onArguments)
@@ -148,7 +156,7 @@ async function requestModel(
             model: config.model,
             messages: [{ role: 'system', content: boardAgentCapabilitiesPrompt }, ...messages],
             ...(allowedTools.length ? {
-                tools: [boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardAskTool].filter(tool => allowedTools.includes(tool.function.name)).map(tool => {
+                tools: [boardCreateTool, boardUpdateTool, boardDeleteTool, boardSnapshotTool, boardScreenshotTool, boardAskTool].filter(tool => allowedTools.includes(tool.function.name)).map(tool => {
                     const schema = tool.function.name === 'create_shapes' ? mutationSchemas.create
                         : tool.function.name === 'update_shapes' ? mutationSchemas.update
                             : tool.function.name === 'delete_shapes' ? mutationSchemas.delete : undefined
@@ -156,7 +164,7 @@ async function requestModel(
                 }),
             } : {}),
             tool_choice: allowedTools.length ? 'auto' : 'none',
-            parallel_tool_calls: false,
+            parallel_tool_calls: true,
             stream: true,
             enable_thinking: false,
             max_tokens: maxTokens,
@@ -187,22 +195,25 @@ async function requestModel(
         throw new BoardCreateModelError('模型响应不完整、被拒绝或格式不合法，本轮没有执行工具')
     }
     if (choice.finish_reason === 'tool_calls') {
-        if (!allowedTools.length || message.tool_calls?.length !== 1
+        if (!allowedTools.length || !message.tool_calls?.length || message.tool_calls.length > MAX_BOARD_TOOL_CALLS
             || message.content != null && (typeof message.content !== 'string' || message.content.length > 8000)) {
-            throw new BoardCreateModelError('每轮只允许一个已开放的完整工具调用')
+            throw new BoardCreateModelError(`每轮只允许 1～${MAX_BOARD_TOOL_CALLS} 个已开放的完整工具调用`)
         }
 
         try {
-            const raw = message.tool_calls[0]
-            // 兼容服务可能附带 index 等传输元数据，只把协议允许的字段交给前端。
-            const call = validateBoardToolCall({
-                id: raw.id,
-                type: raw.type,
-                function: { name: raw.function?.name, arguments: raw.function?.arguments },
-            })
+            const calls: BoardToolCall[] = message.tool_calls.map((raw: BoardToolCall) => {
+                // 兼容服务可能附带 index 等传输元数据，只把协议允许的字段交给前端。
+                const call = validateBoardToolCall({
+                    id: raw.id,
+                    type: raw.type,
+                    function: { name: raw.function?.name, arguments: raw.function?.arguments },
+                })
 
-            if (!allowedTools.includes(call.function.name)) throw new Error('工具未开放')
-            return { kind: 'tool', call, ...(typeof message.content === 'string' ? { content: message.content } : {}) }
+                if (!allowedTools.includes(call.function.name)) throw new Error('工具未开放')
+                return call
+            })
+            if (new Set(calls.map(call => call.id)).size !== calls.length) throw new Error('调用 ID 重复')
+            return { kind: 'tool', calls, ...(typeof message.content === 'string' ? { content: message.content } : {}) }
         } catch {
             throw new BoardCreateModelError('模型返回的白板工具调用格式不合法或未开放')
         }

@@ -5,7 +5,7 @@ import type { useBoardDraft } from '../components/DrawEditor/BoardDraftProvider'
 import { useBoardSelectionStore } from '../components/AIChat/BoardSelectionProvider'
 import { streamChat } from '../utils/chat/streamChat'
 import { validateChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
-import { parseAskInput } from '../utils/board/agent/boardCreateProtocol'
+import { parseAskInput, validateBoardAnswer } from '../utils/board/agent/boardCreateProtocol'
 import { toAgentHistory, toChatMessages } from '../utils/chat/chatHistory'
 import { useChatImages } from './useChatImages'
 import type { ChatMessage } from '../components/AIChat/types'
@@ -22,7 +22,7 @@ export function useChatSession({ boardDraft, isClosing }: {
     const assistantRef = useRef<string | null>(null)
     const [isStreaming, setIsStreaming] = useState(false)
     const [error, setError] = useState('')
-    const attachments = useChatImages({ requestRef, isClosing, setError })
+    const attachments = useChatImages({ requestRef, isClosing, setError, allowDuringRequest: !!boardDraft.question })
     const { images, setImages, isReadingImages, cancelReading } = attachments
 
     useEffect(() => () => {
@@ -34,6 +34,7 @@ export function useChatSession({ boardDraft, isClosing }: {
     const stop = () => {
         abortRequest()
         boardDraft.cancel()
+        cancelReading()
     }
     const close = () => {
         stop()
@@ -45,12 +46,18 @@ export function useChatSession({ boardDraft, isClosing }: {
         const content = input.trim()
         // 回答只唤醒原任务，不启动下一次模型任务。
         if (boardDraft.question && requestRef.current) {
-            if (!content || content.length > 1000) return
+            if (isReadingImages || isClosing || content.length > 1000) return
+            const selected = selectionStore.getState().snapshot
+            let answer
+            try { answer = validateBoardAnswer({ text: content, images: images.map(image => image.dataUrl), selectedShapeIds: selected?.shapes.map(shape => shape.id) }) }
+            catch { return }
             const pending = boardDraft.question
             setMessages(previous => previous.map(message => message.id === assistantRef.current
-                ? { ...message, clarification: { question: pending.text, answer: content }, status: '正在继续处理…' } : message))
+                ? { ...message, clarification: { question: pending.text, answer: content || '已提供图片或选中元素', images, snapshot: selected ?? undefined }, status: '正在继续处理…' } : message))
             setInput('')
-            pending.submit(content)
+            setImages([])
+            selectionStore.getState().clearSnapshot()
+            pending.submit(answer)
             return
         }
         const selectedSnapshot = selectionStore.getState().snapshot
@@ -93,7 +100,7 @@ export function useChatSession({ boardDraft, isClosing }: {
                     if (step.stage === 'plan') updateReply(message => ({ ...message, plan: step.message, preview: undefined, status: '需求已拆分，正在规划并执行…' }))
                     if (step.stage === 'call' && step.data && 'function' in step.data) {
                         const call = step.data
-                        const labels = { get_board_snapshot: '正在读取白板…', ask_user: '等待你的回答', create_shapes: '正在生成草稿…', update_shapes: '正在更新草稿…', delete_shapes: '正在生成删除草稿…' }
+                        const labels = { get_board_snapshot: '正在读取白板…', get_board_screenshot: '正在观察白板截图…', ask_user: '等待你的回答', create_shapes: '正在生成草稿…', update_shapes: '正在更新草稿…', delete_shapes: '正在生成删除草稿…' }
                         updateReply(message => ({ ...message, status: labels[call.function.name],
                             ...(call.function.name === 'ask_user' ? { clarification: parseAskInput(call.function.arguments) } : {}) }))
                         if (call.function.name === 'ask_user') inputRef.current?.focus()
@@ -117,6 +124,7 @@ export function useChatSession({ boardDraft, isClosing }: {
             if (requestRef.current === controller) {
                 requestRef.current = null
                 assistantRef.current = null
+                cancelReading()
                 setIsStreaming(false)
             }
         }

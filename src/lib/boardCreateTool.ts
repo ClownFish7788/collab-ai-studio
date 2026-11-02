@@ -37,7 +37,16 @@ export const boardSnapshotTool = {
     type: 'function',
     function: {
         name: 'get_board_snapshot',
-        description: '仅在用户已明确具体白板操作时读取当前任务草稿，只提交 range，不提交 elements；无需先确定对象清单、ID、类型或缺项。用户只说“帮我弄一下白板”等目标不明需求时禁止读取，应通过 content 澄清。优先 viewport，信息不足再用 page。实际返回的元素加入任务范围；truncated=true 表示不完整。reference 只是坐标原点，不代表用户指定对象。',
+        description: '读取当前任务草稿，支持查看、统计、分类等只读查询及写入前定位。只提交range，不提交elements；用户只说“帮我弄一下白板”等目标不明需求时先澄清。明确要求整个页面用page，否则优先viewport。truncated=true表示不完整。reference只是坐标原点，不代表用户指定对象。',
+        parameters: z.toJSONSchema(snapshotInputSchema, { target: 'draft-7' }),
+    },
+} as const
+
+export const boardScreenshotTool = {
+    type: 'function',
+    function: {
+        name: 'get_board_screenshot',
+        description: '读取当前任务草稿的视口或整页截图。可与同范围get_board_snapshot一起调用，结合外观、文字和结构数据定位元素；图片不授予未读取ID的写入权限。只提交range，不提交elements。',
         parameters: z.toJSONSchema(snapshotInputSchema, { target: 'draft-7' }),
     },
 } as const

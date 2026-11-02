@@ -6,8 +6,8 @@ import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
 import { validateChatSnapshot } from '../snapshot/chatSnapshots'
 import {
     validateBoardToolCall, validateBoardToolOutput, parseCreateInput, parseSnapshotInput, parseAskInput, parseUpdateInput, parseDeleteInput,
-    BoardProtocolError, ERROR_CODES,
-    type BoardToolOutput, type SnapshotRange, type SnapshotToolSuccess,
+    BoardProtocolError, ERROR_CODES, validateBoardAnswer,
+    type BoardToolOutput, type SnapshotRange, type SnapshotToolSuccess, type ScreenshotToolSuccess, type BoardAnswer,
 } from './boardCreateProtocol'
 
 /**
@@ -15,12 +15,15 @@ import {
  * 首份快照固定参照点；读取通过校验后才授权返回的 ID。按调用 ID 缓存 Promise，重复事件不会重复写入或提问。
  * 更新只转换显式 x/y，省略字段保持；更新和删除在整批目标预检后交给底层草稿事务。
  */
-export function createBoardToolRunner({ snapshot, assertActive, read, authorize, ask, create, getShape, pageId, update, remove }: {
+export function createBoardToolRunner({ snapshot, assertActive, read, readSelection, screenshot, onReadRetry, authorize, ask, create, getShape, pageId, update, remove }: {
     snapshot?: RegionSnapshot
     assertActive: () => void
     read: (range: SnapshotRange, reference?: RegionSnapshot['reference']) => SnapshotToolSuccess
+    screenshot: (range: SnapshotRange, reference: RegionSnapshot['reference']) => Promise<ScreenshotToolSuccess>
+    readSelection: (ids: readonly TLShapeId[], reference?: RegionSnapshot['reference']) => Promise<SnapshotToolSuccess>
+    onReadRetry?: (callId: string, attempt: number) => void
     authorize: (ids: readonly TLShapeId[]) => void
-    ask: (question: string) => Promise<string>
+    ask: (question: string) => Promise<BoardAnswer>
     create: (inputs: readonly CreateDraftShapeInput[]) => readonly TLShape[]
     getShape: (id: TLShapeId) => TLShape | undefined
     pageId: string
@@ -57,27 +60,53 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
         const output = (async (): Promise<BoardToolOutput> => {
             let invoked = false
             try {
-                if (call.function.name === 'get_board_snapshot') {
+                if (call.function.name === 'get_board_snapshot' || call.function.name === 'get_board_screenshot') {
                     const { range } = parseSnapshotInput(call.function.arguments)
                     invoked = true
-                    const result = validateBoardToolOutput(read(range, reference))
-                    if (!result.ok || !('snapshot' in result) || result.range !== range) throw new Error('读取结果不匹配')
-                    const point = result.snapshot.reference
+                    let value
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                        assertActive()
+                        try {
+                            const context = read(range, reference)
+                            reference ??= { ...context.snapshot.reference }
+                            value = call.function.name === 'get_board_snapshot' ? context : await screenshot(range, reference)
+                            break
+                        }
+                        catch (cause) {
+                            assertActive()
+                            if (cause instanceof BoardProtocolError && cause.detail.code === ERROR_CODES.INVALID_ARGUMENTS || attempt === 2) throw cause
+                            onReadRetry?.(call.id, attempt + 1)
+                        }
+                    }
+                    const result = validateBoardToolOutput(value)
+                    if (!result.ok || 'answer' in result || !('snapshot' in result || 'image' in result) || result.range !== range) throw new Error('读取结果不匹配')
+                    const point = 'snapshot' in result ? result.snapshot.reference : result.reference
                     if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) {
                         throw new Error('任务参照点发生变化')
                     }
                     assertActive()
                     reference ??= { ...point }
-                    authorize(result.snapshot.shapes.map(shape => shape.id))
-                    result.snapshot.shapes.forEach(shape => seenIds.add(shape.id))
+                    if ('snapshot' in result) {
+                        authorize(result.snapshot.shapes.map(shape => shape.id))
+                        result.snapshot.shapes.forEach(shape => seenIds.add(shape.id))
+                    }
                     return result
                 }
                 if (call.function.name === 'ask_user') {
                     const { question } = parseAskInput(call.function.arguments)
                     invoked = true
-                    const answer = await ask(question)
+                    const answer = validateBoardAnswer(await ask(question))
                     assertActive()
-                    return validateBoardToolOutput({ ok: true, answer })
+                    if (!answer.selectedShapeIds?.length) return validateBoardToolOutput({ ok: true, answer })
+                    const context = await readSelection(answer.selectedShapeIds as TLShapeId[], reference)
+                    const result = validateBoardToolOutput({ ok: true, answer, snapshot: context.snapshot })
+                    const point = context.snapshot.reference
+                    if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) throw new Error('回答参照点发生变化')
+                    reference ??= { ...point }
+                    assertActive()
+                    authorize(context.snapshot.shapes.map(shape => shape.id))
+                    context.snapshot.shapes.forEach(shape => seenIds.add(shape.id))
+                    return result
                 }
 
                 if (call.function.name === 'delete_shapes') {
@@ -150,7 +179,8 @@ export function createBoardToolRunner({ snapshot, assertActive, read, authorize,
                 return {
                     ok: false,
                     error: !invoked && cause instanceof BoardProtocolError ? cause.detail
-                        : { code: ERROR_CODES.EXECUTION_FAILED, message: '白板工具执行失败，本轮不自动重放操作' },
+                        : { code: ERROR_CODES.EXECUTION_FAILED, message: call.function.name === 'get_board_snapshot' || call.function.name === 'get_board_screenshot'
+                            ? '白板读取失败，有限重试后仍未获得有效结果' : '白板工具执行失败，本轮不自动重放操作' },
                 }
             }
         })()

@@ -11,6 +11,6 @@ export type ChatMessage = {
     failed?: boolean
     plan?: string
     preview?: string
-    clarification?: { question: string; answer?: string }
+    clarification?: { question: string; answer?: string; images?: ImageAttachment[]; snapshot?: RegionSnapshot }
     execution?: { description: string; draftId?: string }
 }
