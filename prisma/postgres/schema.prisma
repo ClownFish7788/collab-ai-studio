@@ -116,6 +116,7 @@ model AgentTrace {
   lastSequence Int            @default(0)
   updatedAt  DateTime          @default(now()) @updatedAt
   events     AgentTraceEvent[]
+  images     AgentTraceImage[]
 
   @@index([createdAt, id])
 }
@@ -143,4 +144,16 @@ model TraceAdminLogin {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+model AgentTraceImage {
+  id        String @id
+  traceId   String
+  mimeType  String
+  bytes     Int
+  dataUrl   String
+  createdAt DateTime @default(now())
+  trace     AgentTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@index([traceId])
 }

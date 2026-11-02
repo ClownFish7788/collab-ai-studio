@@ -37,3 +37,14 @@ CREATE TABLE IF NOT EXISTS "TraceAdminLogin" (
   "expiresAt" TIMESTAMP(3) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "TraceAdminLogin_expiresAt_idx" ON "TraceAdminLogin"("expiresAt");
+
+CREATE TABLE IF NOT EXISTS "AgentTraceImage" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "traceId" TEXT NOT NULL,
+  "mimeType" TEXT NOT NULL,
+  "bytes" INTEGER NOT NULL,
+  "dataUrl" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "AgentTraceImage_traceId_fkey" FOREIGN KEY ("traceId") REFERENCES "AgentTrace"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX IF NOT EXISTS "AgentTraceImage_traceId_idx" ON "AgentTraceImage"("traceId");
