@@ -100,10 +100,6 @@ export type BoardCreateRequest = {
     history?: BoardConversationTurn[]
 }
 
-export type BoardCreateReply =
-    | { kind: 'tool'; calls: BoardToolCall[]; content?: string }
-    | { kind: 'text'; text: string }
-
 /** 后端推送完整事件；前端只处理事件，不决定是否继续调用模型。 */
 export type BoardCreateEvent =
     | { type: 'started'; runId: string }

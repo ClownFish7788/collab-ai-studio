@@ -1,5 +1,5 @@
 import { runAgent } from '../agent/application/runAgent'
-import { BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS, AgentApplicationError } from '../agent/application/ports'
+import { BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS, AgentApplicationError, type ModelPort } from '../agent/application/ports'
 import { agentErrorSchema, ERROR_CODES, type AgentError } from '../agent/domain/error'
 import type { AgentMessage, ContentBlock } from '../agent/domain/message'
 import { jsonValueSchema } from '../agent/domain/data'
@@ -11,11 +11,10 @@ import { formatElementTable } from '../utils/board/agent/boardElementTable'
 import {
     validateBoardToolOutput, toolOutputMatchesCall, validateCreateInput, validateUpdateInput, validateDeleteInput,
     parseSnapshotInput, parseAskInput, validateMutationOutput, validateBoardToolCall, BoardProtocolError,
-    type BoardCreateEvent, type BoardCreateReply, type BoardCreateRequest, type BoardToolCall,
-    type BoardToolOutput, type BoardToolName,
+    type BoardCreateEvent, type BoardCreateRequest, type BoardToolCall, type BoardToolOutput,
 } from '../utils/board/agent/boardCreateProtocol'
 import type { TraceRecorder } from './modelTrace'
-import { toAgentDecision, toAgentSnapshot, toBoardModelMessages, toBoardToolCall } from './boardAgentMessages'
+import { toAgentSnapshot, toBoardToolCall } from '../agent/adapters/board/protocol'
 import { classifyTraceError } from '../utils/agent-traces/outcomes'
 
 type PendingTool = {
@@ -118,10 +117,9 @@ async function executeInBrowser(
 export async function runCreateLoop(
     run: CreateRun,
     request: BoardCreateRequest,
-    model: (messages: readonly object[], allowedTools: readonly BoardToolName[], elementKeys: readonly string[]) => Promise<BoardCreateReply>,
+    model: ModelPort,
     emit: (event: BoardCreateEvent) => void | Promise<void>,
     checkAccess: () => Promise<void>,
-    prepare: (messages: readonly object[]) => Promise<unknown>,
     waitMs = 15000,
     record: TraceRecorder = async () => {},
 ) {
@@ -153,10 +151,7 @@ export async function runCreateLoop(
             checkAccess: async () => {
                 try { await checkAccess() } catch (cause) { runtimeFailure = cause; throw cause }
             },
-            model: {
-                prepare: messages => prepare(toBoardModelMessages(messages)),
-                next: async (context, allowed) => toAgentDecision(await model(toBoardModelMessages(context.messages), allowed, context.task?.objects.map(object => object.key) ?? [])),
-            },
+            model,
             emit: event => {
                 if (event.type === 'started') return emit({ type: 'started', runId: run.id })
                 const table = event.prepared ? formatElementTable(event.prepared.elements, toBoardToolCall(event.prepared.call, event.prepared.input)) : ''

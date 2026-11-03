@@ -1,5 +1,7 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
-import { requestBoardCreateModel, requestBoardTaskBrief } from '@/lib/boardCreateModel'
+import { createChatCompletionsModel } from '@/agent/adapters/model/chatCompletions'
+import type { ModelPort } from '@/agent/application/ports'
+import { boardToolContractSet } from '@/utils/board/agent/boardToolInputSchema'
 import { beginCreateRun, runCreateLoop } from '@/lib/boardCreateRun'
 import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/board/agent/boardCreateProtocol'
 import { MAX_CHAT_REQUEST_BYTES } from '@/utils/chat/images'
@@ -12,7 +14,7 @@ export const maxDuration = 180
 // shortcut: Demo 进程内限流，多实例公开部署前使用共享限流存储。
 const windows = new Map<string, { start: number; count: number }>()
 
-/** 启动一次后端 Agent 循环；整个响应流一直保持到完成、出错、取消或 55 秒总超时。 */
+/** 启动一次后端 Agent 循环；响应流保持到完成、出错、取消或任务总超时。 */
 export async function POST(request: Request) {
     return traceAgentRequest(request, 'board', trace => handleBoardCreate(request, trace))
 }
@@ -70,28 +72,25 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                     if (event.type === 'completed') finalReply = event.text
                     controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
                 }
-                const preview = (source: 'preparation' | 'tool') => {
-                    let start = true
-                    return (delta: string) => {
+                const adapter = createChatCompletionsModel({
+                    config: { apiKey, model, baseUrl }, contracts: boardToolContractSet, fetcher: tracedFetch,
+                    onPreview(source, delta, start) {
                         activeRun.signal.throwIfAborted()
                         emit({ type: 'preview', runId: activeRun.id, source, delta, start })
-                        start = false
                     }
+                })
+                const modelPort: ModelPort = {
+                    prepare: adapter.prepare,
+                    next: (context, allowedTools, signal) => trace.step('model_call', () => adapter.next(context, allowedTools, signal)),
                 }
 
                 try {
                     await runCreateLoop(
                         activeRun,
                         payload,
-                        (messages, allowTools, elementKeys) => trace.step('model_call', () => requestBoardCreateModel(
-                            messages, { apiKey, model, baseUrl }, activeRun.signal, allowTools, tracedFetch,
-                            undefined, // 模型自由文字只留在追踪中，页面进度由工具事件驱动。
-                            elementKeys,
-                            preview('tool'),
-                        )),
+                        modelPort,
                         emit,
                         () => trace.step('access', () => requireCreateAccess(payload.roomId, userId)),
-                        messages => requestBoardTaskBrief(messages, { apiKey, model, baseUrl }, activeRun.signal, tracedFetch, preview('preparation')),
                         15000,
                         trace.record,
                     )
