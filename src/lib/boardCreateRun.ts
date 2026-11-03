@@ -1,30 +1,22 @@
+import { runAgent } from '../agent/application/runAgent'
+import { BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS, AgentApplicationError } from '../agent/application/ports'
+import { agentErrorSchema, ERROR_CODES, type AgentError } from '../agent/domain/error'
+import type { AgentMessage, ContentBlock } from '../agent/domain/message'
+import { jsonValueSchema } from '../agent/domain/data'
+import { toolCallProposalSchema } from '../agent/domain/invocation'
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
-import { getUncoveredTaskObjects } from '../agent/domain/elements'
-import { resolveBoardReference, type BoardReference } from '../agent/domain/observation'
-import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_CALLS, BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS } from '../utils/board/boardCapabilities'
-import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
-import type { MessageContent } from '../utils/chat/images'
-import type { TraceRecorder } from './modelTrace'
-import { classifyTraceError } from '../utils/agent-traces/outcomes'
-import { formatTaskBrief, validateBoardTaskPreparation } from '../utils/board/agent/boardTaskBrief'
-import { MAX_TASK_PREPARATION_CHARS } from '../utils/board/agent/boardTaskBriefSchema'
-import { formatElementTable, prepareElementTableCall } from '../utils/board/agent/boardElementTable'
+import { boardToolContracts } from '../utils/board/agent/boardToolInputSchema'
+import { formatTaskBrief } from '../utils/board/agent/boardTaskBrief'
+import { formatElementTable } from '../utils/board/agent/boardElementTable'
 import {
-    validateBoardToolCall,
-    parseCreateInput,
-    BoardProtocolError,
-    ERROR_CODES,
-    validateBoardToolOutput,
-    toolOutputMatchesCall,
-    isBoardReadTool,
-    type BoardCreateEvent,
-    type BoardCreateReply,
-    type BoardCreateRequest,
-    type BoardToolCall,
-    type BoardToolOutput,
-    type BoardToolName,
-    type BoardMutationResult,
+    validateBoardToolOutput, toolOutputMatchesCall, validateCreateInput, validateUpdateInput, validateDeleteInput,
+    parseSnapshotInput, parseAskInput, validateMutationOutput, validateBoardToolCall, BoardProtocolError,
+    type BoardCreateEvent, type BoardCreateReply, type BoardCreateRequest, type BoardToolCall,
+    type BoardToolOutput, type BoardToolName,
 } from '../utils/board/agent/boardCreateProtocol'
+import type { TraceRecorder } from './modelTrace'
+import { toAgentDecision, toAgentSnapshot, toBoardModelMessages, toBoardToolCall } from './boardAgentMessages'
+import { classifyTraceError } from '../utils/agent-traces/outcomes'
 
 type PendingTool = {
     call: BoardToolCall
@@ -122,12 +114,7 @@ async function executeInBrowser(
     }
 }
 
-/**
- * 后端 Agent 循环：自己维护模型历史、调用上限、工具等待和终止条件。
- * 输入模型适配器、前端事件通道与权限复核；成功推送 completed，异常由路由转为 error 事件。
- * 需求拆分校验失败最多纠正一次，随后最多六次执行模型请求；共用任务的权限、取消和有界期限。
- * 图文回答与重新读取的选区作为原调用结果进入历史；工具历史始终由本任务维护。
- */
+/** 组装真实端口并转换旧传输协议；应用主循环只存在于 runAgent。 */
 export async function runCreateLoop(
     run: CreateRun,
     request: BoardCreateRequest,
@@ -138,199 +125,89 @@ export async function runCreateLoop(
     waitMs = 15000,
     record: TraceRecorder = async () => {},
 ) {
-    const content = (prompt: string, images?: string[]): MessageContent => images?.length ? [
-        ...images.map(url => ({ type: 'image_url' as const, image_url: { url } })),
-        ...(prompt.trim() ? [{ type: 'text' as const, text: prompt }] : []),
-    ] : prompt
-    const messages: object[] = [
-        { role: 'system', content: boardCreatePrompt },
-        ...(request.history ?? []).flatMap(turn => [
-            { role: 'user', content: content(turn.prompt, turn.images) },
-            { role: 'assistant', content: turn.reply },
-        ]),
-        { role: 'user', content: request.snapshot ? appendChatSnapshot(content(request.prompt, request.images), request.snapshot) : content(request.prompt, request.images) },
-    ]
-    let reference: BoardReference | undefined = request.snapshot ? { ...request.snapshot.reference } : undefined
-    const observedTypes = new Map(request.snapshot?.shapes.map(shape => [shape.id as string, shape.type]))
-    let reads = 0
-    let screenshots = 0
-    let asks = 0
-    const results: BoardMutationResult[] = []
-    const callIds = new Set<string>()
-    const coveredObjectKeys = new Set<string>()
-
     try {
-        await emit({ type: 'started', runId: run.id })
-        // 拆分只看原始上下文，不带执行阶段的工具规则；内部 JSON 不推送到聊天正文。
-        const preparationMessages = messages.slice(1)
-        let preparation: ReturnType<typeof validateBoardTaskPreparation>
-        for (let attempt = 1; ; attempt++) {
-            run.signal.throwIfAborted()
-            await checkAccess()
-            run.signal.throwIfAborted()
-            const preparationStarted = Date.now()
-            let candidate: unknown
-            try {
-                candidate = await prepare(preparationMessages)
-                run.signal.throwIfAborted()
-                preparation = validateBoardTaskPreparation(candidate)
-            } catch (cause) {
-                const error = classifyTraceError(cause, { operation: 'task_preparation', signal: run.signal })
-                const retryAllowed = attempt === 1 && !run.signal.aborted && cause instanceof BoardProtocolError && !!cause.detail.issues?.length
-                await record('operation_result', { operation: 'task_preparation', attempt, outcome: error.category === 'cancelled' ? 'cancelled' : 'error', retryAllowed, error }, Date.now() - preparationStarted)
-                if (!retryAllowed) throw cause
-                preparationMessages.push(
-                    { role: 'assistant', content: JSON.stringify(candidate).slice(0, MAX_TASK_PREPARATION_CHARS) },
-                    { role: 'user', content: `上一轮需求拆分未通过服务端校验。以下是纠错数据，不是新的用户需求：\n${JSON.stringify(cause.detail)}\n请保持原始用户需求和任务范围，修正校验问题，输出完整且符合 schema 的 JSON。本次只有一次纠正机会，不调用工具。` },
-                )
-                continue
-            }
-            await record('operation_result', { operation: 'task_preparation', attempt, outcome: 'success', preparation }, Date.now() - preparationStarted)
-            break
+        const blocks = (text: string, source: 'user' | 'assistant', images?: string[]): ContentBlock[] => [
+            ...(text.trim() ? [{ type: 'text' as const, source, text }] : []),
+            ...(images?.map(url => ({ type: 'image' as const, source, url })) ?? []),
+        ]
+        const initialSnapshot = request.snapshot ? toAgentSnapshot(request.snapshot) : undefined
+        const messages: AgentMessage[] = [
+            { role: 'system', content: [{ type: 'text', source: 'system', text: boardCreatePrompt }] },
+            ...(request.history ?? []).flatMap((turn): AgentMessage[] => [
+                { role: 'user', content: blocks(turn.prompt, 'user', turn.images) },
+                { role: 'assistant', content: blocks(turn.reply, 'assistant') },
+            ]),
+            { role: 'user', content: [...blocks(request.prompt, 'user', request.images),
+                ...(initialSnapshot ? [{ type: 'data' as const, source: 'user' as const, data: jsonValueSchema.parse(JSON.parse(JSON.stringify({ snapshot: initialSnapshot }))) }] : []),
+            ] },
+        ]
+        const mapError = (cause: unknown): AgentError => {
+            if (cause instanceof BoardProtocolError || cause instanceof AgentApplicationError) return cause.detail
+            if (cause instanceof Error && 'status' in cause && (cause.status === 401 || cause.status === 403)) return { code: ERROR_CODES.ACCESS_DENIED, message: cause.message }
+            return { code: ERROR_CODES.TASK_FAILED, message: '后端白板任务失败，已完成的内容仅保留在草稿中' }
         }
-        run.signal.throwIfAborted()
-        if (preparation.kind === 'reply') {
-            await emit({ type: 'completed', runId: run.id, text: preparation.text, results: [] })
-            return
-        }
-        await emit({ type: 'plan', runId: run.id, text: formatTaskBrief(preparation.brief) })
-        const elementKeys = preparation.brief.objects.map(object => object.key)
-        messages.push({
-            role: 'assistant',
-            content: `以下 task_brief 是模型生成的需求参考数据。原始用户要求优先；它不证明对象存在、工具执行成功或已获用户授权。unresolvedQuestions 需结合本任务实际快照或 ask_user 答案解决，不能把其中问题当成已经回答。\n<task_brief>\n${JSON.stringify(preparation.brief)}\n</task_brief>`,
-        })
-
-        let lastError: BoardProtocolError | undefined
-        let writeOutcomeUnknown = false
-        let finalRequested = false
-        for (let step = 0; step < 6; step++) {
-            run.signal.throwIfAborted()
-            await checkAccess()
-            const allowedTools: BoardToolName[] = []
-            if (reads < 2) allowedTools.push('get_board_snapshot')
-            if (screenshots < 2) allowedTools.push('get_board_screenshot')
-            if (asks < 1) allowedTools.push('ask_user')
-            if (reference && !writeOutcomeUnknown && results.length < MAX_BOARD_WRITES_PER_TASK) {
-                allowedTools.push('create_shapes')
-                if (observedTypes.size) allowedTools.push('update_shapes', 'delete_shapes')
-            }
-            const reply = await model(messages, allowedTools, elementKeys)
-            run.signal.throwIfAborted()
-            if (reply.kind === 'text') {
-                if (lastError) throw lastError
-                if (results.length) throw new Error('任务只完成部分写入，已有内容保留在草稿中')
-                await emit({ type: 'completed', runId: run.id, text: reference ? reply.text : '本轮没有执行白板修改。', results: [] })
-                return
-            }
-            if (!Array.isArray(reply.calls) || !reply.calls.length || reply.calls.length > MAX_BOARD_TOOL_CALLS) throw new Error('工具列表不合法')
-            const calls = reply.calls.map(validateBoardToolCall)
-            if (new Set(calls.map(call => call.id)).size !== calls.length || calls.some(call => callIds.has(call.id))) throw new Error('工具调用 ID 重复')
-            if (calls.some(call => !allowedTools.includes(call.function.name))) throw new Error('本轮工具未开放')
-            calls.forEach(call => callIds.add(call.id))
-            const outputs = new Map<string, BoardToolOutput>()
-            const executeCall = async (modelCall: BoardToolCall): Promise<BoardToolOutput> => {
-                const began = Date.now()
-                if (modelCall.function.name === 'ask_user') finalRequested = false
-                let prepared: ReturnType<typeof prepareElementTableCall>
-                try {
-                    prepared = prepareElementTableCall(modelCall, preparation.brief, observedTypes)
-                    const write = ['create_shapes', 'update_shapes', 'delete_shapes'].includes(modelCall.function.name)
-                    if (write && (writeOutcomeUnknown || results.length >= MAX_BOARD_WRITES_PER_TASK)) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '写入结果不明或写入预算已用尽，不能继续写入' })
-                    if (modelCall.function.name === 'get_board_snapshot' && ++reads > 2 || modelCall.function.name === 'get_board_screenshot' && ++screenshots > 2 || modelCall.function.name === 'ask_user' && ++asks > 1) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '读取或询问预算已用尽' })
-                    const missing = prepared.isFinal ? getUncoveredTaskObjects(preparation.brief, coveredObjectKeys, prepared.elements) : []
-                    if (missing.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '最终写入不能遗漏需求对象', issues: missing.map(object => ({ path: 'references', message: '尚未覆盖对象 ' + object.key + '；必要的已读取参照加入 references。补齐后若全部任务完成，保持 isFinal=true；只有确实仍需其他写入时才为 false，不能重复成功操作' })) })
-                    if (prepared.call.function.name === 'create_shapes') {
-                        const { shapes } = parseCreateInput(prepared.call.function.arguments)
-                        if (shapes.some(shape => shape.children?.some(id => !observedTypes.has(id)))) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '分组子对象须来自本任务实际读取或新增结果' })
-                    }
-                } catch (cause) {
-                    if (!(cause instanceof BoardProtocolError)) throw cause
-                    await record('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall, error: cause.detail }, Date.now() - began)
-                    return { ok: false, error: cause.detail }
+        // 领域结局只携带安全诊断，原始超时/权限异常留在适配层供路由准确分类。
+        let runtimeFailure: unknown
+        const outcome = await runAgent({ runId: run.id, messages, initialSnapshot }, {
+            tools: boardToolContracts, signal: run.signal, mapError,
+            checkAccess: async () => {
+                try { await checkAccess() } catch (cause) { runtimeFailure = cause; throw cause }
+            },
+            model: {
+                prepare: messages => prepare(toBoardModelMessages(messages)),
+                next: async (context, allowed) => toAgentDecision(await model(toBoardModelMessages(context.messages), allowed, context.task?.objects.map(object => object.key) ?? [])),
+            },
+            emit: event => {
+                if (event.type === 'started') return emit({ type: 'started', runId: run.id })
+                const table = event.prepared ? formatElementTable(event.prepared.elements, toBoardToolCall(event.prepared.call, event.prepared.input)) : ''
+                return emit({ type: 'plan', runId: run.id, text: [formatTaskBrief(event.task), table].filter(Boolean).join('\n\n') })
+            },
+            record: (type, data, duration) => {
+                if (type === 'tool_result' && data.result && typeof data.result === 'object' && 'state' in data.result) {
+                    const result = data.result
+                    return record(type, { callId: data.callId, output: result.state === 'known' && 'output' in result ? result.output
+                        : { ok: false, state: result.state, error: 'error' in result ? result.error : undefined } }, duration)
                 }
-                const { call, elements, isFinal } = prepared
-                await record('operation_result', { operation: 'element_preparation', outcome: 'success', modelCall, call, elements }, Date.now() - began)
-                await checkAccess()
-                run.signal.throwIfAborted()
-                const table = formatElementTable(elements, call)
-                if (table) await emit({ type: 'plan', runId: run.id, text: [formatTaskBrief(preparation.brief), table].join('\n\n') })
-                await record('tool_call', { call })
-                const toolStarted = Date.now()
+                const transformed = { ...data }
+                for (const key of ['call', 'modelCall']) {
+                    const parsed = toolCallProposalSchema.safeParse(data[key])
+                    if (parsed.success) transformed[key] = toBoardToolCall(parsed.data, key === 'call' ? data.input ?? parsed.data.input : parsed.data.input)
+                }
+                return record(type, transformed, duration)
+            },
+            execute: async prepared => {
+                const call = toBoardToolCall(prepared.call, prepared.input)
+                // 原生 props/只读属性验证必须在派发前完成，失败明确标记为未执行。
+                try {
+                    switch (call.function.name) {
+                        case 'create_shapes': validateCreateInput(prepared.input); break
+                        case 'update_shapes': validateUpdateInput(prepared.input); break
+                        case 'delete_shapes': validateDeleteInput(prepared.input); break
+                        case 'ask_user': parseAskInput(call.function.arguments); break
+                        default: parseSnapshotInput(call.function.arguments)
+                    }
+                    validateBoardToolCall(call)
+                } catch (cause) {
+                    return { callId: prepared.call.id, name: prepared.call.name, state: 'not_executed', error: mapError(cause) }
+                }
+                const began = Date.now()
                 let output: BoardToolOutput
                 try { output = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? BOARD_ANSWER_TIMEOUT_MS + 5000 : waitMs) }
                 catch (cause) {
-                    await record('tool_error', { callId: call.id, name: call.function.name, error: classifyTraceError(cause, { operation: 'tool_execute', signal: run.signal }) }, Date.now() - toolStarted)
-                    // A missing write acknowledgement does not prove that no mutation occurred.
+                    runtimeFailure = cause
+                    await record('tool_error', { callId: call.id, name: call.function.name, error: classifyTraceError(cause, { operation: 'tool_execute', signal: run.signal }) }, Date.now() - began)
                     throw cause
                 }
-                await record('tool_result', { callId: call.id, output }, Date.now() - toolStarted)
-                if (!output.ok) {
-                    if (['create_shapes', 'update_shapes', 'delete_shapes'].includes(call.function.name) && output.error.code === ERROR_CODES.EXECUTION_FAILED) writeOutcomeUnknown = true
-                    return output
+                if (!output.ok && prepared.call.name !== 'get_board_snapshot' && prepared.call.name !== 'get_board_screenshot' && prepared.call.name !== 'ask_user' && output.error.code === ERROR_CODES.EXECUTION_FAILED) {
+                    return { callId: prepared.call.id, name: prepared.call.name, state: 'unknown', error: output.error }
                 }
-                if ('answer' in output) {
-                    if (output.snapshot) {
-                        const point = output.snapshot.reference
-                        reference = resolveBoardReference(reference, { id: point.id, x: point.x, y: point.y })
-                        output.snapshot.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
-                    }
-                } else if ('snapshot' in output) {
-                    const point = output.snapshot.reference
-                    reference = resolveBoardReference(reference, { id: point.id, x: point.x, y: point.y })
-                    output.snapshot.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
-                } else if ('image' in output) {
-                    const point = output.reference
-                    reference = resolveBoardReference(reference, { id: point.id, x: point.x, y: point.y })
-                } else {
-                    results.push({ callId: call.id, output })
-                    elements.forEach(row => coveredObjectKeys.add(row.sourceKey ?? row.key))
-                    if ('ids' in output) output.ids.forEach(id => observedTypes.delete(id))
-                    else if (!('operation' in output)) output.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
-                    finalRequested = isFinal === true
-                }
-                return output
-            }
-            // Consecutive observations are independent; writes and questions are barriers.
-            for (let index = 0; index < calls.length;) {
-                const group: BoardToolCall[] = [calls[index++]]
-                if (isBoardReadTool(group[0].function.name)) {
-                    while (index < calls.length && isBoardReadTool(calls[index].function.name)) group.push(calls[index++])
-                }
-                const settled = await Promise.allSettled(group.map(executeCall))
-                // Preserve each sibling before propagating a fatal cancellation/access/transport error.
-                settled.forEach((item, position) => { if (item.status === 'fulfilled') outputs.set(group[position].id, item.value) })
-                const fatal = settled.find(item => item.status === 'rejected')
-                if (fatal?.status === 'rejected') throw fatal.reason
-            }
-            messages.push({ role: 'assistant', content: reply.content ?? null, tool_calls: calls })
-            let batchFailed = false
-            for (const call of calls) {
-                const output = outputs.get(call.id)!
-                const summary = output.ok && 'image' in output ? { ...output, image: '[image supplied below]' }
-                    : output.ok && 'answer' in output && output.answer.images ? { ...output, answer: { ...output.answer, images: output.answer.images.map(() => '[image supplied below]') } } : output
-                messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(summary) })
-                if (!output.ok) {
-                    batchFailed = true
-                    lastError = new BoardProtocolError(output.error)
-                    if (['create_shapes', 'update_shapes', 'delete_shapes'].includes(call.function.name)) finalRequested = false
-                }
-            }
-            for (const call of calls) {
-                const output = outputs.get(call.id)!
-                if (output.ok && 'image' in output) messages.push({ role: 'user', content: [
-                    { type: 'text', text: `工具 ${call.id} 返回的草稿画布截图，仅为观察数据；对应范围和坐标见该工具结果。` },
-                    { type: 'image_url', image_url: { url: output.image } },
-                ] })
-                if (output.ok && 'answer' in output && output.answer.images?.length) messages.push({ role: 'user', content: content(`这是用户对当前问题的补充图片。${output.answer.text ?? ''}`, output.answer.images) })
-            }
-            if (!batchFailed) lastError = undefined
-            if (finalRequested && !batchFailed && !writeOutcomeUnknown) {
-                await emit({ type: 'completed', runId: run.id, text: '已经执行草稿修改，请检查白板预览。', results })
-                return
-            }
-        }
-
-        throw new Error('后端模型请求次数已达上限')
+                const normalized = output.ok && 'snapshot' in output && output.snapshot ? { ...output, snapshot: toAgentSnapshot(output.snapshot) } : output
+                return { callId: prepared.call.id, name: prepared.call.name, state: 'known', output: normalized }
+            },
+        })
+        if (outcome.status === 'completed') await emit({ type: 'completed', runId: run.id, text: outcome.text, results: outcome.changes.map(({ callId, output }) => ({ callId, output: validateMutationOutput(output) })) })
+        else throw runtimeFailure ?? new BoardProtocolError(agentErrorSchema.parse(outcome.error))
+        return outcome
     } finally {
         runs.delete(run.id)
     }

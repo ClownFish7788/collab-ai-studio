@@ -2,14 +2,10 @@ import { DefaultColorStyle } from '@tldraw/tlschema'
 import { DRAFT_SHAPE_TYPES } from './draft/draftShapeSchema'
 import { MAX_BOARD_ELEMENT_ROWS } from '../../agent/domain/task'
 import { MAX_BOARD_WRITE_SHAPES } from '../../agent/domain/tool'
+import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_CALLS, MAX_BOARD_MODEL_CALLS, MAX_BOARD_ELEMENT_TABLE_CHARS, BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS } from '../../agent/application/ports'
 
-export { MAX_BOARD_ELEMENT_ROWS, MAX_BOARD_WRITE_SHAPES }
-export const MAX_BOARD_WRITES_PER_TASK = 3
+export { MAX_BOARD_ELEMENT_ROWS, MAX_BOARD_WRITE_SHAPES, MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_CALLS, MAX_BOARD_MODEL_CALLS, MAX_BOARD_ELEMENT_TABLE_CHARS, BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS }
 export const MAX_BOARD_TOOL_ARGUMENT_CHARS = 10000
-export const MAX_BOARD_ELEMENT_TABLE_CHARS = 6000
-export const MAX_BOARD_TOOL_CALLS = 6
-export const BOARD_RUN_TIMEOUT_MS = 180000
-export const BOARD_ANSWER_TIMEOUT_MS = 120000
 
 /** 同一声明进入准备与执行调用；不代替本轮实际开放的工具、对象权限或用户确认。 */
 export const boardAgentCapabilitiesPrompt = `以下是程序提供的真实能力边界，不是模型估计，也不表示已执行操作：

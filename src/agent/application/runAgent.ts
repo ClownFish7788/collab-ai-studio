@@ -1,0 +1,137 @@
+import { createAgentContextSchema, getObservedContextState, type AgentContext } from '../domain/context'
+import { assertElementTargets, getUncoveredTaskObjects } from '../domain/elements'
+import { ERROR_CODES, type AgentError } from '../domain/error'
+import type { MutationResult, ToolCallProposal, ToolResult } from '../domain/invocation'
+import { createToolResultMessage, modelDecisionSchema } from '../domain/message'
+import { createAgentOutcomeSchema, type AgentOutcome } from '../domain/outcome'
+import { applicationError, AgentApplicationError, MAX_BOARD_MODEL_CALLS, MAX_BOARD_TOOL_CALLS, MAX_BOARD_WRITES_PER_TASK, validationFailure, type AgentDependencies, type RunAgentInput } from './ports'
+import { prepareTask } from './prepareTask'
+import { createToolRegistry } from './toolRegistry'
+
+/** 用例仅编排领域数据；模型协议、浏览器等待、权限来源和 trace 持久化均由端口提供。 */
+export async function runAgent(input: RunAgentInput, dependencies: AgentDependencies): Promise<AgentOutcome> {
+    const tools = createToolRegistry(dependencies.tools, dependencies.execute)
+    const contextSchema = createAgentContextSchema(tools.invocations)
+    const outcomeSchema = createAgentOutcomeSchema(tools.invocations.mutationResultSchema)
+    const changes: MutationResult[] = [], uncertainCalls: { id: string; name: ToolCallProposal['name'] }[] = []
+    const covered = new Set<string>()
+    const counts = { get_board_snapshot: 0, get_board_screenshot: 0, ask_user: 0 }
+    let context: AgentContext
+    let lastError: AgentError | undefined, finalRequested = false
+    const fail = (message: string): never => { throw new AgentApplicationError({ code: ERROR_CODES.INVALID_ARGUMENTS, message }) }
+    const assertActive = async () => { dependencies.signal.throwIfAborted(); await dependencies.checkAccess(); dependencies.signal.throwIfAborted() }
+    const finish = (text: string): AgentOutcome => outcomeSchema.parse({ status: 'completed', text, changes, uncertainCalls })
+
+    try {
+        context = contextSchema.parse({ runId: input.runId, messages: input.messages, initialSnapshot: input.initialSnapshot, toolResults: [] })
+        await dependencies.emit?.({ type: 'started' })
+        const preparation = await prepareTask(context.messages, dependencies)
+        if (preparation.kind === 'reply') return finish(preparation.text)
+        context = contextSchema.parse({ ...context, task: preparation.brief, messages: [...context.messages,
+            { role: 'assistant', content: [{ type: 'data', source: 'assistant', data: { taskBrief: preparation.brief } }] },
+        ] })
+        await dependencies.emit?.({ type: 'plan', task: preparation.brief })
+
+        for (let step = 0; step < MAX_BOARD_MODEL_CALLS; step++) {
+            await assertActive()
+            const { reference, observedTypes } = getObservedContextState(context)
+            const allowed: ToolCallProposal['name'][] = []
+            if (counts.get_board_snapshot < 2) allowed.push('get_board_snapshot')
+            if (counts.get_board_screenshot < 2) allowed.push('get_board_screenshot')
+            if (counts.ask_user < 1) allowed.push('ask_user')
+            if (reference && !uncertainCalls.length && changes.length < MAX_BOARD_WRITES_PER_TASK) {
+                allowed.push('create_shapes')
+                if (observedTypes.size) allowed.push('update_shapes', 'delete_shapes')
+            }
+            const parsed = modelDecisionSchema.safeParse(await dependencies.model.next(context, allowed, dependencies.signal))
+            dependencies.signal.throwIfAborted()
+            if (!parsed.success) throw validationFailure(parsed.error, ERROR_CODES.INVALID_MODEL_RESPONSE, '模型决策格式不合法')
+            const decision = parsed.data
+            if (decision.kind === 'text') {
+                if (lastError) throw new AgentApplicationError(lastError)
+                if (changes.length) throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED, message: '任务只完成部分写入，已有内容保留在草稿中' })
+                return finish(reference ? decision.text : '本轮没有执行白板修改。')
+            }
+            if (decision.calls.length > MAX_BOARD_TOOL_CALLS) fail('工具列表超过本轮上限')
+            if (decision.calls.some(call => !allowed.includes(call.name))) fail('本轮工具未开放')
+            // 先登记原始提议，参数错误也能获得同一 callId 的未执行结果；整批结束前不发起下一轮模型。
+            context = contextSchema.parse({ ...context, messages: [...context.messages, { role: 'assistant', content: decision.content?.trim()
+                ? [{ type: 'text', source: 'assistant', text: decision.content }] : [], calls: decision.calls }] })
+            let fatal: unknown
+            let batchFailed = false
+            const durations = new Map<string, number>()
+            const execute = async (proposal: ToolCallProposal): Promise<ToolResult> => {
+                const began = Date.now(), entry = tools.registry[proposal.name]
+                if (entry.contract.kind === 'ask') finalRequested = false
+                let dispatched = false
+                let toolStarted: number | undefined
+                try {
+                    const prepared = tools.prepare(proposal, context)
+                    if (entry.contract.kind === 'write' && (uncertainCalls.length || changes.length >= MAX_BOARD_WRITES_PER_TASK)) fail('写入结果不明或写入预算已用尽，不能继续写入')
+                    if (proposal.name === 'get_board_snapshot' || proposal.name === 'get_board_screenshot' || proposal.name === 'ask_user') {
+                        if (++counts[proposal.name] > (proposal.name === 'ask_user' ? 1 : 2)) fail('读取或询问预算已用尽')
+                    }
+                    if (prepared.isFinal && getUncoveredTaskObjects(preparation.brief, covered, prepared.elements).length) fail('最终写入不能遗漏需求对象')
+                    await dependencies.record?.('operation_result', { operation: 'element_preparation', outcome: 'success', modelCall: proposal, ...prepared }, Date.now() - began)
+                    await assertActive()
+                    if (prepared.elements.length) await dependencies.emit?.({ type: 'plan', task: preparation.brief, prepared })
+                    await dependencies.record?.('tool_call', { call: prepared.call, input: prepared.input })
+                    toolStarted = Date.now()
+                    dispatched = true
+                    const output = await entry.execute(prepared, dependencies.signal)
+                    const result = tools.invocations.validateToolResult(proposal, output)
+                    if (result.state === 'known' && result.output.ok && entry.contract.kind === 'write') {
+                        const mutation = tools.invocations.mutationResultSchema.parse({ callId: result.callId, name: result.name, output: result.output })
+                        assertElementTargets(prepared.elements, mutation.name === 'create_shapes' ? 'create' : mutation.name === 'update_shapes' ? 'update' : 'delete',
+                            'ids' in mutation.output ? mutation.output.ids.map(id => ({ id }))
+                                : mutation.name === 'create_shapes' ? mutation.output.shapes.map(shape => ({ type: shape.type })) : mutation.output.shapes)
+                        changes.push(mutation)
+                        prepared.elements.forEach(row => covered.add(row.sourceKey ?? row.key))
+                        finalRequested = prepared.isFinal === true
+                    } else if (entry.contract.kind === 'write') finalRequested = false
+                    return result
+                } catch (cause) {
+                    if (dependencies.signal.aborted || dispatched || !(cause instanceof AgentApplicationError)) fatal ??= cause
+                    const error = dependencies.signal.aborted ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时' } : applicationError(cause, dependencies)
+                    await dependencies.record?.('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall: proposal, error }, Date.now() - began)
+                    return tools.invocations.toolResultSchema.parse({ callId: proposal.id, name: proposal.name, state: dispatched ? 'unknown' : 'not_executed', error })
+                } finally {
+                    if (toolStarted !== undefined) durations.set(proposal.id, Date.now() - toolStarted)
+                }
+            }
+            // 连续读取并发，写入和询问是屏障；先收齐兄弟结果，再传播取消或传输错误。
+            for (let index = 0; index < decision.calls.length;) {
+                const group = [decision.calls[index++]]
+                if (tools.registry[group[0].name].contract.kind === 'read') {
+                    while (index < decision.calls.length && tools.registry[decision.calls[index].name].contract.kind === 'read') group.push(decision.calls[index++])
+                }
+                const settled = await Promise.allSettled(group.map(execute))
+                const results: ToolResult[] = []
+                for (const item of settled) {
+                    if (item.status === 'rejected') { fatal ??= item.reason; continue }
+                    const result = item.value
+                    results.push(result)
+                    // 在下一道执行屏障前提交事实和未知写入，后续工具不能使用过期的观察或授权状态。
+                    if (result.state === 'unknown' && tools.registry[result.name].contract.kind === 'write') uncertainCalls.push({ id: result.callId, name: result.name })
+                    await dependencies.record?.('tool_result', { callId: result.callId, result }, durations.get(result.callId))
+                    if (result.state !== 'known' || !result.output.ok) {
+                        batchFailed = true
+                        lastError = result.state === 'known' && !result.output.ok ? result.output.error : result.state !== 'known' ? result.error : undefined
+                    }
+                }
+                context = contextSchema.parse({ ...context, toolResults: [...context.toolResults, ...results], messages: [...context.messages, ...results.map(createToolResultMessage)] })
+                if (fatal) break
+            }
+            if (fatal) throw fatal
+            dependencies.signal.throwIfAborted()
+            if (!batchFailed && !uncertainCalls.length) lastError = undefined
+            if (finalRequested && !batchFailed && !uncertainCalls.length) return finish('已经执行草稿修改，请检查白板预览。')
+        }
+        throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED, message: '后端模型请求次数已达上限' })
+    } catch (cause) {
+        const cancelled = dependencies.signal.aborted
+        const error = cancelled ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时，已完成的内容仅保留在草稿中' } : applicationError(cause, dependencies)
+        return outcomeSchema.parse({ status: cancelled ? 'cancelled' : changes.length || uncertainCalls.length ? 'partial' : 'failed',
+            text: error.message, changes, uncertainCalls, error })
+    }
+}
