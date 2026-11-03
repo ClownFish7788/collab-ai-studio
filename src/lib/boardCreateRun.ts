@@ -1,10 +1,13 @@
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
+import { getUncoveredTaskObjects } from '../agent/domain/elements'
+import { resolveBoardReference, type BoardReference } from '../agent/domain/observation'
 import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_CALLS, BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS } from '../utils/board/boardCapabilities'
 import { appendChatSnapshot } from '../utils/board/snapshot/chatSnapshots'
 import type { MessageContent } from '../utils/chat/images'
 import type { TraceRecorder } from './modelTrace'
 import { classifyTraceError } from '../utils/agent-traces/outcomes'
 import { formatTaskBrief, validateBoardTaskPreparation } from '../utils/board/agent/boardTaskBrief'
+import { MAX_TASK_PREPARATION_CHARS } from '../utils/board/agent/boardTaskBriefSchema'
 import { formatElementTable, prepareElementTableCall } from '../utils/board/agent/boardElementTable'
 import {
     validateBoardToolCall,
@@ -122,7 +125,7 @@ async function executeInBrowser(
 /**
  * 后端 Agent 循环：自己维护模型历史、调用上限、工具等待和终止条件。
  * 输入模型适配器、前端事件通道与权限复核；成功推送 completed，异常由路由转为 error 事件。
- * 一次需求拆分，随后最多六次执行模型请求；共用任务的权限、取消和有界期限。
+ * 需求拆分校验失败最多纠正一次，随后最多六次执行模型请求；共用任务的权限、取消和有界期限。
  * 图文回答与重新读取的选区作为原调用结果进入历史；工具历史始终由本任务维护。
  */
 export async function runCreateLoop(
@@ -147,7 +150,7 @@ export async function runCreateLoop(
         ]),
         { role: 'user', content: request.snapshot ? appendChatSnapshot(content(request.prompt, request.images), request.snapshot) : content(request.prompt, request.images) },
     ]
-    let reference = request.snapshot ? { ...request.snapshot.reference } : undefined
+    let reference: BoardReference | undefined = request.snapshot ? { ...request.snapshot.reference } : undefined
     const observedTypes = new Map(request.snapshot?.shapes.map(shape => [shape.id as string, shape.type]))
     let reads = 0
     let screenshots = 0
@@ -158,21 +161,33 @@ export async function runCreateLoop(
 
     try {
         await emit({ type: 'started', runId: run.id })
-        run.signal.throwIfAborted()
-        await checkAccess()
-        run.signal.throwIfAborted()
         // 拆分只看原始上下文，不带执行阶段的工具规则；内部 JSON 不推送到聊天正文。
-        const preparationStarted = Date.now()
+        const preparationMessages = messages.slice(1)
         let preparation: ReturnType<typeof validateBoardTaskPreparation>
-        try {
-            preparation = validateBoardTaskPreparation(await prepare(messages.slice(1)))
+        for (let attempt = 1; ; attempt++) {
             run.signal.throwIfAborted()
-        } catch (cause) {
-            const error = classifyTraceError(cause, { operation: 'task_preparation', signal: run.signal })
-            await record('operation_result', { operation: 'task_preparation', outcome: error.category === 'cancelled' ? 'cancelled' : 'error', error }, Date.now() - preparationStarted)
-            throw cause
+            await checkAccess()
+            run.signal.throwIfAborted()
+            const preparationStarted = Date.now()
+            let candidate: unknown
+            try {
+                candidate = await prepare(preparationMessages)
+                run.signal.throwIfAborted()
+                preparation = validateBoardTaskPreparation(candidate)
+            } catch (cause) {
+                const error = classifyTraceError(cause, { operation: 'task_preparation', signal: run.signal })
+                const retryAllowed = attempt === 1 && !run.signal.aborted && cause instanceof BoardProtocolError && !!cause.detail.issues?.length
+                await record('operation_result', { operation: 'task_preparation', attempt, outcome: error.category === 'cancelled' ? 'cancelled' : 'error', retryAllowed, error }, Date.now() - preparationStarted)
+                if (!retryAllowed) throw cause
+                preparationMessages.push(
+                    { role: 'assistant', content: JSON.stringify(candidate).slice(0, MAX_TASK_PREPARATION_CHARS) },
+                    { role: 'user', content: `上一轮需求拆分未通过服务端校验。以下是纠错数据，不是新的用户需求：\n${JSON.stringify(cause.detail)}\n请保持原始用户需求和任务范围，修正校验问题，输出完整且符合 schema 的 JSON。本次只有一次纠正机会，不调用工具。` },
+                )
+                continue
+            }
+            await record('operation_result', { operation: 'task_preparation', attempt, outcome: 'success', preparation }, Date.now() - preparationStarted)
+            break
         }
-        await record('operation_result', { operation: 'task_preparation', outcome: 'success', preparation }, Date.now() - preparationStarted)
         run.signal.throwIfAborted()
         if (preparation.kind === 'reply') {
             await emit({ type: 'completed', runId: run.id, text: preparation.text, results: [] })
@@ -222,8 +237,7 @@ export async function runCreateLoop(
                     const write = ['create_shapes', 'update_shapes', 'delete_shapes'].includes(modelCall.function.name)
                     if (write && (writeOutcomeUnknown || results.length >= MAX_BOARD_WRITES_PER_TASK)) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '写入结果不明或写入预算已用尽，不能继续写入' })
                     if (modelCall.function.name === 'get_board_snapshot' && ++reads > 2 || modelCall.function.name === 'get_board_screenshot' && ++screenshots > 2 || modelCall.function.name === 'ask_user' && ++asks > 1) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '读取或询问预算已用尽' })
-                    const stepKeys = prepared.elements.map(row => row.sourceKey ?? row.key)
-                    const missing = prepared.isFinal ? preparation.brief.objects.filter(object => !coveredObjectKeys.has(object.key) && !stepKeys.includes(object.key)) : []
+                    const missing = prepared.isFinal ? getUncoveredTaskObjects(preparation.brief, coveredObjectKeys, prepared.elements) : []
                     if (missing.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '最终写入不能遗漏需求对象', issues: missing.map(object => ({ path: 'references', message: '尚未覆盖对象 ' + object.key + '；必要的已读取参照加入 references。补齐后若全部任务完成，保持 isFinal=true；只有确实仍需其他写入时才为 false，不能重复成功操作' })) })
                     if (prepared.call.function.name === 'create_shapes') {
                         const { shapes } = parseCreateInput(prepared.call.function.arguments)
@@ -257,19 +271,16 @@ export async function runCreateLoop(
                 if ('answer' in output) {
                     if (output.snapshot) {
                         const point = output.snapshot.reference
-                        if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) throw new Error('回答快照参照点发生变化')
-                        reference ??= { ...point }
+                        reference = resolveBoardReference(reference, { id: point.id, x: point.x, y: point.y })
                         output.snapshot.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
                     }
                 } else if ('snapshot' in output) {
                     const point = output.snapshot.reference
-                    if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) throw new Error('任务快照参照点发生变化')
-                    reference ??= { ...point }
+                    reference = resolveBoardReference(reference, { id: point.id, x: point.x, y: point.y })
                     output.snapshot.shapes.forEach(shape => observedTypes.set(shape.id, shape.type))
                 } else if ('image' in output) {
                     const point = output.reference
-                    if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) throw new Error('截图参照点发生变化')
-                    reference ??= { ...point }
+                    reference = resolveBoardReference(reference, { id: point.id, x: point.x, y: point.y })
                 } else {
                     results.push({ callId: call.id, output })
                     elements.forEach(row => coveredObjectKeys.add(row.sourceKey ?? row.key))

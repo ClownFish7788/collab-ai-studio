@@ -1,4 +1,5 @@
 import type { TLShape, TLShapeId } from 'tldraw'
+import { resolveBoardReference } from '../../../agent/domain/observation'
 import { isEqual } from '@tldraw/utils'
 import { DRAFT_SHAPE_TYPES } from '../draft/draftShapeSchema'
 import type { CreateDraftShapeInput, UpdateDraftShapeInput } from '../draft/draftShapeOperations'
@@ -81,9 +82,7 @@ export function createBoardToolRunner({ snapshot, assertActive, read, readSelect
                     const result = validateBoardToolOutput(value)
                     if (!result.ok || 'answer' in result || !('snapshot' in result || 'image' in result) || result.range !== range) throw new Error('读取结果不匹配')
                     const point = 'snapshot' in result ? result.snapshot.reference : result.reference
-                    if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) {
-                        throw new Error('任务参照点发生变化')
-                    }
+                    resolveBoardReference(reference, { id: point.id, x: point.x, y: point.y })
                     assertActive()
                     reference ??= { ...point }
                     if ('snapshot' in result) {
@@ -101,7 +100,7 @@ export function createBoardToolRunner({ snapshot, assertActive, read, readSelect
                     const context = await readSelection(answer.selectedShapeIds as TLShapeId[], reference)
                     const result = validateBoardToolOutput({ ok: true, answer, snapshot: context.snapshot })
                     const point = context.snapshot.reference
-                    if (reference && (point.id !== reference.id || point.x !== reference.x || point.y !== reference.y)) throw new Error('回答参照点发生变化')
+                    resolveBoardReference(reference, { id: point.id, x: point.x, y: point.y })
                     reference ??= { ...point }
                     assertActive()
                     authorize(context.snapshot.shapes.map(shape => shape.id))

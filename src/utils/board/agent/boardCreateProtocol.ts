@@ -1,9 +1,11 @@
 import { z } from 'zod'
+import { boardToolNameSchema, type BoardToolName } from '../../../agent/domain/tool'
+import { MAX_BOARD_SNAPSHOT_SHAPES } from '../../../agent/domain/observation'
 import { defaultShapeSchemas } from '@tldraw/tlschema'
 import { isEqual } from '@tldraw/utils'
 import { DERIVED_SHAPE_PROPS, type DraftShapeType } from '../draft/draftShapeSchema'
 import {
-    createShapesInputSchema, updateShapesInputSchema, deleteShapesInputSchema, snapshotInputSchema, askInputSchema, shapeIdSchema,
+    boardToolContracts, createShapesInputSchema, updateShapesInputSchema, deleteShapesInputSchema, snapshotInputSchema, askInputSchema, shapeIdSchema,
     type CreateShapeParameters, type CreateShapesInput, type UpdateShapeParameters, type UpdateShapesInput,
     type DeleteShapesInput, type SnapshotRange, type SnapshotInput, type AskInput,
 } from './boardToolInputSchema'
@@ -14,10 +16,9 @@ import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boa
 
 /** 工具结果的快照传输上限；启动请求另外使用图文请求上限。 */
 export const MAX_BOARD_PAYLOAD_BYTES = MAX_CHAT_REQUEST_BYTES
-export const MAX_BOARD_SNAPSHOT_SHAPES = 30
+export { MAX_BOARD_SNAPSHOT_SHAPES }
 export type { CreateShapeParameters, UpdateShapeParameters, SnapshotRange } from './boardToolInputSchema'
-export type BoardToolName = 'create_shapes' | 'update_shapes' | 'delete_shapes' | 'get_board_snapshot' | 'get_board_screenshot' | 'ask_user'
-export const isBoardReadTool = (name: BoardToolName) => name === 'get_board_snapshot' || name === 'get_board_screenshot'
+export { isBoardReadTool, type BoardToolName } from '../../../agent/domain/tool'
 export type BoardToolCall = {
     id: string
     type: 'function'
@@ -270,7 +271,7 @@ export function validateBoardToolCall(value: unknown): BoardToolCall {
     fields(value.function, ['name', 'arguments'])
 
     if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 200
-        || value.type !== 'function' || !['create_shapes', 'update_shapes', 'delete_shapes', 'get_board_snapshot', 'get_board_screenshot', 'ask_user'].includes(value.function.name as string)
+        || value.type !== 'function' || !boardToolNameSchema.safeParse(value.function.name).success
         || typeof value.function.arguments !== 'string' || value.function.arguments.length > MAX_BOARD_TOOL_ARGUMENT_CHARS) {
         throw new Error('白板工具调用格式不合法')
     }
@@ -308,7 +309,7 @@ export function validateCreateOutput(value: unknown): CreateToolOutput {
         fields(value, ['ok', 'error'])
 
         validateBoardAgentError(value.error)
-        return value as CreateToolOutput
+        return validateDomainToolOutput('create_shapes', value as CreateToolOutput)
     }
 
     fields(value, ['ok', 'state', 'shapes'])
@@ -331,7 +332,23 @@ export function validateCreateOutput(value: unknown): CreateToolOutput {
     })
 
     validateCreateInput({ shapes })
-    return value as CreateToolOutput
+    return validateDomainToolOutput('create_shapes', value as CreateToolOutput)
+}
+
+/** 完整快照仍用于模型展示，领域输出只接收真实 ID、类型与参照点的投影。 */
+function validateDomainToolOutput<T extends BoardToolOutput>(name: BoardToolName, output: T): T {
+    const snapshot = output.ok && 'snapshot' in output ? output.snapshot : undefined
+    let value: unknown = snapshot ? { ...output, snapshot: {
+        reference: { id: snapshot.reference.id, x: snapshot.reference.x, y: snapshot.reference.y },
+        shapes: snapshot.shapes.map(({ id, type }) => ({ id, type })),
+    } } : output
+    if (output.ok && 'image' in output) {
+        const { id, x, y } = output.reference
+        const { x: bx, y: by, w, h } = output.bounds
+        value = { ...output, reference: { id, x, y }, bounds: { x: bx, y: by, w, h } }
+    }
+    boardToolContracts[name].outputSchema.parse(value)
+    return output
 }
 
 /** 校验读取、回答或新增的结果；成功结构不能混合，错误统一使用受控诊断。 */
@@ -344,7 +361,7 @@ export function validateBoardToolOutput(value: unknown): BoardToolOutput {
             validateRegionSnapshot(value.snapshot)
             if (value.snapshot.shapes.length !== answer.selectedShapeIds.length || value.snapshot.shapes.some(shape => !answer.selectedShapeIds!.includes(shape.id))) throw new Error('回答选区与真实快照不匹配')
         } else if (value.snapshot !== undefined) throw new Error('回答快照须来自明确选区')
-        return value as AnswerToolSuccess
+        return validateDomainToolOutput('ask_user', value as AnswerToolSuccess)
     }
     if (value.ok === true && 'image' in value) {
         fields(value, ['ok', 'state', 'range', 'image', 'reference', 'bounds'])
@@ -353,7 +370,7 @@ export function validateBoardToolOutput(value: unknown): BoardToolOutput {
         validateRegionSnapshot({ reference: value.reference, shapes: [], viewport: value.bounds })
         record(value.bounds)
         if ((value.bounds.w as number) <= 0 || (value.bounds.h as number) <= 0) throw new Error('截图范围须为正数')
-        return value as ScreenshotToolSuccess
+        return validateDomainToolOutput('get_board_screenshot', value as ScreenshotToolSuccess)
     }
     if (value.ok === true && 'operation' in value) {
         if (value.state !== 'draft') throw new Error('写入结果须属于草稿')
@@ -364,7 +381,7 @@ export function validateBoardToolOutput(value: unknown): BoardToolOutput {
             fields(value, ['ok', 'state', 'operation', 'ids'])
             validateDeleteInput({ ids: value.ids })
         } else throw new Error('未知写入结果')
-        return value as MutationToolSuccess
+        return validateDomainToolOutput(value.operation === 'update' ? 'update_shapes' : 'delete_shapes', value as MutationToolSuccess)
     }
     if (value.ok === true && 'snapshot' in value) {
         fields(value, ['ok', 'state', 'range', 'snapshot', 'truncated'])
@@ -373,7 +390,7 @@ export function validateBoardToolOutput(value: unknown): BoardToolOutput {
         }
         validateRegionSnapshot(value.snapshot)
         if (value.snapshot.shapes.length > MAX_BOARD_SNAPSHOT_SHAPES) throw new Error('快照结果超过元素上限')
-        return value as SnapshotToolSuccess
+        return validateDomainToolOutput('get_board_snapshot', value as SnapshotToolSuccess)
     }
     return validateCreateOutput(value)
 }

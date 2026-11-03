@@ -1,9 +1,10 @@
 import { DefaultColorStyle } from '@tldraw/tlschema'
 import { DRAFT_SHAPE_TYPES } from './draft/draftShapeSchema'
+import { MAX_BOARD_ELEMENT_ROWS } from '../../agent/domain/task'
+import { MAX_BOARD_WRITE_SHAPES } from '../../agent/domain/tool'
 
-export const MAX_BOARD_WRITE_SHAPES = 30
+export { MAX_BOARD_ELEMENT_ROWS, MAX_BOARD_WRITE_SHAPES }
 export const MAX_BOARD_WRITES_PER_TASK = 3
-export const MAX_BOARD_ELEMENT_ROWS = 30
 export const MAX_BOARD_TOOL_ARGUMENT_CHARS = 10000
 export const MAX_BOARD_ELEMENT_TABLE_CHARS = 6000
 export const MAX_BOARD_TOOL_CALLS = 6
