@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { boardToolNameSchema, type BoardToolName } from '../../../agent/domain/tool'
 import { MAX_BOARD_SNAPSHOT_SHAPES } from '../../../agent/domain/observation'
+import { ERROR_CODES, agentErrorSchema, type AgentError as BoardAgentError } from '../../../agent/domain/error'
+import { boardAnswerSchema, type BoardAnswer } from '../../../agent/domain/tool'
 import { defaultShapeSchemas } from '@tldraw/tlschema'
 import { isEqual } from '@tldraw/utils'
 import { DERIVED_SHAPE_PROPS, type DraftShapeType } from '../draft/draftShapeSchema'
@@ -27,20 +29,7 @@ export type BoardToolCall = {
 
 export type CreatedToolShape = CreateShapeParameters & { id: string }
 
-export enum ERROR_CODES {
-    INVALID_ARGUMENTS = 'INVALID_ARGUMENTS',
-    INVALID_MODEL_RESPONSE = 'INVALID_MODEL_RESPONSE',
-    EXECUTION_FAILED = 'EXECUTION_FAILED',
-    ACCESS_DENIED = 'ACCESS_DENIED',
-    TASK_INACTIVE = 'TASK_INACTIVE',
-    TASK_FAILED = 'TASK_FAILED',
-}
-
-export type BoardAgentError = {
-    code: ERROR_CODES
-    message: string
-    issues?: { path: string; message: string }[]
-}
+export { ERROR_CODES, type AgentError as BoardAgentError } from '../../../agent/domain/error'
 
 /** 仅携带程序生成的诊断；不将未知异常正文反馈给模型。 */
 export class BoardProtocolError extends Error {
@@ -73,7 +62,7 @@ export type ScreenshotToolSuccess = {
     reference: RegionSnapshot['reference']
     bounds: { x: number; y: number; w: number; h: number }
 }
-export type BoardAnswer = { text?: string; images?: string[]; selectedShapeIds?: string[] }
+export type { BoardAnswer } from '../../../agent/domain/tool'
 export type AnswerToolSuccess = { ok: true; answer: BoardAnswer; snapshot?: RegionSnapshot }
 export type BoardToolOutput = CreateToolOutput | MutationToolSuccess | SnapshotToolSuccess | ScreenshotToolSuccess | AnswerToolSuccess
 
@@ -88,7 +77,7 @@ export function validateBoardAnswer(value: unknown): BoardAnswer {
     const images = value.images as string[] | undefined
     const selectedShapeIds = value.selectedShapeIds as string[] | undefined
     if (!text && !images?.length && !selectedShapeIds?.length) throw new Error('请提供文字、图片或选择元素')
-    return { ...(text ? { text } : {}), ...(images?.length ? { images } : {}), ...(selectedShapeIds?.length ? { selectedShapeIds } : {}) }
+    return boardAnswerSchema.parse({ ...(text ? { text } : {}), ...(images?.length ? { images } : {}), ...(selectedShapeIds?.length ? { selectedShapeIds } : {}) })
 }
 
 export type BoardConversationTurn = { prompt: string; reply: string; images?: string[] }
@@ -299,7 +288,7 @@ export function validateBoardAgentError(value: unknown): BoardAgentError {
             }
         }
     }
-    return value as BoardAgentError
+    return agentErrorSchema.parse(value)
 }
 
 export function validateCreateOutput(value: unknown): CreateToolOutput {
@@ -335,12 +324,18 @@ export function validateCreateOutput(value: unknown): CreateToolOutput {
     return validateDomainToolOutput('create_shapes', value as CreateToolOutput)
 }
 
-/** 完整快照仍用于模型展示，领域输出只接收真实 ID、类型与参照点的投影。 */
+/** 领域校验完整的可移植快照；原生附加字段仍随原始 wire 对象返回，不写入领域契约。 */
 function validateDomainToolOutput<T extends BoardToolOutput>(name: BoardToolName, output: T): T {
     const snapshot = output.ok && 'snapshot' in output ? output.snapshot : undefined
     let value: unknown = snapshot ? { ...output, snapshot: {
         reference: { id: snapshot.reference.id, x: snapshot.reference.x, y: snapshot.reference.y },
-        shapes: snapshot.shapes.map(({ id, type }) => ({ id, type })),
+        ...(snapshot.viewport ? { viewport: { x: snapshot.viewport.x, y: snapshot.viewport.y, w: snapshot.viewport.w, h: snapshot.viewport.h } } : {}),
+        shapes: snapshot.shapes.map(shape => ({
+            id: shape.id, type: shape.type, x: shape.x, y: shape.y, w: shape.w, h: shape.h, text: shape.text, opacity: shape.opacity,
+            ...(shape.origin ? { origin: { x: shape.origin.x, y: shape.origin.y } } : {}),
+            ...Object.fromEntries(['props', 'color', 'labelColor', 'fill', 'geo', 'assetId', 'url']
+                .filter(key => shape[key as keyof typeof shape] !== undefined).map(key => [key, shape[key as keyof typeof shape]])),
+        })),
     } } : output
     if (output.ok && 'image' in output) {
         const { id, x, y } = output.reference

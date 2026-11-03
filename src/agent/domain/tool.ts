@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { MAX_BOARD_ELEMENT_ROWS, taskObjectSchema } from './task'
-import { MAX_BOARD_SNAPSHOT_SHAPES, boardObservationSchema, boardReferenceSchema, shapeIdSchema, shapeTypeSchema } from './observation'
+import { MAX_BOARD_SNAPSHOT_SHAPES, boardSnapshotSchema, boardReferenceSchema, shapeIdSchema, shapeTypeSchema } from './observation'
+import { jsonObjectSchema } from './data'
+import { agentErrorSchema } from './error'
 
 export const MAX_BOARD_WRITE_SHAPES = 30
 export const boardToolNameSchema = z.enum(['create_shapes', 'update_shapes', 'delete_shapes', 'get_board_snapshot', 'get_board_screenshot', 'ask_user'])
@@ -17,21 +19,26 @@ const propsSchema = z.preprocess((value, ctx) => {
         ctx.addIssue({ code: 'custom', message: '包含不支持的属性名' })
     }
     return value
-}, z.record(z.string().regex(/^(?!__proto__$)/), z.unknown()))
+}, z.record(z.string().regex(/^(?!__proto__$)/), z.unknown()).superRefine((value, ctx) => {
+    if (!jsonObjectSchema.safeParse(value).success) ctx.addIssue({ code: 'custom', message: '属性必须是安全 JSON 对象' })
+}))
 const changeConstraint = {
     anyOf: [{ required: ['x'] }, { required: ['y'] }, { required: ['props'], properties: { props: { minProperties: 1 } } }],
 }
 const toolFailureSchema = z.strictObject({
     ok: z.literal(false),
-    error: z.strictObject({
-        code: z.string().min(1).max(100),
-        message: z.string().min(1).max(1000).regex(/\S/),
-        issues: z.array(z.strictObject({
-            path: z.string().regex(/^[\w.[\]]{1,100}$/),
-            message: z.string().min(1).max(200).regex(/\S/),
-        })).min(1).max(40).optional(),
-    }),
+    error: agentErrorSchema,
 })
+
+/** 用户的原始补充；图片文件头和实际选区来源仍由适配层验证。 */
+export const boardAnswerSchema = z.strictObject({
+    text: z.string().max(1000).optional(),
+    images: z.array(z.string().min(1)).max(3).optional(),
+    selectedShapeIds: z.array(shapeIdSchema).max(MAX_BOARD_SNAPSHOT_SHAPES)
+        .refine(ids => new Set(ids).size === ids.length, '回答选区 ID 不能重复').optional(),
+}).refine(answer => !!answer.text?.trim() || !!answer.images?.length || !!answer.selectedShapeIds?.length,
+    '请提供文字、图片或选择元素')
+export type BoardAnswer = z.infer<typeof boardAnswerSchema>
 
 /**
  * 原生能力目录由适配器提供，领域只依赖普通字符串和 Zod。
@@ -85,22 +92,15 @@ export function createBoardToolContracts<T extends string>(shapeTypes: readonly 
     }), toolFailureSchema])
     const snapshotOutputSchema = z.discriminatedUnion('ok', [z.strictObject({
         ok: z.literal(true), state: z.literal('draft'), range: snapshotInputSchema.shape.range,
-        snapshot: boardObservationSchema, truncated: z.boolean(),
+        snapshot: boardSnapshotSchema.extend({ shapes: boardSnapshotSchema.shape.shapes.max(MAX_BOARD_SNAPSHOT_SHAPES) }), truncated: z.boolean(),
     }), toolFailureSchema])
     const screenshotOutputSchema = z.discriminatedUnion('ok', [z.strictObject({
         ok: z.literal(true), state: z.literal('draft'), range: snapshotInputSchema.shape.range,
         image: z.string().min(1), reference: boardReferenceSchema,
         bounds: z.strictObject({ x: z.number(), y: z.number(), w: z.number().positive(), h: z.number().positive() }),
     }), toolFailureSchema])
-    const answerSchema = z.strictObject({
-        text: z.string().max(1000).optional(),
-        images: z.array(z.string().min(1)).max(3).optional(),
-        selectedShapeIds: z.array(shapeIdSchema).max(MAX_BOARD_SNAPSHOT_SHAPES)
-            .refine(ids => new Set(ids).size === ids.length, '回答选区 ID 不能重复').optional(),
-    }).refine(answer => !!answer.text?.trim() || !!answer.images?.length || !!answer.selectedShapeIds?.length,
-        '请提供文字、图片或选择元素')
     const answerOutputSchema = z.discriminatedUnion('ok', [z.strictObject({
-        ok: z.literal(true), answer: answerSchema, snapshot: boardObservationSchema.optional(),
+        ok: z.literal(true), answer: boardAnswerSchema, snapshot: boardSnapshotSchema.optional(),
     }), toolFailureSchema]).superRefine((output, ctx) => {
         if (!output.ok) return
         const ids = output.answer.selectedShapeIds ?? []
@@ -135,26 +135,32 @@ export function createBoardToolContracts<T extends string>(shapeTypes: readonly 
     const mutationSchemas = getMutationIntentSchemas()
     const tools = {
         create_shapes: {
+            kind: 'write' as const,
             description: `用户已明确要求新增元素时，在临时草稿新增 1～${MAX_BOARD_WRITE_SHAPES} 个原生 tldraw 元素。shapes 每项提交 objectKey、type、x/y 和明确的原生 props；程序生成内部元素表，不提交 elements/known/missing 或已有 shapeId。必要的已有参照放 references。同一语义对象展开多个图形时复用 objectKey。geo 支持所有原生几何和颜色；${hasGroup ? 'group 必须提供至少两个已读取的 children ID。' : ''}x/y 相对固定参照点，内部几何坐标仍为局部坐标。对象有歧义或要求先确认时先 ask_user。返回真实 ID，不提交正式白板。`,
             inputSchema: mutationSchemas.create, outputSchema: createOutputSchema,
         },
         update_shapes: {
+            kind: 'write' as const,
             description: `在草稿更新 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。changes 每项只提交 objectKey、真实 shapeId 和明确修改的 x/y/props；程序生成 type 和元素表，不提交 shapes/elements/known/missing。省略字段保留原值，不能转换 type。x/y 是元素原点相对固定参照点的坐标。必要参照放 references；对象不唯一先读取或询问；整批失败不执行，不提交正式白板。`,
             inputSchema: mutationSchemas.update, outputSchema: updateOutputSchema,
         },
         delete_shapes: {
+            kind: 'write' as const,
             description: `在草稿删除 1～${MAX_BOARD_WRITE_SHAPES} 个已读取、页面直属、无旋转、未锁定的原生元素。targets 每项只提交 objectKey 和真实 shapeId，程序生成 ids 和元素表，不提交 ids/elements/type/known/missing。必要参照放 references，不能参与删除。容器后代和受影响箭头也必须已读取，越界副作用使整批回滚。目标不明确先读取或询问。只生成待确认的删除草稿，不提交正式白板。`,
             inputSchema: mutationSchemas.delete, outputSchema: deleteOutputSchema,
         },
         get_board_snapshot: {
+            kind: 'read' as const,
             description: '读取当前任务草稿，支持查看、统计、分类等只读查询及写入前定位。只提交range，不提交elements；用户只说“帮我弄一下白板”等目标不明需求时先澄清。明确要求整个页面用page，否则优先viewport。truncated=true表示不完整。reference只是坐标原点，不代表用户指定对象。',
             inputSchema: snapshotInputSchema, outputSchema: snapshotOutputSchema,
         },
         get_board_screenshot: {
+            kind: 'read' as const,
             description: '读取当前任务草稿的视口或整页截图。可与同范围get_board_snapshot一起调用，结合外观、文字和结构数据定位元素；图片不授予未读取ID的写入权限。只提交range，不提交elements。',
             inputSchema: snapshotInputSchema, outputSchema: screenshotOutputSchema,
         },
         ask_user: {
+            kind: 'ask' as const,
             description: '用户已明确具体操作，但缺少必要参数、对象有多个候选，或明确要求先询问/确认时，必须调用本工具并等待真实回答后继续。只提交 question，不提交 elements；无需先确定对象清单、ID、类型或缺项。禁止仅在 content 中提执行问题或用文字冒充调用。问题一次合并相关必要信息，候选用位置或特征区分。只有可选参数缺省且有默认值时无需询问。任务目标本身未明确时使用 content 澄清，不调用本工具。每任务最多一次。',
             inputSchema: askInputSchema, outputSchema: answerOutputSchema,
         },
@@ -162,3 +168,5 @@ export function createBoardToolContracts<T extends string>(shapeTypes: readonly 
     return { tools, createShapeInputSchema, createShapesInputSchema, updateShapeInputSchema, updateShapesInputSchema,
         deleteShapesInputSchema, snapshotInputSchema, askInputSchema, getMutationIntentSchemas }
 }
+
+export type BoardToolContracts<T extends string = string> = ReturnType<typeof createBoardToolContracts<T>>['tools']

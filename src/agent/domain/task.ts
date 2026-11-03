@@ -60,3 +60,11 @@ export const taskBriefSchema = z.strictObject({
 
 export type TaskObject = z.infer<typeof taskObjectSchema>
 export type TaskBrief = z.infer<typeof taskBriefSchema>
+
+export const MAX_TASK_PREPARATION_CHARS = 8000
+/** 准备阶段的完整语义决策；是否纠正重试由应用层决定。 */
+export const boardTaskPreparationSchema = z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('task'), brief: taskBriefSchema }),
+    z.strictObject({ kind: z.literal('reply'), text: z.string().min(1).max(MAX_TASK_PREPARATION_CHARS).regex(/\S/, '不能只包含空白') }),
+])
+export type BoardTaskPreparation = z.infer<typeof boardTaskPreparationSchema>
