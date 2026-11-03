@@ -1,4 +1,4 @@
-import type { RegionSnapshot } from './collectRegionSnapshot'
+import type { RegionSnapshot } from '../../../agent/adapters/board/tldraw'
 import type { MessageContent } from '../../chat/images'
 
 /** 独立限制每条消息的快照大小，不占用用户输入的 4000 字额度。 */

@@ -8,9 +8,9 @@ import useStyleStore from '@/app/store/useStyleStore'
 import { applyBoardDraft, createBoardDraft, discardBoardDraft, getDraftChanges, type BoardDraft, type DraftChanges } from '@/utils/board/draft/boardDraft'
 import { createDraftShapes, updateDraftShapes, deleteDraftShapes } from '@/utils/board/draft/draftShapeOperations'
 import { getConfirmedRoomRole } from '@/utils/collaboration/roomAccess'
-import { createBoardToolRunner } from '@/utils/board/agent/executeBoardCreateTool'
-import { captureBoardSnapshot, captureBoardScreenshot } from '@/utils/board/agent/boardAgentSnapshot'
-import { requestBoardAnswer, type BoardQuestion } from '@/utils/board/agent/boardAgentQuestion'
+import { createTldrawTools, captureBoardSnapshot, captureBoardScreenshot } from '@/agent/adapters/board/tldraw'
+import { createBrowserToolDispatcher } from '@/agent/adapters/browser/toolDispatcher'
+import { requestBoardAnswer, type BoardQuestion } from '@/agent/adapters/interaction/askUser'
 import { validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
 import { BoardProtocolError, ERROR_CODES, type BoardCreateRequest } from '@/utils/board/agent/boardCreateProtocol'
 import { reportAgentOperation } from '@/utils/agent-traces/client'
@@ -193,20 +193,23 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             if (!draft || !draftEditor) throw new Error('草稿尚未就绪')
             return { draft, editor: draftEditor }
         }
-        const execute = createBoardToolRunner({
+        const board = createTldrawTools({
             snapshot: input.snapshot, pageId, assertActive,
             getShape: id => draftEditor?.getShape(id),
             read: (range, reference) => captureBoardSnapshot(target().editor, range, reference),
             readSelection: async (ids, reference) => { await ensureEditor(); return captureBoardSnapshot(target().editor, 'page', reference, ids) },
             screenshot: (range, reference) => captureBoardScreenshot(target().editor, range, reference),
-            onReadRetry: (callId, attempt) => { void reportAgentOperation(traceId, 'tool_retry', 'error', new Error(`调用 ${callId} 第${attempt}次读取失败，正在重试`)) },
             authorize: ids => { const current = target(); ids.forEach(id => current.draft.scope.add(id)) },
-            ask: text => requestBoardAnswer(text, signal, pending => {
-                if (agentRef.current === controller) setQuestion(pending)
-            }, reason => controller.abort(reason)),
             create: inputs => { const current = target(); const result = createDraftShapes(current.draft, current.editor, inputs); setChanges(getDraftChanges(current.draft)); return result },
             update: inputs => { const current = target(); const result = updateDraftShapes(current.draft, current.editor, inputs); setChanges(getDraftChanges(current.draft)); return result },
             remove: ids => { const current = target(); const result = deleteDraftShapes(current.draft, current.editor, ids); setChanges(getDraftChanges(current.draft)); return result },
+        })
+        const execute = createBrowserToolDispatcher({
+            board, assertActive,
+            ask: text => requestBoardAnswer(text, signal, pending => {
+                if (agentRef.current === controller) setQuestion(pending)
+            }, reason => controller.abort(reason)),
+            onReadRetry: (callId, attempt) => { void reportAgentOperation(traceId, 'tool_retry', 'error', new Error(`调用 ${callId} 第${attempt}次读取失败，正在重试`)) },
         })
         try {
             const result = await streamBoardCreateRun({ ...input, roomId }, signal, async call => {

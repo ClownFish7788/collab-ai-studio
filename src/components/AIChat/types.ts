@@ -1,5 +1,5 @@
 import type { ImageAttachment } from '../../utils/chat/images'
-import type { RegionSnapshot } from '../../utils/board/snapshot/collectRegionSnapshot'
+import type { RegionSnapshot } from '../../agent/adapters/board/tldraw'
 
 export type ChatMessage = {
     id: string

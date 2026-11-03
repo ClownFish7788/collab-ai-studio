@@ -1,6 +1,6 @@
 import { fetchEventSource, EventStreamContentType } from '@microsoft/fetch-event-source'
 import { MAX_CHAT_REQUEST_BYTES, type MessageContent } from './images'
-import type { RegionSnapshot } from '../board/snapshot/collectRegionSnapshot'
+import type { RegionSnapshot } from '../../agent/adapters/board/tldraw'
 import { reportAgentOperation } from '../agent-traces/client'
 
 export async function streamChat(

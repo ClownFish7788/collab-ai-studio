@@ -1,6 +1,6 @@
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl, type MessageContent, type ImagePart, type TextPart } from '@/utils/chat/images'
 import { appendChatSnapshot, validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
-import type { RegionSnapshot } from '@/utils/board/snapshot/collectRegionSnapshot'
+import type { RegionSnapshot } from '@/agent/adapters/board/tldraw'
 import { tldrawPrompt } from '@/prompts/tldrawPrompt'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'

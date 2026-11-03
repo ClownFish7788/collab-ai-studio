@@ -1,17 +1,19 @@
+import { toAgentToolOutput } from '../../../agent/adapters/board/protocol'
+import { validateBoardAnswer } from '../../../agent/adapters/interaction/askUser'
 import { z } from 'zod'
 import { boardToolNameSchema, type BoardToolName } from '../../../agent/domain/tool'
 import { MAX_BOARD_SNAPSHOT_SHAPES } from '../../../agent/domain/observation'
 import { ERROR_CODES, agentErrorSchema, type AgentError as BoardAgentError } from '../../../agent/domain/error'
-import { boardAnswerSchema, type BoardAnswer } from '../../../agent/domain/tool'
+import type { BoardAnswer } from '../../../agent/domain/tool'
 import { defaultShapeSchemas } from '@tldraw/tlschema'
 import { isEqual } from '@tldraw/utils'
 import { DERIVED_SHAPE_PROPS, type DraftShapeType } from '../draft/draftShapeSchema'
 import {
-    boardToolContracts, createShapesInputSchema, updateShapesInputSchema, deleteShapesInputSchema, snapshotInputSchema, askInputSchema, shapeIdSchema,
+    createShapesInputSchema, updateShapesInputSchema, deleteShapesInputSchema, snapshotInputSchema, askInputSchema, shapeIdSchema,
     type CreateShapeParameters, type CreateShapesInput, type UpdateShapeParameters, type UpdateShapesInput,
     type DeleteShapesInput, type SnapshotRange, type SnapshotInput, type AskInput,
 } from './boardToolInputSchema'
-import type { RegionSnapshot } from '../snapshot/collectRegionSnapshot'
+import type { RegionSnapshot } from '../../../agent/adapters/board/tldraw'
 import { validateChatSnapshot, validateRegionSnapshot } from '../snapshot/chatSnapshots'
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } from '../../chat/images'
 import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../boardCapabilities'
@@ -43,9 +45,9 @@ export type CreateToolOutput =
     | { ok: false; error: BoardAgentError }
 
 export type CreateToolSuccess = Extract<CreateToolOutput, { ok: true }>
-export type MutationToolSuccess = CreateToolSuccess
-    | { ok: true; state: 'draft'; operation: 'update'; shapes: UpdateShapeParameters[] }
-    | { ok: true; state: 'draft'; operation: 'delete'; ids: string[] }
+export type UpdateToolSuccess = { ok: true; state: 'draft'; operation: 'update'; shapes: UpdateShapeParameters[] }
+export type DeleteToolSuccess = { ok: true; state: 'draft'; operation: 'delete'; ids: string[] }
+export type MutationToolSuccess = CreateToolSuccess | UpdateToolSuccess | DeleteToolSuccess
 
 export type BoardMutationResult = { callId: string; output: MutationToolSuccess }
 
@@ -64,21 +66,17 @@ export type ScreenshotToolSuccess = {
 }
 export type { BoardAnswer } from '../../../agent/domain/tool'
 export type AnswerToolSuccess = { ok: true; answer: BoardAnswer; snapshot?: RegionSnapshot }
-export type BoardToolOutput = CreateToolOutput | MutationToolSuccess | SnapshotToolSuccess | ScreenshotToolSuccess | AnswerToolSuccess
 
-export function validateBoardAnswer(value: unknown): BoardAnswer {
-    record(value)
-    fields(value, ['text', 'images', 'selectedShapeIds'])
-    if (value.text !== undefined && (typeof value.text !== 'string' || value.text.length > 1000)) throw new Error('回答文字不合法')
-    if (value.images !== undefined) validateBoardImages(value.images)
-    if (value.selectedShapeIds !== undefined && (!Array.isArray(value.selectedShapeIds) || value.selectedShapeIds.length > MAX_BOARD_SNAPSHOT_SHAPES
-        || value.selectedShapeIds.some(id => !validShapeId(id)) || new Set(value.selectedShapeIds).size !== value.selectedShapeIds.length)) throw new Error('回答选区不合法')
-    const text = typeof value.text === 'string' ? value.text.trim() : ''
-    const images = value.images as string[] | undefined
-    const selectedShapeIds = value.selectedShapeIds as string[] | undefined
-    if (!text && !images?.length && !selectedShapeIds?.length) throw new Error('请提供文字、图片或选择元素')
-    return boardAnswerSchema.parse({ ...(text ? { text } : {}), ...(images?.length ? { images } : {}), ...(selectedShapeIds?.length ? { selectedShapeIds } : {}) })
+/** 具体工具保持各自的成功结构；传输分发边界才合并成 BoardToolOutput。 */
+export type BoardToolSuccessMap = {
+    create_shapes: CreateToolSuccess
+    update_shapes: UpdateToolSuccess
+    delete_shapes: DeleteToolSuccess
+    get_board_snapshot: SnapshotToolSuccess
+    get_board_screenshot: ScreenshotToolSuccess
+    ask_user: AnswerToolSuccess
 }
+export type BoardToolOutput = BoardToolSuccessMap[BoardToolName] | Extract<CreateToolOutput, { ok: false }>
 
 export type BoardConversationTurn = { prompt: string; reply: string; images?: string[] }
 const MAX_CONVERSATION_TURNS = 6
@@ -322,23 +320,7 @@ export function validateCreateOutput(value: unknown): CreateToolOutput {
 
 /** 领域校验完整的可移植快照；原生附加字段仍随原始 wire 对象返回，不写入领域契约。 */
 function validateDomainToolOutput<T extends BoardToolOutput>(name: BoardToolName, output: T): T {
-    const snapshot = output.ok && 'snapshot' in output ? output.snapshot : undefined
-    let value: unknown = snapshot ? { ...output, snapshot: {
-        reference: { id: snapshot.reference.id, x: snapshot.reference.x, y: snapshot.reference.y },
-        ...(snapshot.viewport ? { viewport: { x: snapshot.viewport.x, y: snapshot.viewport.y, w: snapshot.viewport.w, h: snapshot.viewport.h } } : {}),
-        shapes: snapshot.shapes.map(shape => ({
-            id: shape.id, type: shape.type, x: shape.x, y: shape.y, w: shape.w, h: shape.h, text: shape.text, opacity: shape.opacity,
-            ...(shape.origin ? { origin: { x: shape.origin.x, y: shape.origin.y } } : {}),
-            ...Object.fromEntries(['props', 'color', 'labelColor', 'fill', 'geo', 'assetId', 'url']
-                .filter(key => shape[key as keyof typeof shape] !== undefined).map(key => [key, shape[key as keyof typeof shape]])),
-        })),
-    } } : output
-    if (output.ok && 'image' in output) {
-        const { id, x, y } = output.reference
-        const { x: bx, y: by, w, h } = output.bounds
-        value = { ...output, reference: { id, x, y }, bounds: { x: bx, y: by, w, h } }
-    }
-    boardToolContracts[name].outputSchema.parse(value)
+    toAgentToolOutput(name, output)
     return output
 }
 
@@ -384,6 +366,15 @@ export function validateBoardToolOutput(value: unknown): BoardToolOutput {
         return validateDomainToolOutput('get_board_snapshot', value as SnapshotToolSuccess)
     }
     return validateCreateOutput(value)
+}
+
+/** 先做原生传输校验，再按工具名验证 Zod 输出；截图结果不能冒充结构快照。 */
+export function validateBoardToolSuccess<Name extends BoardToolName>(name: Name, value: unknown): BoardToolSuccessMap[Name] {
+    const output = validateBoardToolOutput(value)
+    if (!output.ok) throw new BoardProtocolError(output.error)
+    toAgentToolOutput(name, output)
+    // 上面的运行时校验已绑定工具名；动态索引无法让 TypeScript 自动建立这个关联。
+    return output as BoardToolSuccessMap[Name]
 }
 
 /** 完成事件只能携带真实写入成功；读取和回答不构成白板修改。 */

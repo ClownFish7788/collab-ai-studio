@@ -1,6 +1,6 @@
 import { getBoardConversationHistory, type BoardConversationTurn } from '../board/agent/boardCreateProtocol'
 import { toMessageContent, type ImageAttachment } from './images'
-import type { RegionSnapshot } from '../board/snapshot/collectRegionSnapshot'
+import type { RegionSnapshot } from '../../agent/adapters/board/tldraw'
 
 type ChatHistoryMessage = {
     role: 'user' | 'assistant'; content: string; images?: ImageAttachment[]; failed?: boolean

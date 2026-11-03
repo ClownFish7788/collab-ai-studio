@@ -1,7 +1,20 @@
-import { validateBoardAnswer, type BoardAnswer } from './boardCreateProtocol'
-import { BOARD_ANSWER_TIMEOUT_MS } from '../boardCapabilities'
+import { boardAnswerSchema, type BoardAnswer } from '../../domain/tool'
+import { BOARD_ANSWER_TIMEOUT_MS } from '../../application/ports'
+import { validateImageDataUrl } from '../../../utils/chat/images'
 
 export type BoardQuestion = { text: string; submit: (answer: BoardAnswer) => void }
+
+/** 只校验回答内容和 ID 格式；选区是否真实存在、能否操作，由白板适配器另行核实。 */
+export function validateBoardAnswer(value: unknown): BoardAnswer {
+    const answer = boardAnswerSchema.parse(value)
+    answer.images?.forEach(validateImageDataUrl)
+    const text = answer.text?.trim()
+    return boardAnswerSchema.parse({
+        ...(text ? { text } : {}),
+        ...(answer.images?.length ? { images: answer.images } : {}),
+        ...(answer.selectedShapeIds?.length ? { selectedShapeIds: answer.selectedShapeIds } : {}),
+    })
+}
 
 /**
  * 展示一个问题并等待真实提交，返回去空格后的非空回答；取消和超时均拒绝等待并清理界面。
