@@ -10,7 +10,7 @@ import { createToolRegistry } from './toolRegistry'
 
 /** 用例仅编排领域数据；模型协议、浏览器等待、权限来源和 trace 持久化均由端口提供。 */
 export async function runAgent(input: RunAgentInput, dependencies: AgentDependencies): Promise<AgentOutcome> {
-    const tools = createToolRegistry(dependencies.tools, dependencies.execute)
+    const tools = createToolRegistry(dependencies.tools, dependencies.execute, dependencies.validate)
     const contextSchema = createAgentContextSchema(tools.invocations)
     const outcomeSchema = createAgentOutcomeSchema(tools.invocations.mutationResultSchema)
     const changes: MutationResult[] = [], uncertainCalls: { id: string; name: ToolCallProposal['name'] }[] = []
@@ -67,7 +67,9 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                 let dispatched = false
                 let toolStarted: number | undefined
                 try {
-                    const prepared = tools.prepare(proposal, context)
+                    const validation = tools.prepare(proposal, context)
+                    if (!validation.ok) throw new AgentApplicationError(validation.error)
+                    const prepared = validation.prepared
                     if (entry.contract.kind === 'write' && (uncertainCalls.length || changes.length >= MAX_BOARD_WRITES_PER_TASK)) fail('写入结果不明或写入预算已用尽，不能继续写入')
                     if (proposal.name === 'get_board_snapshot' || proposal.name === 'get_board_screenshot' || proposal.name === 'ask_user') {
                         if (++counts[proposal.name] > (proposal.name === 'ask_user' ? 1 : 2)) fail('读取或询问预算已用尽')
@@ -92,7 +94,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     } else if (entry.contract.kind === 'write') finalRequested = false
                     return result
                 } catch (cause) {
-                    if (dependencies.signal.aborted || dispatched || !(cause instanceof AgentApplicationError)) fatal ??= cause
+                    if (dependencies.signal.aborted || dispatched || !(cause instanceof AgentApplicationError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS) fatal ??= cause
                     const error = dependencies.signal.aborted ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时' } : applicationError(cause, dependencies)
                     await dependencies.record?.('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall: proposal, error }, Date.now() - began)
                     return tools.invocations.toolResultSchema.parse({ callId: proposal.id, name: proposal.name, state: dispatched ? 'unknown' : 'not_executed', error })

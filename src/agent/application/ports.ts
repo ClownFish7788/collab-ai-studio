@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { agentErrorSchema, ERROR_CODES, type AgentError } from '../domain/error'
+import { agentErrorSchema, ERROR_CODES, type AgentError, type ValidationIssue } from '../domain/error'
 import type { AgentContext } from '../domain/context'
 import type { JsonValue } from '../domain/data'
 import type { BoardElementRow } from '../domain/elements'
@@ -23,6 +23,9 @@ export type ModelPort = {
 
 /** call 保留模型意图供结果核对；input 是移除元数据、补全类型后的实际执行参数。 */
 export type PreparedTool = { call: ToolCall; input: JsonValue; elements: BoardElementRow[]; isFinal?: boolean }
+export type ValidationResult = { ok: true; prepared: PreparedTool } | { ok: false; error: AgentError }
+/** 只读能力校验；未知目标类型不得猜测，不能派发工具或修改草稿。 */
+export type ToolValidationPort = (call: ToolCall, observedTypes: ReadonlyMap<string, string>) => readonly ValidationIssue[]
 /** 派发前拒绝须返回 not_executed；派发后无法确认结果须返回 unknown，不能推断没有副作用。 */
 export type ToolExecutorPort = (prepared: PreparedTool, signal: AbortSignal) => Promise<unknown>
 export type AgentEvent = { type: 'started' } | { type: 'plan'; task: TaskBrief; prepared?: PreparedTool }
@@ -30,6 +33,7 @@ export type AgentRecord = (type: string, data: Record<string, unknown>, duration
 export type AgentDependencies = {
     tools: BoardToolContracts
     model: ModelPort
+    validate: ToolValidationPort
     execute: ToolExecutorPort
     signal: AbortSignal
     checkAccess(): Promise<void>

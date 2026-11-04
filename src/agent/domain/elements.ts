@@ -66,23 +66,26 @@ export function prepareElementRows(
     targets: readonly ElementTarget[], references: readonly ElementTarget[], operation: 'create' | 'update' | 'delete',
     brief: TaskBrief, observedTypes: ReadonlyMap<string, string>,
 ): BoardElementRow[] {
-    const invalid = (path: (string | number)[], message: string): never => { throw new z.ZodError([{ code: 'custom', path, message }]) }
+    const issues: z.core.$ZodIssue[] = []
+    const invalid = (path: (string | number)[], message: string) => { issues.push({ code: 'custom', path, message }) }
     const all = [...targets, ...references].map(target => elementTargetSchema.parse({
         objectKey: target.objectKey, role: target.role, shapeId: target.shapeId, type: target.type,
     }))
-    if (all.length > MAX_BOARD_ELEMENT_ROWS) return invalid(['references'], `目标与参照对象合计最多${MAX_BOARD_ELEMENT_ROWS}项`)
+    if (all.length > MAX_BOARD_ELEMENT_ROWS) invalid(['references'], `目标与参照对象合计最多${MAX_BOARD_ELEMENT_ROWS}项`)
     const keys = brief.objects.map(object => object.key)
     const counts = new Map<string, number>()
     all.forEach(target => counts.set(target.objectKey, (counts.get(target.objectKey) ?? 0) + 1))
     const reserved = new Set([...keys, ...counts.keys()])
     const ids = new Set<string>()
+    const targetPath = (index: number) => index < targets.length ? [operation === 'create' ? 'shapes' : operation === 'update' ? 'changes' : 'targets', index]
+        : ['references', index - targets.length]
     const elements = all.map((target, index) => {
-        const path = index < targets.length ? [operation === 'create' ? 'shapes' : operation === 'update' ? 'changes' : 'targets', index]
-            : ['references', index - targets.length]
+        const path = targetPath(index)
+        if (keys.length && !keys.includes(target.objectKey)) invalid([...path, 'objectKey'], '必须引用原始需求中的对象 key')
         const type = target.shapeId ? observedTypes.get(target.shapeId) : target.type
         if (target.shapeId) {
-            if (!type) return invalid([...path, 'shapeId'], 'ID 必须来自本任务附件、实际读取或新增结果，且未被删除')
-            if (ids.has(target.shapeId)) return invalid([...path, 'shapeId'], '目标 ID 不能重复，也不能同时作为本步参照对象')
+            if (!type) invalid([...path, 'shapeId'], 'ID 必须来自本任务附件、实际读取或新增结果，且未被删除')
+            if (ids.has(target.shapeId)) invalid([...path, 'shapeId'], '目标 ID 不能重复，也不能同时作为本步参照对象')
             ids.add(target.shapeId)
         }
         let key = target.objectKey
@@ -99,7 +102,12 @@ export function prepareElementRows(
             type, ...(target.shapeId !== undefined ? { shapeId: target.shapeId } : {}), known: {}, missing: [],
         }
     })
-    return getElementTableContract(keys, true).parse(elements)
+    // 引用错误已足够解释缺失类型，不再生成依赖该类型的次生错误。
+    if (issues.length) throw new z.ZodError(issues)
+    const parsed = getElementTableContract(keys, true).safeParse(elements)
+    if (!parsed.success) throw new z.ZodError(parsed.error.issues.map(issue => ({ ...issue, path: typeof issue.path[0] === 'number'
+        ? [...targetPath(issue.path[0]), ...issue.path.slice(1).map(part => part === 'sourceKey' ? 'objectKey' : part)] : issue.path })))
+    return parsed.data
 }
 
 /** 原生参数转换完成后复核行与目标的顺序/身份，防止转换过程中遗漏或误改对象。 */

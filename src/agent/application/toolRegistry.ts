@@ -2,13 +2,13 @@ import { z } from 'zod'
 import { getObservedContextState, type AgentContext } from '../domain/context'
 import { jsonObjectSchema, type JsonValue } from '../domain/data'
 import { assertElementTargets, prepareElementRows } from '../domain/elements'
-import { ERROR_CODES } from '../domain/error'
+import { agentErrorSchema, ERROR_CODES, type ValidationIssue } from '../domain/error'
 import { createToolInvocationSchemas, type ToolCall, type ToolCallProposal } from '../domain/invocation'
 import type { BoardToolContracts } from '../domain/tool'
-import { AgentApplicationError, MAX_BOARD_ELEMENT_TABLE_CHARS, validationFailure, type PreparedTool, type ToolExecutorPort } from './ports'
+import { AgentApplicationError, MAX_BOARD_ELEMENT_TABLE_CHARS, validationFailure, type PreparedTool, type ToolExecutorPort, type ToolValidationPort, type ValidationResult } from './ports'
 
 /** 六工具共享真实执行通道；注册项仍各自绑定领域契约和参数准备，避免按工具名维护另一套 schema。 */
-export function createToolRegistry(tools: BoardToolContracts, execute: ToolExecutorPort) {
+export function createToolRegistry(tools: BoardToolContracts, execute: ToolExecutorPort, validate: ToolValidationPort) {
     const invocations = createToolInvocationSchemas(tools)
     const identity = (call: ToolCall): JsonValue => jsonObjectSchema.parse(call.input)
     const mutation = (call: ToolCall, context: AgentContext): PreparedTool => {
@@ -21,9 +21,6 @@ export function createToolRegistry(tools: BoardToolContracts, execute: ToolExecu
             case 'create_shapes': {
                 const intent = call.input
                 elements = prepareElementRows(intent.shapes, intent.references ?? [], 'create', context.task, observedTypes)
-                if (intent.shapes.some(shape => shape.children?.some(id => !observedTypes.has(id)))) {
-                    throw new AgentApplicationError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '分组子对象须来自本任务实际读取或新增结果' })
-                }
                 const shapes = intent.shapes.map(shape => ({ type: shape.type, x: shape.x, y: shape.y,
                     ...(shape.props !== undefined ? { props: shape.props } : {}), ...(shape.children !== undefined ? { children: shape.children } : {}),
                 }))
@@ -67,14 +64,32 @@ export function createToolRegistry(tools: BoardToolContracts, execute: ToolExecu
         ask_user: { contract: tools.ask_user, prepare: observation, execute },
     }
     return { registry, invocations,
-        prepare(proposal: ToolCallProposal, context: AgentContext) {
+        prepare(proposal: ToolCallProposal, context: AgentContext): ValidationResult {
+            const parsed = invocations.toolCallSchema.safeParse(proposal)
+            if (!parsed.success) return { ok: false, error: validationFailure(parsed.error, ERROR_CODES.INVALID_ARGUMENTS, '工具参数结构校验失败').detail }
+            const call = parsed.data
+            const { observedTypes } = getObservedContextState(context)
+            let preparation: ValidationResult
             try {
-                const call = invocations.toolCallSchema.parse(proposal)
-                return registry[call.name].prepare(call, context)
+                preparation = { ok: true, prepared: registry[call.name].prepare(call, context) }
             } catch (cause) {
-                if (cause instanceof z.ZodError) throw validationFailure(cause, ERROR_CODES.INVALID_ARGUMENTS, '工具参数或元素对应关系校验失败')
-                throw cause
+                if (cause instanceof z.ZodError) preparation = { ok: false, error: validationFailure(cause, ERROR_CODES.INVALID_ARGUMENTS, '工具参数或元素对应关系校验失败').detail }
+                else if (cause instanceof AgentApplicationError && cause.detail.code === ERROR_CODES.INVALID_ARGUMENTS) preparation = { ok: false, error: cause.detail }
+                else throw cause
             }
+            const issues: ValidationIssue[] = preparation.ok ? [] : [...(preparation.error.issues ?? [{ path: 'input', message: preparation.error.message }])]
+            if (call.name === 'create_shapes') call.input.shapes.forEach((shape, index) => shape.children?.forEach((id, childIndex) => {
+                if (!observedTypes.has(id)) issues.push({ path: `input.shapes[${index}].children[${childIndex}]`, message: '分组子对象须来自本任务实际读取或新增结果' })
+            }))
+            issues.push(...validate(call, observedTypes))
+            if (!issues.length) return preparation
+            const unique = new Map<string, ValidationIssue>()
+            for (const issue of issues) {
+                const diagnostic = { path: (issue.path === 'input' || issue.path.startsWith('input.') ? issue.path : `input.${issue.path}`).slice(0, 100),
+                    message: issue.message.slice(0, 200) }
+                unique.set(JSON.stringify(diagnostic), diagnostic)
+            }
+            return { ok: false, error: agentErrorSchema.parse({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '工具参数校验失败', issues: [...unique.values()].slice(0, 40) }) }
         },
     }
 }

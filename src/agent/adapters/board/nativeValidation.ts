@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defaultShapeSchemas } from '@tldraw/tlschema'
-import { ERROR_CODES, type AgentError as BoardAgentError } from '../../domain/error'
+import { ERROR_CODES, type AgentError as BoardAgentError, type ValidationIssue } from '../../domain/error'
+import type { ToolCall } from '../../domain/invocation'
 import { BoardProtocolError } from '../transport/errors'
 import { DERIVED_SHAPE_PROPS, type DraftShapeType } from './draftShapeSchema'
 import {
@@ -51,6 +52,38 @@ function validateShapeProps(shape: { props?: unknown }, type: DraftShapeType, pa
     }
 }
 
+function collectShapeIssues(shapes: readonly { type?: string; props?: unknown; children?: readonly string[]; id?: string }[], prefix: string): ValidationIssue[] {
+    const issues: ValidationIssue[] = [], ids = new Set<string>(), groupedChildren = new Set<string>()
+    shapes.forEach((shape, index) => {
+        const path = `${prefix}[${index}]`
+        if (shape.id !== undefined) {
+            if (ids.has(shape.id)) issues.push({ path: `${path}.id`, message: '须为不重复的真实元素 ID' })
+            ids.add(shape.id)
+        }
+        if (shape.type === undefined) return
+        if (!Object.hasOwn(defaultShapeSchemas, shape.type)) {
+            issues.push({ path: `${path}.type`, message: '不支持该原生元素类型' }); return
+        }
+        if (shape.type === 'group') {
+            for (const id of shape.children ?? []) {
+                if (groupedChildren.has(id)) issues.push({ path: `${path}.children`, message: '同一批次的多个分组不能复用子元素' })
+                groupedChildren.add(id)
+            }
+        }
+        validateShapeProps(shape, shape.type as DraftShapeType, path, issues)
+    })
+    return issues
+}
+
+/** 结构已由应用层验证；独立检查属性，更新目标类型仅取自真实观察。 */
+export function validateToolProperties(call: ToolCall, observedTypes: ReadonlyMap<string, string>): ValidationIssue[] {
+    if (call.name === 'create_shapes') return collectShapeIssues(call.input.shapes, 'input.shapes')
+    if (call.name === 'update_shapes') return collectShapeIssues(call.input.changes.map(change => ({
+        ...change, type: observedTypes.get(change.shapeId),
+    })), 'input.changes')
+    return []
+}
+
 export function validateToolInput<T extends z.ZodType>(schema: T, value: unknown, message: string): z.output<T> {
     const parsed = schema.safeParse(value, { error: z.locales.zhCN().localeError })
     if (!parsed.success) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message,
@@ -65,18 +98,7 @@ export function validateToolInput<T extends z.ZodType>(schema: T, value: unknown
 /** 验证整批新增参数，不分配 ID、不修改白板。 */
 export function validateCreateInput(value: unknown): CreateShapesInput {
     const input = validateToolInput(createShapesInputSchema, value, '新增参数校验失败')
-    const issues: NonNullable<BoardAgentError['issues']> = []
-    const groupedChildren = new Set<string>()
-    input.shapes.forEach((shape, index) => {
-        const path = `shapes[${index}]`
-        if (shape.type === 'group') {
-            for (const id of shape.children) {
-                if (groupedChildren.has(id)) issues.push({ path: `${path}.children`, message: '同一批次的多个分组不能复用子元素' })
-                groupedChildren.add(id)
-            }
-        }
-        validateShapeProps(shape, shape.type, path, issues)
-    })
+    const issues = collectShapeIssues(input.shapes, 'shapes')
     if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '新增参数校验失败', issues: issues.slice(0, 40) })
     return input
 }
@@ -103,14 +125,7 @@ export function parseCreateInput(argumentsText: string): CreateShapesInput {
 /** 部分更新必须至少指定一个可写字段；整批校验完成前不访问 Editor，不改变省略字段。 */
 export function validateUpdateInput(value: unknown): UpdateShapesInput {
     const input = validateToolInput(updateShapesInputSchema, value, '更新参数校验失败')
-    const issues: NonNullable<BoardAgentError['issues']> = []
-    const ids = new Set<string>()
-    input.shapes.forEach((shape, index) => {
-        const path = `shapes[${index}]`
-        if (ids.has(shape.id)) issues.push({ path: `${path}.id`, message: '须为不重复的真实元素 ID' })
-        ids.add(shape.id)
-        validateShapeProps(shape, shape.type, path, issues)
-    })
+    const issues = collectShapeIssues(input.shapes, 'shapes')
     if (issues.length) throw new BoardProtocolError({ code: ERROR_CODES.INVALID_ARGUMENTS, message: '更新参数校验失败', issues: issues.slice(0, 40) })
     return input
 }

@@ -6,6 +6,7 @@ import { jsonValueSchema } from '../../domain/data'
 import { toolCallProposalSchema } from '../../domain/invocation'
 import { boardCreatePrompt } from '../../../prompts/boardCreatePrompt'
 import { boardToolContracts } from '../board/contracts'
+import { validateToolProperties } from '../board/nativeValidation'
 import { formatTaskBrief, formatElementTable } from '../presentation/boardPlan'
 import { validateMutationOutput, type BoardCreateEvent, type BoardCreateRequest } from '../transport/boardProtocol'
 import { BoardProtocolError } from '../transport/errors'
@@ -47,7 +48,7 @@ export async function runBoardAgent(
         // 领域结局只携带安全诊断，原始超时/权限异常留在适配层供路由准确分类。
         let runtimeFailure: unknown
         const outcome = await runAgent({ runId: run.id, messages, initialSnapshot }, {
-            tools: boardToolContracts, signal: run.signal, mapError,
+            tools: boardToolContracts, validate: validateToolProperties, signal: run.signal, mapError,
             checkAccess: async () => {
                 try { await checkAccess() } catch (cause) { runtimeFailure = cause; throw cause }
             },
