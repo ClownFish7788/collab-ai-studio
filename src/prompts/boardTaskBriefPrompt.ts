@@ -1,4 +1,8 @@
-import { boardTaskPreparationJsonSchema, MAX_TASK_PREPARATION_CHARS } from '../utils/board/agent/boardTaskBriefSchema'
+import { z } from 'zod'
+import { boardTaskPreparationSchema, MAX_TASK_PREPARATION_CHARS } from '../agent/domain/task'
+
+// 只转换模型可见结构；完整领域图引用仍由应用层运行时校验。
+const boardTaskPreparationJsonSchema = z.toJSONSchema(boardTaskPreparationSchema)
 
 /** 第一轮只拆分需求，不生成原生元素参数、不调用工具。 */
 export const boardTaskBriefPrompt = `你是协作白板助手的需求整理阶段，默认中文。结合本轮用户原文、图文历史和本轮白板附件，为下一个执行模型提供清晰的任务点和对象关系。只输出一个 JSON 对象，不要 Markdown 或额外文字。

@@ -3,17 +3,8 @@ import { MAX_CHAT_REQUEST_BYTES } from '../../chat/images'
 import { reportAgentOperation } from '../../agent-traces/client'
 import { MAX_BOARD_TOOL_ARGUMENT_CHARS, MAX_BOARD_WRITES_PER_TASK } from '../boardCapabilities'
 import { formatBoardJsonPreview } from './boardJsonPreview'
-import {
-    validateBoardCreateEvent,
-    validateBoardToolOutput,
-    toolOutputMatchesCall,
-    BoardProtocolError,
-    ERROR_CODES,
-    type BoardCreateRequest,
-    type BoardToolCall,
-    type BoardToolOutput,
-    type BoardMutationResult,
-} from './boardCreateProtocol'
+import { validateBoardCreateEvent, validateBoardToolOutput, toolOutputMatchesCall, ERROR_CODES, type BoardCreateRequest, type BoardToolCall, type BoardToolOutput, type BoardMutationResult } from '../../../agent/adapters/transport/boardProtocol'
+import { BoardProtocolError } from '../../../agent/adapters/transport/errors'
 
 const MAX_EVENT_CHARS = 30000 * MAX_BOARD_WRITES_PER_TASK
 

@@ -2,9 +2,9 @@ import { boardSnapshotSchema } from '../../domain/observation'
 import { ERROR_CODES } from '../../domain/error'
 import { createToolInvocationSchemas, type ToolCall } from '../../domain/invocation'
 import type { BoardToolName } from '../../domain/tool'
-import type { BoardToolCall, BoardToolOutput } from '../../../utils/board/agent/boardCreateProtocol'
+import type { BoardToolCall, BoardToolOutput } from '../transport/boardProtocol'
 import type { RegionSnapshot } from './tldraw'
-import { boardToolContracts } from '../../../utils/board/agent/boardToolInputSchema'
+import { boardToolContracts } from "./contracts"
 
 const invocations = createToolInvocationSchemas(boardToolContracts)
 

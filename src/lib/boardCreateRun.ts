@@ -5,12 +5,11 @@ import type { AgentMessage, ContentBlock } from '../agent/domain/message'
 import { jsonValueSchema } from '../agent/domain/data'
 import { toolCallProposalSchema } from '../agent/domain/invocation'
 import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
-import { boardToolContracts } from '../utils/board/agent/boardToolInputSchema'
+import { boardToolContracts } from "../agent/adapters/board/contracts"
 import { formatTaskBrief } from '../utils/board/agent/boardTaskBrief'
 import { formatElementTable } from '../utils/board/agent/boardElementTable'
-import {
-    validateMutationOutput, BoardProtocolError, type BoardCreateEvent, type BoardCreateRequest,
-} from '../utils/board/agent/boardCreateProtocol'
+import { validateMutationOutput, type BoardCreateEvent, type BoardCreateRequest } from '../agent/adapters/transport/boardProtocol'
+import { BoardProtocolError } from '../agent/adapters/transport/errors'
 import type { TraceRecorder } from './modelTrace'
 import { toAgentSnapshot, toBoardToolCall } from '../agent/adapters/board/protocol'
 import { createBrowserToolExecutor, releaseCreateRun, type CreateRun } from '../agent/adapters/board/browserExecutor'

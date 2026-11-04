@@ -1,10 +1,11 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
 import { createChatCompletionsModel } from '@/agent/adapters/model/chatCompletions'
 import type { ModelPort } from '@/agent/application/ports'
-import { boardToolContractSet } from '@/utils/board/agent/boardToolInputSchema'
+import { boardToolContractSet } from "../../../agent/adapters/board/contracts"
 import { runCreateLoop } from '@/lib/boardCreateRun'
 import { beginCreateRun } from '@/agent/adapters/board/browserExecutor'
-import { BoardProtocolError, ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '@/utils/board/agent/boardCreateProtocol'
+import { BoardProtocolError } from '../../../agent/adapters/transport/errors'
+import { ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '../../../agent/adapters/transport/boardProtocol'
 import { MAX_CHAT_REQUEST_BYTES } from '@/utils/chat/images'
 import { traceAgentRequest, type AgentTrace } from '@/lib/agentTraceRequest'
 import { classifyTraceError } from '@/utils/agent-traces/outcomes'

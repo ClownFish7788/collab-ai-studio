@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import prisma from './prisma'
 import { authOptions } from './auth'
-import { canUseBoardCreateAgent, MAX_BOARD_PAYLOAD_BYTES } from '../utils/board/agent/boardCreateProtocol'
+import { MAX_BOARD_PAYLOAD_BYTES } from '../agent/adapters/transport/boardProtocol'
 
 export class CreateAccessError extends Error {
     status: number
@@ -53,4 +53,9 @@ export async function readCreatePayload(request: Request, maxBytes = MAX_BOARD_P
     }
 
     return JSON.parse(body + decoder.decode())
+}
+
+/** 只使用数据库查询结果作授权依据；客户端的角色字段没有授予权限的作用。 */
+function canUseBoardCreateAgent(document: { ownerId: string; collaborators: { userId: string }[] } | null, userId: string) {
+    return !!document && (document.ownerId === userId || document.collaborators.some(item => item.userId === userId))
 }

@@ -1,10 +1,9 @@
 import type { BoardAnswer } from '../../domain/tool'
 import type { createTldrawTools } from '../board/tldraw'
 import { validateBoardAnswer } from '../interaction/askUser'
-import {
-    validateBoardToolCall, validateBoardToolSuccess, parseCreateInput, parseSnapshotInput, parseAskInput, parseUpdateInput, parseDeleteInput,
-    BoardProtocolError, ERROR_CODES, type BoardToolOutput,
-} from '../../../utils/board/agent/boardCreateProtocol'
+import { validateBoardToolCall, validateBoardToolSuccess, ERROR_CODES, type BoardToolOutput } from '../transport/boardProtocol'
+import { parseCreateInput, parseSnapshotInput, parseAskInput, parseUpdateInput, parseDeleteInput } from '../board/nativeValidation'
+import { BoardProtocolError } from '../transport/errors'
 
 /** 单任务浏览器分发入口：统一去重与错误输出，具体白板能力保持各自的成功返回类型。 */
 export function createBrowserToolDispatcher({ board, ask, assertActive, onReadRetry }: {

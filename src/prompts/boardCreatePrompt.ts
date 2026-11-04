@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '../utils/board/agent/boardCreateProtocol'
+import { ERROR_CODES } from '../agent/adapters/transport/boardProtocol'
 import { DefaultColorStyle, GeoShapeGeoStyle } from '@tldraw/tlschema'
 import { MAX_BOARD_WRITE_SHAPES, MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_ELEMENT_ROWS, MAX_BOARD_MODEL_CALLS } from '../utils/board/boardCapabilities'
 

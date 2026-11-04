@@ -4,11 +4,9 @@ import { resolveBoardReference } from '../../domain/observation'
 import { DRAFT_SHAPE_TYPES } from '../../../utils/board/draft/draftShapeSchema'
 import type { CreateDraftShapeInput, UpdateDraftShapeInput } from '../../../utils/board/draft/draftShapeOperations'
 import { MAX_CHAT_SNAPSHOT_BYTES, validateRegionSnapshot, validateChatSnapshot } from '../../../utils/board/snapshot/chatSnapshots'
-import { MAX_BOARD_SNAPSHOT_SHAPES, validateBoardToolSuccess, BoardProtocolError, ERROR_CODES,
-    type CreateToolSuccess, type UpdateToolSuccess, type DeleteToolSuccess,
-    type SnapshotToolSuccess, type ScreenshotToolSuccess, type SnapshotRange,
-} from '../../../utils/board/agent/boardCreateProtocol'
-import type { CreateShapesInput, UpdateShapesInput, DeleteShapesInput, SnapshotInput } from '../../../utils/board/agent/boardToolInputSchema'
+import { MAX_BOARD_SNAPSHOT_SHAPES, validateBoardToolSuccess, ERROR_CODES, type CreateToolSuccess, type UpdateToolSuccess, type DeleteToolSuccess, type SnapshotToolSuccess, type ScreenshotToolSuccess, type SnapshotRange } from '../transport/boardProtocol'
+import { BoardProtocolError } from '../transport/errors'
+import type { CreateShapesInput, UpdateShapesInput, DeleteShapesInput, SnapshotInput } from "./contracts"
 
 export type RegionSnapshot = {
     reference: { id: TLShapeId | null; x: number; y: number }

@@ -1,5 +1,5 @@
 import type { BoardElementRow } from '../../../agent/domain/elements'
-import type { BoardToolCall } from './boardCreateProtocol'
+import type { BoardToolCall } from '../../../agent/adapters/transport/boardProtocol'
 
 export function formatElementTable(elements: readonly BoardElementRow[], call: BoardToolCall): string {
     if (!elements.length) return ''

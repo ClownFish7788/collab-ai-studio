@@ -1,4 +1,4 @@
-import { getBoardConversationHistory, type BoardConversationTurn } from '../board/agent/boardCreateProtocol'
+import { getBoardConversationHistory, type BoardConversationTurn } from '../../agent/adapters/transport/boardProtocol'
 import { toMessageContent, type ImageAttachment } from './images'
 import type { RegionSnapshot } from '../../agent/adapters/board/tldraw'
 
