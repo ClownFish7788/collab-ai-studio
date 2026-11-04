@@ -1,9 +1,9 @@
-import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
+import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/agent/adapters/server/access'
 import { createChatCompletionsModel } from '@/agent/adapters/model/chatCompletions'
 import type { ModelPort } from '@/agent/application/ports'
 import { boardToolContractSet } from "../../../agent/adapters/board/contracts"
-import { runCreateLoop } from '@/lib/boardCreateRun'
-import { beginCreateRun } from '@/agent/adapters/board/browserExecutor'
+import { runBoardAgent } from '@/agent/adapters/server/runBoardAgent'
+import { beginCreateRun } from '@/agent/adapters/server/browserExecutor'
 import { BoardProtocolError } from '../../../agent/adapters/transport/errors'
 import { ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '../../../agent/adapters/transport/boardProtocol'
 import { MAX_CHAT_REQUEST_BYTES } from '@/utils/chat/images'
@@ -87,7 +87,7 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                 }
 
                 try {
-                    await runCreateLoop(
+                    await runBoardAgent(
                         activeRun,
                         payload,
                         modelPort,

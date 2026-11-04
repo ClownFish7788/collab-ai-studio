@@ -1,8 +1,8 @@
 import { BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS, type ToolExecutorPort } from '../../application/ports'
 import type { AgentError } from '../../domain/error'
-import { toAgentToolResult, toBoardToolCall } from './protocol'
+import { toAgentToolResult, toBoardToolCall } from '../board/protocol'
 import { validateBoardToolOutput, toolOutputMatchesCall, validateBoardToolCall, type BoardCreateEvent, type BoardToolCall, type BoardToolOutput } from '../transport/boardProtocol'
-import { validateCreateInput, validateUpdateInput, validateDeleteInput, parseSnapshotInput, parseAskInput } from './nativeValidation'
+import { validateCreateInput, validateUpdateInput, validateDeleteInput, parseSnapshotInput, parseAskInput } from '../board/nativeValidation'
 import type { TraceRecorder } from '../../../lib/modelTrace'
 import { classifyTraceError } from '../../../utils/agent-traces/outcomes'
 

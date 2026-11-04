@@ -1,5 +1,5 @@
-import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/lib/boardCreateAccess'
-import { getOwnedCreateRun, submitCreateResult } from '@/agent/adapters/board/browserExecutor'
+import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/agent/adapters/server/access'
+import { getOwnedCreateRun, submitCreateResult } from '@/agent/adapters/server/browserExecutor'
 import { validateCreateResultRequest } from '../../../../../agent/adapters/transport/boardProtocol'
 import prisma from '@/lib/prisma'
 import { appendAgentTraceEvent } from '@/lib/agentTrace'

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { readCreatePayload } from '@/lib/boardCreateAccess'
+import { readCreatePayload } from '@/agent/adapters/server/access'
 import { consumeAdminLoginAttempt } from '@/lib/agentTrace'
 import {
     ADMIN_TRACE_COOKIE, ADMIN_TRACE_SESSION_SECONDS, adminPasswordConfigured,

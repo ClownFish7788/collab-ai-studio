@@ -15,13 +15,13 @@ import { validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
 import { BoardProtocolError } from '../../agent/adapters/transport/errors'
 import { ERROR_CODES, type BoardCreateRequest } from '../../agent/adapters/transport/boardProtocol'
 import { reportAgentOperation } from '@/utils/agent-traces/client'
-import { streamBoardCreateRun, type CreateAgentStep } from '@/utils/board/agent/streamBoardCreateRun'
+import { streamBoardRun, type CreateAgentStep } from '@/agent/adapters/browser/streamBoardRun'
 import { toast } from '@/components/Toast'
 import { BOARD_RUN_TIMEOUT_MS } from '@/utils/board/boardCapabilities'
 import styles from './BoardDraft.module.scss'
 
 type AgentInput = Omit<BoardCreateRequest, 'roomId'>
-type AgentResult = Awaited<ReturnType<typeof streamBoardCreateRun>> & { draftId?: string }
+type AgentResult = Awaited<ReturnType<typeof streamBoardRun>> & { draftId?: string }
 type Resolutions = Record<string, 'applied' | 'discarded' | 'unchanged'>
 type Preview = { draft: BoardDraft; camera: { x: number; y: number; z: number } }
 const EMPTY_CHANGES: DraftChanges = { added: [], updated: [], removed: [] }
@@ -213,7 +213,7 @@ export default function BoardDraftProvider({ editor, licenseKey, roomId, canEdit
             onReadRetry: (callId, attempt) => { void reportAgentOperation(traceId, 'tool_retry', 'error', new Error(`调用 ${callId} 第${attempt}次读取失败，正在重试`)) },
         })
         try {
-            const result = await streamBoardCreateRun({ ...input, roomId }, signal, async call => {
+            const result = await streamBoardRun({ ...input, roomId }, signal, async call => {
                 if (call.function.name !== 'ask_user') await ensureEditor()
                 assertActive()
                 return execute(call)

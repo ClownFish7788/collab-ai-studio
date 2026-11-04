@@ -1,21 +1,20 @@
-import { runAgent } from '../agent/application/runAgent'
-import { AgentApplicationError, type ModelPort } from '../agent/application/ports'
-import { agentErrorSchema, ERROR_CODES, type AgentError } from '../agent/domain/error'
-import type { AgentMessage, ContentBlock } from '../agent/domain/message'
-import { jsonValueSchema } from '../agent/domain/data'
-import { toolCallProposalSchema } from '../agent/domain/invocation'
-import { boardCreatePrompt } from '../prompts/boardCreatePrompt'
-import { boardToolContracts } from "../agent/adapters/board/contracts"
-import { formatTaskBrief } from '../utils/board/agent/boardTaskBrief'
-import { formatElementTable } from '../utils/board/agent/boardElementTable'
-import { validateMutationOutput, type BoardCreateEvent, type BoardCreateRequest } from '../agent/adapters/transport/boardProtocol'
-import { BoardProtocolError } from '../agent/adapters/transport/errors'
-import type { TraceRecorder } from './modelTrace'
-import { toAgentSnapshot, toBoardToolCall } from '../agent/adapters/board/protocol'
-import { createBrowserToolExecutor, releaseCreateRun, type CreateRun } from '../agent/adapters/board/browserExecutor'
+import { runAgent } from '../../application/runAgent'
+import { AgentApplicationError, type ModelPort } from '../../application/ports'
+import { agentErrorSchema, ERROR_CODES, type AgentError } from '../../domain/error'
+import type { AgentMessage, ContentBlock } from '../../domain/message'
+import { jsonValueSchema } from '../../domain/data'
+import { toolCallProposalSchema } from '../../domain/invocation'
+import { boardCreatePrompt } from '../../../prompts/boardCreatePrompt'
+import { boardToolContracts } from '../board/contracts'
+import { formatTaskBrief, formatElementTable } from '../presentation/boardPlan'
+import { validateMutationOutput, type BoardCreateEvent, type BoardCreateRequest } from '../transport/boardProtocol'
+import { BoardProtocolError } from '../transport/errors'
+import type { TraceRecorder } from '../../../lib/modelTrace'
+import { toAgentSnapshot, toBoardToolCall } from '../board/protocol'
+import { createBrowserToolExecutor, releaseCreateRun, type CreateRun } from './browserExecutor'
 
 /** 组装真实端口并转换旧传输协议；应用主循环只存在于 runAgent。 */
-export async function runCreateLoop(
+export async function runBoardAgent(
     run: CreateRun,
     request: BoardCreateRequest,
     model: ModelPort,

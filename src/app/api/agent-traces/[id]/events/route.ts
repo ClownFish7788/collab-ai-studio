@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma'
-import { CreateAccessError, readCreatePayload, requireCreateUser } from '@/lib/boardCreateAccess'
+import { CreateAccessError, readCreatePayload, requireCreateUser } from '@/agent/adapters/server/access'
 import { appendAgentTraceEvent, ClientTraceLimitError } from '@/lib/agentTrace'
 import { sameOrigin, traceJson } from '@/lib/traceAdminSession'
 import { serializeTraceData } from '@/lib/modelTrace'

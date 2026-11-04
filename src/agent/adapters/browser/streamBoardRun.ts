@@ -1,10 +1,10 @@
 import { isEqual } from '@tldraw/utils'
-import { MAX_CHAT_REQUEST_BYTES } from '../../chat/images'
-import { reportAgentOperation } from '../../agent-traces/client'
-import { MAX_BOARD_TOOL_ARGUMENT_CHARS, MAX_BOARD_WRITES_PER_TASK } from '../boardCapabilities'
-import { formatBoardJsonPreview } from './boardJsonPreview'
-import { validateBoardCreateEvent, validateBoardToolOutput, toolOutputMatchesCall, ERROR_CODES, type BoardCreateRequest, type BoardToolCall, type BoardToolOutput, type BoardMutationResult } from '../../../agent/adapters/transport/boardProtocol'
-import { BoardProtocolError } from '../../../agent/adapters/transport/errors'
+import { MAX_CHAT_REQUEST_BYTES } from '../../../utils/chat/images'
+import { reportAgentOperation } from '../../../utils/agent-traces/client'
+import { MAX_BOARD_TOOL_ARGUMENT_CHARS, MAX_BOARD_WRITES_PER_TASK } from '../../../utils/board/boardCapabilities'
+import { formatBoardJsonPreview } from '../presentation/jsonPreview'
+import { validateBoardCreateEvent, validateBoardToolOutput, toolOutputMatchesCall, ERROR_CODES, type BoardCreateRequest, type BoardToolCall, type BoardToolOutput, type BoardMutationResult } from '../transport/boardProtocol'
+import { BoardProtocolError } from '../transport/errors'
 
 const MAX_EVENT_CHARS = 30000 * MAX_BOARD_WRITES_PER_TASK
 
@@ -20,7 +20,7 @@ export type CreateAgentStep = {
  * 询问工具可异步等待真实用户回答；继续前再次检查停止信号，读取/回答不计作草稿写入。
  * 不维护模型消息历史，不发起下一轮推理；何时继续/结束全部由后端流决定。
  */
-export async function streamBoardCreateRun(
+export async function streamBoardRun(
     request: BoardCreateRequest,
     signal: AbortSignal,
     execute: (call: BoardToolCall) => BoardToolOutput | Promise<BoardToolOutput>,

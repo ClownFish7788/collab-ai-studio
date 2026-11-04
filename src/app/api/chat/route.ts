@@ -6,7 +6,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { traceAgentRequest, type AgentTrace } from '@/lib/agentTraceRequest'
 import { observeModelFetch } from '@/lib/modelTrace'
-import { CreateAccessError } from '@/lib/boardCreateAccess'
+import { CreateAccessError } from '@/agent/adapters/server/access'
 import { classifyTraceError } from '@/utils/agent-traces/outcomes'
 
 export const maxDuration = 60

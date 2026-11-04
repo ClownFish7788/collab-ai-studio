@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
-import prisma from './prisma'
-import { authOptions } from './auth'
-import { MAX_BOARD_PAYLOAD_BYTES } from '../agent/adapters/transport/boardProtocol'
+import prisma from '../../../lib/prisma'
+import { authOptions } from '../../../lib/auth'
+import { MAX_BOARD_PAYLOAD_BYTES } from '../transport/boardProtocol'
 
 export class CreateAccessError extends Error {
     status: number
