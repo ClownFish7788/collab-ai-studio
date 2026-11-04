@@ -15,9 +15,9 @@ export const MAX_BOARD_ELEMENT_TABLE_CHARS = 6000
 export const BOARD_RUN_TIMEOUT_MS = 180000
 export const BOARD_ANSWER_TIMEOUT_MS = 120000
 
-/** 模型适配器只返回完整决策；unknown 由用例入口校验，供应商分片不进入应用层。 */
+/** 准备返回完整文本，由用例解析需求；执行返回完整决策，供应商分片不进入应用层。 */
 export type ModelPort = {
-    prepare(messages: readonly AgentMessage[], signal: AbortSignal): Promise<unknown>
+    prepare(messages: readonly AgentMessage[], signal: AbortSignal): Promise<string>
     next(context: AgentContext, allowedTools: readonly BoardToolName[], signal: AbortSignal): Promise<unknown>
 }
 

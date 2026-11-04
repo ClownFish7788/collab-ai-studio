@@ -247,7 +247,7 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
         async prepare(messages, signal) {
             const reply = await requestModel(messages, [], signal, 'preparation')
             if (reply.kind !== 'text') throw modelError('需求拆分不能调用工具')
-            try { return JSON.parse(reply.text) } catch { throw modelError('需求拆分未返回合法 JSON，本轮没有执行工具') }
+            return reply.text
         },
         async next(context, allowedTools, signal) {
             if (!allowedTools.length) throw modelError('没有可调用的工具，本轮不请求执行模型')
