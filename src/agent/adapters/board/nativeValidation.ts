@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defaultShapeSchemas } from '@tldraw/tlschema'
 import { ERROR_CODES, type AgentError as BoardAgentError } from '../../domain/error'
 import { BoardProtocolError } from '../transport/errors'
-import { DERIVED_SHAPE_PROPS, type DraftShapeType } from '../../../utils/board/draft/draftShapeSchema'
+import { DERIVED_SHAPE_PROPS, type DraftShapeType } from './draftShapeSchema'
 import {
     createShapesInputSchema, updateShapesInputSchema, deleteShapesInputSchema, snapshotInputSchema, askInputSchema,
     type CreateShapesInput, type UpdateShapesInput, type DeleteShapesInput, type SnapshotInput, type AskInput,

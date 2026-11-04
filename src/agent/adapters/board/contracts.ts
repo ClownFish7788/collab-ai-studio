@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defaultShapeSchemas } from '@tldraw/tlschema'
-import { DRAFT_SHAPE_TYPES, DERIVED_SHAPE_PROPS } from "../../../utils/board/draft/draftShapeSchema"
+import { DRAFT_SHAPE_TYPES, DERIVED_SHAPE_PROPS } from './draftShapeSchema'
 import { createBoardToolContracts } from "../../domain/tool"
 
 export { shapeIdSchema } from "../../domain/observation"

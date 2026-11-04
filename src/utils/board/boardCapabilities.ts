@@ -1,5 +1,5 @@
 import { DefaultColorStyle } from '@tldraw/tlschema'
-import { DRAFT_SHAPE_TYPES } from './draft/draftShapeSchema'
+import { DRAFT_SHAPE_TYPES } from '../../agent/adapters/board/draftShapeSchema'
 import { MAX_BOARD_ELEMENT_ROWS } from '../../agent/domain/task'
 import { MAX_BOARD_WRITE_SHAPES } from '../../agent/domain/tool'
 import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_CALLS, MAX_BOARD_MODEL_CALLS, MAX_BOARD_ELEMENT_TABLE_CHARS, BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS } from '../../agent/application/ports'

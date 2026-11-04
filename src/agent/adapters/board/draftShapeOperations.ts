@@ -21,10 +21,10 @@ import {
     shapePage,
     type BoardDraft,
     type DraftShapeType
-} from './boardDraft'
+} from './draft'
 
 import { DERIVED_SHAPE_PROPS } from './draftShapeSchema'
-import { MAX_BOARD_WRITE_SHAPES } from '../boardCapabilities'
+import { MAX_BOARD_WRITE_SHAPES } from '../../../utils/board/boardCapabilities'
 export { DERIVED_SHAPE_PROPS } from './draftShapeSchema'
 
 type CommonInput = {
