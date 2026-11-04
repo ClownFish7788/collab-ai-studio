@@ -33,12 +33,20 @@ function validateShapeProps(shape: { props?: unknown }, type: DraftShapeType, pa
     const validators = defaultShapeSchemas[type].props as Record<string, { validate(value: unknown): unknown }>
     for (const [key, prop] of Object.entries(shape.props)) {
         try {
-            if (!Object.hasOwn(validators, key) || DERIVED_SHAPE_PROPS[type]?.includes(key)) throw new Error()
+            if (!Object.hasOwn(validators, key)) throw new Error(`${type} 不支持该属性`)
+            if (DERIVED_SHAPE_PROPS[type]?.includes(key)) throw new Error('原生派生属性只读，不能写入')
             validators[key].validate(prop)
-            if (['w', 'h'].includes(key) && !number(prop, 1, 2000)) throw new Error()
-            if (key === 'url' && prop !== '' && (typeof prop !== 'string' || !/^https?:\/\//i.test(prop))) throw new Error()
-        } catch {
-            issues.push({ path: `${path}.props`, message: '包含该类型不支持、只读或取值不合法的属性' })
+            if (['w', 'h'].includes(key) && !number(prop, 1, 2000)) throw new Error('尺寸须为 1～2000')
+            if (key === 'url' && prop !== '' && (typeof prop !== 'string' || !/^https?:\/\//i.test(prop))) throw new Error('链接须使用 http/https')
+        } catch (cause) {
+            const nested = cause instanceof Error && 'path' in cause && Array.isArray(cause.path) ? cause.path : []
+            const parts = [key, ...nested].map(part => typeof part === 'number' ? `[${part}]` : `.${String(part).replace(/[^\w]/g, '_')}`).join('')
+            let received: unknown = prop
+            for (const part of nested) received = received && typeof received === 'object' && Object.hasOwn(received, part)
+                ? (received as Record<string, unknown>)[part] : undefined
+            const reason = cause instanceof Error && 'rawMessage' in cause && typeof cause.rawMessage === 'string' ? cause.rawMessage
+                : cause instanceof Error ? cause.message : '属性不合法'
+            issues.push({ path: `${path}.props${parts}`.slice(0, 100), message: `收到 ${(JSON.stringify(received) ?? 'undefined').slice(0, 40)}；${reason}`.slice(0, 200) })
         }
     }
 }

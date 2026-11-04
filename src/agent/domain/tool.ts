@@ -45,11 +45,14 @@ export type BoardAnswer = z.infer<typeof boardAnswerSchema>
  * tools 的输入是模型意图；单独返回的 ShapesInput schema 用于移除 objectKey 等元数据后的执行参数。
  * props/图片这里只检查结构，原生属性与资源合法性仍须在适配层复核。
  */
-export function createBoardToolContracts<T extends string>(shapeTypes: readonly T[], propsDescription = '仅提交明确修改的属性，省略字段保留原值。') {
+export function createBoardToolContracts<T extends string>(shapeTypes: readonly T[], propsDescription = '仅提交明确修改的属性，省略字段保留原值。',
+    propEnums: Readonly<Record<string, readonly string[]>> = {}) {
     z.array(shapeTypeSchema).min(1).parse(shapeTypes)
     const nonGroupTypes = shapeTypes.filter((type): type is Exclude<T, 'group'> => type !== 'group')
     const hasGroup = shapeTypes.some(type => type === 'group')
-    const commonFields = { x: coordinateSchema, y: coordinateSchema, props: propsSchema.describe(propsDescription).optional() }
+    const commonFields = { x: coordinateSchema, y: coordinateSchema, props: propsSchema.describe(propsDescription).meta({
+        properties: Object.fromEntries(Object.entries(propEnums).map(([key, values]) => [key, { type: 'string', enum: [...values] }])),
+    }).optional() }
     const ordinaryShapeSchema = z.strictObject({ type: z.enum(nonGroupTypes), ...commonFields, children: z.never().optional() })
     const groupShapeSchema = z.strictObject({ type: z.literal('group'), ...commonFields, children: childrenSchema })
     // 在结构中省略不支持的变体，保证导出的 JSON Schema 与运行时能力一致。
