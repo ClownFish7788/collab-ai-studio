@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { jsonrepair } from 'jsonrepair'
 import { AgentApplicationError, MAX_BOARD_TOOL_CALLS, type ModelPort } from '../../application/ports'
 import { ERROR_CODES } from '../../domain/error'
 import { jsonValueSchema, type JsonValue } from '../../domain/data'
@@ -28,8 +29,34 @@ const responseSchema = z.object({ error: z.unknown().optional(), choices: z.arra
     }),
 })).length(1) })
 
-/** 非法实参保留为同一 callId 的字符串提议，由应用层拒绝，不能丢失整批其他调用。 */
-function decodeDecision(value: unknown, allowedTools: readonly BoardToolName[]): ModelDecision {
+/** 仅解码契约声明的顶层数组；完整数组的语法错误尝试修复一次，随后仍走全部校验。 */
+function parseToolArguments(text: string, parameters: z.core.JSONSchema.JSONSchema = {}): JsonValue {
+    let input: unknown
+    try { input = JSON.parse(text) } catch { return text }
+    if (input && typeof input === 'object' && !Array.isArray(input)) {
+        const fields = input as Record<string, unknown>
+        for (const [key, property] of Object.entries(parameters.properties ?? {})) {
+            if (property && typeof property === 'object' && property.type === 'array' && typeof fields[key] === 'string') {
+                const raw = fields[key] as string
+                let value: unknown
+                try { value = JSON.parse(raw) }
+                catch {
+                    // 不补截断数组的结尾，避免把未生成完的操作计划当成完整请求。
+                    if (!raw.trim().startsWith('[') || !raw.trim().endsWith(']')) continue
+                    try { value = JSON.parse(jsonrepair(raw)) }
+                    catch { continue }
+                }
+                if (Array.isArray(value)) fields[key] = value
+            }
+        }
+    }
+    const parsed = jsonValueSchema.safeParse(input)
+    return parsed.success ? parsed.data : text
+}
+
+/** 非法实参仍保留关联提议，不能因一个调用解析失败而丢失整批其他调用。 */
+function decodeDecision(value: unknown, tools: readonly { function: { name: BoardToolName; parameters: z.core.JSONSchema.JSONSchema } }[]): ModelDecision {
+    const allowedTools = tools.map(tool => tool.function.name)
     const parsed = responseSchema.safeParse(value)
     if (!parsed.success || parsed.data.error != null) throw modelError('模型响应不完整、被拒绝或格式不合法，本轮没有执行工具')
     const choice = parsed.data.choices[0], message = choice.message
@@ -40,11 +67,7 @@ function decodeDecision(value: unknown, allowedTools: readonly BoardToolName[]):
             throw modelError('模型返回未开放或不完整的工具调用')
         }
         decision = { kind: 'tool', ...(message.content != null ? { content: message.content } : {}), calls: message.tool_calls.map(call => {
-            let input: JsonValue = call.function.arguments
-            try {
-                const value = jsonValueSchema.safeParse(JSON.parse(call.function.arguments))
-                if (value.success) input = value.data
-            } catch { /* 保留原始实参作关联拒绝，不把解析失败当成工具执行失败。 */ }
+            const input = parseToolArguments(call.function.arguments, tools.find(tool => tool.function.name === call.function.name)?.function.parameters)
             return { id: call.id, name: call.function.name, input }
         }) }
     } else {
@@ -241,7 +264,7 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
             signal.throwIfAborted()
             throw modelError('模型服务未返回完整合法响应，本轮没有执行工具')
         }
-        return decodeDecision(data, allowedTools)
+        return decodeDecision(data, tools)
     }
     return {
         async prepare(messages, signal) {

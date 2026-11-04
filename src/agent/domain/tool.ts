@@ -46,12 +46,12 @@ export type BoardAnswer = z.infer<typeof boardAnswerSchema>
  * props/图片这里只检查结构，原生属性与资源合法性仍须在适配层复核。
  */
 export function createBoardToolContracts<T extends string>(shapeTypes: readonly T[], propsDescription = '仅提交明确修改的属性，省略字段保留原值。',
-    propEnums: Readonly<Record<string, readonly string[]>> = {}) {
+    propSchemas: Readonly<Record<string, z.core.JSONSchema.JSONSchema>> = {}) {
     z.array(shapeTypeSchema).min(1).parse(shapeTypes)
     const nonGroupTypes = shapeTypes.filter((type): type is Exclude<T, 'group'> => type !== 'group')
     const hasGroup = shapeTypes.some(type => type === 'group')
     const commonFields = { x: coordinateSchema, y: coordinateSchema, props: propsSchema.describe(propsDescription).meta({
-        properties: Object.fromEntries(Object.entries(propEnums).map(([key, values]) => [key, { type: 'string', enum: [...values] }])),
+        properties: propSchemas,
     }).optional() }
     const ordinaryShapeSchema = z.strictObject({ type: z.enum(nonGroupTypes), ...commonFields, children: z.never().optional() })
     const groupShapeSchema = z.strictObject({ type: z.literal('group'), ...commonFields, children: childrenSchema })

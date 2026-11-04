@@ -17,7 +17,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
     const covered = new Set<string>()
     const counts = { get_board_snapshot: 0, get_board_screenshot: 0, ask_user: 0 }
     let context: AgentContext
-    let lastError: AgentError | undefined, finalRequested = false
+    let lastError: AgentError | undefined, finalRequested = false, argumentCorrectionUsed = false
     const fail = (message: string): never => { throw new AgentApplicationError({ code: ERROR_CODES.INVALID_ARGUMENTS, message }) }
     const assertActive = async () => { dependencies.signal.throwIfAborted(); await dependencies.checkAccess(); dependencies.signal.throwIfAborted() }
     const finish = (text: string): AgentOutcome => outcomeSchema.parse({ status: 'completed', text, changes, uncertainCalls })
@@ -59,6 +59,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                 ? [{ type: 'text', source: 'assistant', text: decision.content }] : [], calls: decision.calls }] })
             let fatal: unknown
             let batchFailed = false
+            let argumentError: AgentError | undefined
             const durations = new Map<string, number>()
             const execute = async (proposal: ToolCallProposal): Promise<ToolResult> => {
                 const began = Date.now(), entry = tools.registry[proposal.name]
@@ -118,16 +119,25 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                         batchFailed = true
                         lastError = result.state === 'known' && !result.output.ok ? result.output.error : result.state !== 'known' ? result.error : undefined
                     }
+                    if (result.state === 'not_executed' && result.error.code === ERROR_CODES.INVALID_ARGUMENTS) argumentError = result.error
                 }
                 context = contextSchema.parse({ ...context, toolResults: [...context.toolResults, ...results], messages: [...context.messages, ...results.map(createToolResultMessage)] })
                 if (fatal) break
             }
             if (fatal) throw fatal
             dependencies.signal.throwIfAborted()
+            if (argumentError) {
+                if (argumentCorrectionUsed) throw new AgentApplicationError(argumentError)
+                argumentCorrectionUsed = true
+                context = contextSchema.parse({ ...context, messages: [...context.messages, { role: 'system', content: [{
+                    type: 'text', source: 'system',
+                    text: '工具参数未通过校验。请根据本批工具结果中的具体字段错误及工具 schema 修正参数；数组直接使用 [...]，对象使用 {...}，不能二次编码成字符串。保持原始需求，本任务只有一次参数纠正机会；仅纠正 not_executed 的调用，禁止重放已成功或结果未知的调用。',
+                }] }] })
+            }
             if (!batchFailed && !uncertainCalls.length) lastError = undefined
             if (finalRequested && !batchFailed && !uncertainCalls.length) return finish('已经执行草稿修改，请检查白板预览。')
         }
-        throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED, message: '后端模型请求次数已达上限' })
+        throw new AgentApplicationError(lastError ?? { code: ERROR_CODES.TASK_FAILED, message: '后端模型请求次数已达上限' })
     } catch (cause) {
         const cancelled = dependencies.signal.aborted
         const error = cancelled ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时，已完成的内容仅保留在草稿中' } : applicationError(cause, dependencies)

@@ -46,10 +46,14 @@ export class AgentApplicationError extends Error {
 }
 
 export function validationFailure(error: z.ZodError, code: ERROR_CODES, message: string): AgentApplicationError {
-    return new AgentApplicationError({ code, message, issues: error.issues.slice(0, 40).map(issue => ({
+    // 类型不符时，同字段的长度检查没有意义，避免把数组项数误报成字符串长度。
+    const invalidTypes = new Set(error.issues.filter(issue => issue.code === 'invalid_type').map(issue => JSON.stringify(issue.path)))
+    const issues = error.issues.filter(issue => issue.code === 'invalid_type' || !invalidTypes.has(JSON.stringify(issue.path)))
+    return new AgentApplicationError({ code, message, issues: issues.slice(0, 40).map(issue => ({
         path: (issue.path.map((part, index) => typeof part === 'number' ? `[${part}]` : `${index ? '.' : ''}${String(part)}`).join('') || 'input')
             .replace(/[^\w.[\]]/g, '_').slice(0, 100),
-        message: issue.message.slice(0, 200),
+        message: issue.code === 'invalid_type' && issue.expected === 'array'
+            ? '必须直接提交 JSON 数组 [...]，不能把数组编码成字符串；数组项须符合该字段 schema。' : issue.message.slice(0, 200),
     })) })
 }
 
