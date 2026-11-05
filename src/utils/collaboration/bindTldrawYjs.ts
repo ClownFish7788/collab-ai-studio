@@ -3,10 +3,12 @@ import type { TLRecord, TLStore } from 'tldraw'
 import * as Y from 'yjs'
 import { createYRecord, decodeYRecord, isDocumentRecord, patchYRecord } from './tldrawYjsRecords'
 
-export function validateBoardRecords(store: TLStore, records: ReadonlyMap<string, TLRecord>): void {
+export function validateBoardRecords(schema: TLStore['schema'], records: ReadonlyMap<string, TLRecord>): void {
+    if (![...records.values()].some(record => record.typeName === 'page')
+        || records.get('document:document')?.typeName !== 'document') throw new Error('白板文档或页面缺失')
     for (const [id, record] of records) {
         if (record.id !== id || !isDocumentRecord(record)) throw new Error('画板记录 ID 或类型不匹配')
-        store.schema.validateRecord(store, record, 'initialize', null)
+        schema.types[record.typeName].validate(record)
         if (record.typeName === 'shape') {
             const visited = new Set([id])
             let parentId: string = record.parentId
@@ -61,7 +63,7 @@ export function bindTldrawYjs(
             if (value) next.set(id, decodeYRecord(value))
             else next.delete(id)
         }
-        validateBoardRecords(store, next)
+        validateBoardRecords(store.schema, next)
         store.mergeRemoteChanges(() => {
             const removed = store.allRecords().filter(record => isDocumentRecord(record) && !next.has(record.id))
             if (removed.length) store.remove(removed.map(record => record.id))
