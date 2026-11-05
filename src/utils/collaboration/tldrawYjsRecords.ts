@@ -1,3 +1,4 @@
+import { isEqual } from '@tldraw/utils'
 import type { TLRecord } from 'tldraw'
 import * as Y from 'yjs'
 
@@ -36,6 +37,28 @@ export function createYRecord(record: TLRecord): Y.Map<unknown> {
     ]))
 }
 
+export function patchYRecord(target: Y.Map<unknown>, before: TLRecord, after: TLRecord): void {
+    if (before.id !== after.id || before.typeName !== after.typeName
+        || ('type' in before && (!('type' in after) || before.type !== after.type))) {
+        throw new Error('不能修改画板记录的身份')
+    }
+    const previous = fields(before), next = fields(after)
+    for (const key of new Set([...Object.keys(previous), ...Object.keys(next)])) {
+        if (isEqual(previous[key], next[key])) continue
+        if (key === 'props') {
+            const props = target.get('props')
+            if (!(props instanceof Y.Map)) throw new Error('画板属性映射缺失')
+            const oldProps = previous.props as Record<string, unknown>
+            const newProps = next.props as Record<string, unknown>
+            for (const prop of new Set([...Object.keys(oldProps), ...Object.keys(newProps)])) {
+                if (isEqual(oldProps[prop], newProps[prop])) continue
+                if (Object.hasOwn(newProps, prop)) props.set(prop, structuredClone(newProps[prop]))
+                else props.delete(prop)
+            }
+        } else if (Object.hasOwn(next, key)) target.set(key, structuredClone(next[key]))
+        else target.delete(key)
+    }
+}
 
 export function decodeYRecord(record: Y.Map<unknown>): TLRecord {
     if (!(record instanceof Y.Map)) throw new Error('画板记录不是共享 Map')
