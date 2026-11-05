@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getBoardProtocolFailure } from "@/lib/boardRoomProtocol";
 
 // 1. 初始化 Liveblocks Node 客户端
 const liveblocks = new Liveblocks({
@@ -11,7 +12,10 @@ const liveblocks = new Liveblocks({
 
 export async function POST(request: NextRequest) {
   try {
-    const { room } = await request.json();
+    const { room, boardProtocol } = await request.json();
+    if (typeof room !== 'string' || !room.trim()) {
+      return NextResponse.json({ error: '房间编号无效' }, { status: 400 });
+    }
     const sessionInfo = await getServerSession(authOptions)
     if (!sessionInfo || !sessionInfo.user) {
       return new NextResponse("用户未登录", { status: 401 });
@@ -38,6 +42,14 @@ export async function POST(request: NextRequest) {
     // 3.判断是否能进入文档
     if(!isOwner && !isCollaborator && !document.isPublic && !isViewer) {
       return new NextResponse("抱歉，您无权访问此文档", { status: 403 });
+    }
+    const roomInfo = await liveblocks.getRoom(room).catch((error: unknown) => {
+      if (error && typeof error === 'object' && 'status' in error && error.status === 404) return null
+      throw error
+    })
+    const protocolFailure = getBoardProtocolFailure(roomInfo?.metadata ?? {}, boardProtocol)
+    if (protocolFailure) {
+      return NextResponse.json({ error: protocolFailure.message }, { status: protocolFailure.status })
     }
     const session = liveblocks.prepareSession(userId, {
       userInfo: {

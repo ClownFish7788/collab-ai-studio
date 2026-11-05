@@ -27,9 +27,10 @@ const EditorPage = ({
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                room
+                room, boardProtocol: 2
             })
         })
+        if (!response.ok) throw new Error(await response.text())
         const data = await response.json()
         return data
     }, [])
