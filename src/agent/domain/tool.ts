@@ -5,6 +5,7 @@ import { jsonObjectSchema } from './data'
 import { agentErrorSchema } from './error'
 
 export const MAX_BOARD_WRITE_SHAPES = 30
+export const MAX_BOARD_TOOL_ARGUMENT_CHARS = 10000
 export const boardToolNameSchema = z.enum(['create_shapes', 'update_shapes', 'delete_shapes', 'get_board_snapshot', 'get_board_screenshot', 'ask_user'])
 export type BoardToolName = z.infer<typeof boardToolNameSchema>
 export const isBoardReadTool = (name: BoardToolName) => name === 'get_board_snapshot' || name === 'get_board_screenshot'

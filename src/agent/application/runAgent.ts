@@ -7,6 +7,7 @@ import { createAgentOutcomeSchema, type AgentOutcome } from '../domain/outcome'
 import { applicationError, AgentApplicationError, MAX_BOARD_MODEL_CALLS, MAX_BOARD_TOOL_CALLS, MAX_BOARD_WRITES_PER_TASK, validationFailure, type AgentDependencies, type RunAgentInput } from './ports'
 import { prepareTask } from './prepareTask'
 import { createToolRegistry } from './toolRegistry'
+import { resolveToolCorrection, toolCorrectionHints } from './toolCorrection'
 
 /** 用例仅编排领域数据；模型协议、浏览器等待、权限来源和 trace 持久化均由端口提供。 */
 export async function runAgent(input: RunAgentInput, dependencies: AgentDependencies): Promise<AgentOutcome> {
@@ -17,7 +18,8 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
     const covered = new Set<string>()
     const counts = { get_board_snapshot: 0, get_board_screenshot: 0, ask_user: 0 }
     let context: AgentContext
-    const unresolvedErrors = new Map<ToolCallProposal['name'], AgentError>()
+    const unresolvedErrors = new Map<string, { name: ToolCallProposal['name']; error: AgentError }>()
+    const pendingCorrections = new Set<string>()
     let finalRequested = false, argumentCorrectionUsed = false
     const fail = (message: string): never => { throw new AgentApplicationError({ code: ERROR_CODES.INVALID_ARGUMENTS, message }) }
     const assertActive = async () => { dependencies.signal.throwIfAborted(); await dependencies.checkAccess(); dependencies.signal.throwIfAborted() }
@@ -34,7 +36,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
         await dependencies.emit?.({ type: 'plan', task: preparation.brief })
 
         const finishTask = (text: string): AgentOutcome => {
-            const error = [...unresolvedErrors.values()].at(-1)
+            const error = [...unresolvedErrors.values()].at(-1)?.error
             if (error) throw new AgentApplicationError(error)
             if (uncertainCalls.length) throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED, message: '仍有写入结果未知，不能确认任务完成' })
             const missing = changes.length ? getUncoveredTaskObjects(preparation.brief, covered, []) : []
@@ -66,9 +68,22 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
             }
             if (decision.calls.length > MAX_BOARD_TOOL_CALLS) fail('工具列表超过本轮上限')
             if (decision.calls.some(call => !allowed.includes(call.name))) fail('本轮工具未开放')
-            // 先登记原始提议，参数错误也能获得同一 callId 的未执行结果；整批结束前不发起下一轮模型。
+            const correctionErrors = new Map<string, AgentError>()
+            const retries = new Map<string, string>()
+            const calls = decision.calls.map(proposal => {
+                try {
+                    const resolved = resolveToolCorrection(proposal, context, pendingCorrections, dependencies.tools)
+                    if (resolved.retryOf) retries.set(proposal.id, resolved.retryOf)
+                    return resolved.proposal
+                } catch (cause) {
+                    if (!(cause instanceof AgentApplicationError)) throw cause
+                    correctionErrors.set(proposal.id, cause.detail)
+                    return proposal
+                }
+            })
+            // 登记补全后的完整提议，执行结果必须与新 callId 下的完整参数核对。
             context = contextSchema.parse({ ...context, messages: [...context.messages, { role: 'assistant', content: decision.content?.trim()
-                ? [{ type: 'text', source: 'assistant', text: decision.content }] : [], calls: decision.calls }] })
+                ? [{ type: 'text', source: 'assistant', text: decision.content }] : [], calls }] })
             let fatal: unknown
             let batchFailed = false
             let argumentError: AgentError | undefined
@@ -79,6 +94,8 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                 let dispatched = false
                 let toolStarted: number | undefined
                 try {
+                    const correctionError = correctionErrors.get(proposal.id)
+                    if (correctionError) throw new AgentApplicationError(correctionError)
                     const validation = tools.prepare(proposal, context)
                     if (!validation.ok) throw new AgentApplicationError(validation.error)
                     const prepared = validation.prepared
@@ -87,7 +104,8 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                         if (++counts[proposal.name] > (proposal.name === 'ask_user' ? 1 : 2)) fail('读取或询问预算已用尽')
                     }
                     if (prepared.isFinal && getUncoveredTaskObjects(preparation.brief, covered, prepared.elements).length) fail('最终写入不能遗漏需求对象')
-                    await dependencies.record?.('operation_result', { operation: 'element_preparation', outcome: 'success', modelCall: proposal, ...prepared }, Date.now() - began)
+                    await dependencies.record?.('operation_result', { operation: 'element_preparation', outcome: 'success', modelCall: proposal,
+                        ...(retries.has(proposal.id) ? { retryOf: retries.get(proposal.id) } : {}), ...prepared }, Date.now() - began)
                     await assertActive()
                     if (prepared.elements.length) await dependencies.emit?.({ type: 'plan', task: preparation.brief, prepared })
                     await dependencies.record?.('tool_call', { call: prepared.call, input: prepared.input })
@@ -115,10 +133,10 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                 }
             }
             // 连续读取并发，写入和询问是屏障；先收齐兄弟结果，再传播取消或传输错误。
-            for (let index = 0; index < decision.calls.length;) {
-                const group = [decision.calls[index++]]
+            for (let index = 0; index < calls.length;) {
+                const group = [calls[index++]]
                 if (tools.registry[group[0].name].contract.kind === 'read') {
-                    while (index < decision.calls.length && tools.registry[decision.calls[index].name].contract.kind === 'read') group.push(decision.calls[index++])
+                    while (index < calls.length && tools.registry[calls[index].name].contract.kind === 'read') group.push(calls[index++])
                 }
                 const settled = await Promise.allSettled(group.map(execute))
                 const results: ToolResult[] = []
@@ -129,14 +147,23 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     // 在下一道执行屏障前提交事实和未知写入，后续工具不能使用过期的观察或授权状态。
                     if (result.state === 'unknown' && tools.registry[result.name].contract.kind === 'write') uncertainCalls.push({ id: result.callId, name: result.name })
                     await dependencies.record?.('tool_result', { callId: result.callId, result }, durations.get(result.callId))
-                    // shortcut: 暂按工具名关联恢复；接入 retryOf 后按调用精确关联，读取成功不能掩盖失败写入。
-                    unresolvedErrors.delete(result.name)
+                    const successful = result.state === 'known' && result.output.ok
+                    if (successful) {
+                        const retryOf = retries.get(result.callId)
+                        if (retryOf) unresolvedErrors.delete(retryOf)
+                        if (tools.registry[result.name].contract.kind !== 'write') {
+                            for (const [id, failure] of unresolvedErrors) if (failure.name === result.name) unresolvedErrors.delete(id)
+                        }
+                    }
                     if (result.state !== 'known' || !result.output.ok) {
                         batchFailed = true
                         const error = result.state === 'known' && !result.output.ok ? result.output.error : result.state !== 'known' ? result.error : undefined
-                        if (error) unresolvedErrors.set(result.name, error)
+                        if (error) unresolvedErrors.set(result.callId, { name: result.name, error })
                     }
-                    if (result.state === 'not_executed' && result.error.code === ERROR_CODES.INVALID_ARGUMENTS) argumentError = result.error
+                    if (result.state === 'not_executed' && result.error.code === ERROR_CODES.INVALID_ARGUMENTS) {
+                        argumentError = result.error
+                        if (tools.registry[result.name].contract.kind === 'write') pendingCorrections.add(result.callId)
+                    }
                 }
                 context = contextSchema.parse({ ...context, toolResults: [...context.toolResults, ...results], messages: [...context.messages, ...results.map(createToolResultMessage)] })
                 if (fatal) break
@@ -148,12 +175,13 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                 argumentCorrectionUsed = true
                 context = contextSchema.parse({ ...context, messages: [...context.messages, { role: 'system', content: [{
                     type: 'text', source: 'system',
-                    text: '工具参数未通过校验。请根据本批工具结果中的具体字段错误及工具 schema 修正参数；数组直接使用 [...]，对象使用 {...}，不能二次编码成字符串。保持原始需求，本任务只有一次参数纠正机会；仅纠正 not_executed 的调用，禁止重放已成功或结果未知的调用。',
+                    text: '工具参数未通过校验。请根据具体字段错误修正；数组直接使用 [...]，对象使用 {...}，不能二次编码成字符串。写入纠错使用同名工具、全新 callId 与 retryOf：增量格式为 {retryOf,patches:[{itemKey:"item_0",props:{font:"sans"}}]}，只修改错误字段，其余元素和字段保留；props 按字段合并，richText/points 等嵌套值整项替换。可选 isFinal/references 覆盖旧值。增加/删除元素或更换 type/objectKey/shapeId 时，使用带 retryOf 的完整替代参数。保持原始需求，本任务只有一次参数纠正机会；禁止重放已成功或结果未知的调用。'
+                        + toolCorrectionHints(context, pendingCorrections, dependencies.tools),
                 }] }] })
             }
             if (finalRequested && !batchFailed && !uncertainCalls.length) return finishTask('已经执行草稿修改，请检查白板预览。')
         }
-        throw new AgentApplicationError([...unresolvedErrors.values()].at(-1) ?? { code: ERROR_CODES.TASK_FAILED, message: '后端模型请求次数已达上限' })
+        throw new AgentApplicationError([...unresolvedErrors.values()].at(-1)?.error ?? { code: ERROR_CODES.TASK_FAILED, message: '后端模型请求次数已达上限' })
     } catch (cause) {
         const cancelled = dependencies.signal.aborted
         const error = cancelled ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时，已完成的内容仅保留在草稿中' } : applicationError(cause, dependencies)

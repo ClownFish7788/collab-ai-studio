@@ -6,6 +6,7 @@ import { jsonValueSchema, type JsonValue } from '../../domain/data'
 import { toolCallIdSchema } from '../../domain/invocation'
 import { modelDecisionSchema, type AgentMessage, type ContentBlock, type ModelDecision } from '../../domain/message'
 import { boardToolNameSchema, type BoardToolName, type createBoardToolContracts } from '../../domain/tool'
+import { getToolCorrectionContract } from '../../domain/toolCorrection'
 import { boardTaskBriefPrompt } from '../../../prompts/boardTaskBriefPrompt'
 import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../../../utils/board/boardCapabilities'
 
@@ -35,7 +36,9 @@ function parseToolArguments(text: string, parameters: z.core.JSONSchema.JSONSche
     try { input = JSON.parse(text) } catch { return text }
     if (input && typeof input === 'object' && !Array.isArray(input)) {
         const fields = input as Record<string, unknown>
-        for (const [key, property] of Object.entries(parameters.properties ?? {})) {
+        const branches = [parameters, ...(parameters.anyOf ?? []), ...(parameters.oneOf ?? [])]
+        const properties = branches.flatMap(branch => typeof branch === 'object' ? Object.entries(branch.properties ?? {}) : [])
+        for (const [key, property] of properties) {
             if (property && typeof property === 'object' && property.type === 'array' && typeof fields[key] === 'string') {
                 const raw = fields[key] as string
                 let value: unknown
@@ -224,7 +227,7 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
             const schema = name === 'create_shapes' ? mutationSchemas.create : name === 'update_shapes' ? mutationSchemas.update
                 : name === 'delete_shapes' ? mutationSchemas.delete : contracts.tools[name].inputSchema
             return { type: 'function', function: { name, description: contracts.tools[name].description,
-                parameters: z.toJSONSchema(schema, { target: 'draft-7' }),
+                parameters: z.toJSONSchema(contracts.tools[name].kind === 'write' ? getToolCorrectionContract(schema).modelSchema : schema, { target: 'draft-7' }),
             } }
         })
         const encoded = encodeMessages(messages)
