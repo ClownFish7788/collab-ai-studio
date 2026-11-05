@@ -288,6 +288,7 @@ export function applyBoardDraft(draft: BoardDraft, target: TLStore): {
     }
     // 已在草稿完成重排；正式 Editor 不重复运行书签请求和绑定回调。
     target.applyDiff(documentDiff(draft.baseline.store, current), { runCallbacks: false })
+    target._flushHistory()
     draft.status = 'applied'
 
     return summary
