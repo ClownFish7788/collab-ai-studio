@@ -5,26 +5,26 @@ import { useEffect, useState } from "react"
 import LocalDrawEditor from "./LocalDrawEditor"
 import OnlineDrawEditor from "./OnlineDrawEdit"
 import { getTldrawLicense } from "@/actions/getTldrawLicense"
+import { useParams } from 'next/navigation'
 
 const DrawEditor = () => {
     const isLogin = useUserStore(state => state.isLogin)
-    const [isMounted, setIsMounted] = useState(false)
+    const { workId } = useParams<{ workId: string }>()
     const [licenseKey, setLicenseKey] = useState<string | null>(null)
     useEffect(() => {
-        setIsMounted(true)
         getTldrawLicense().then(key => {
             setLicenseKey(key.trim() || "")
         })
     }, [])
     // 避免服务器与客户端渲染不一致（水合报错）
-    if (!isMounted || !licenseKey) return null
+    if (!licenseKey) return null
 
     // 🌟 登录了走云端，没登录走本地
     if (isLogin) {
-        return <OnlineDrawEditor licenseKey={licenseKey} />
+        return <OnlineDrawEditor key={workId} licenseKey={licenseKey} />
     }
     
-    return <LocalDrawEditor licenseKey={licenseKey} />
+    return <LocalDrawEditor key={workId} licenseKey={licenseKey} />
 }
 
 export default DrawEditor
