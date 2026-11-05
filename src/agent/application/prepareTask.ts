@@ -4,7 +4,9 @@ import type { AgentMessage } from '../domain/message'
 import { boardTaskPreparationSchema, MAX_TASK_PREPARATION_CHARS } from '../domain/task'
 import { AgentApplicationError, applicationError, validationFailure, type AgentDependencies } from './ports'
 
-/** 语法、结构和引用问题共用一次纠错；模型连接、权限和取消错误直接终止。 */
+const isPlainReply = (text: string) => !!text.trim() && !['{', '[', '"', '```'].some(prefix => text.trimStart().startsWith(prefix))
+
+/** 普通正文归一为只回复；结构化候选共用一次纠错，连接、权限和取消错误直接终止。 */
 export async function prepareTask(messages: readonly AgentMessage[], dependencies: AgentDependencies) {
     const history: AgentMessage[] = messages.filter(message => message.role !== 'system')
     for (let attempt = 1; ; attempt++) {
@@ -24,9 +26,11 @@ export async function prepareTask(messages: readonly AgentMessage[], dependencie
         let error: AgentError | undefined
         try { candidate = JSON.parse(text) }
         catch {
-            error = { code: ERROR_CODES.INVALID_MODEL_RESPONSE, message: '需求拆分未返回合法 JSON，本轮没有执行工具',
+            if (isPlainReply(text)) candidate = { kind: 'reply', text }
+            else error = { code: ERROR_CODES.INVALID_MODEL_RESPONSE, message: '需求拆分未返回合法 JSON，本轮没有执行工具',
                 issues: [{ path: 'preparation', message: '请检查 JSON 引号、逗号和括号，保持原始需求并重新输出完整 JSON 对象' }] }
         }
+        if (typeof candidate === 'string' && isPlainReply(candidate)) candidate = { kind: 'reply', text: candidate }
         if (!error) {
             const parsed = boardTaskPreparationSchema.safeParse(candidate, { error: z.locales.zhCN().localeError })
             if (parsed.success && JSON.stringify(candidate).length <= MAX_TASK_PREPARATION_CHARS) {

@@ -17,7 +17,8 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
     const covered = new Set<string>()
     const counts = { get_board_snapshot: 0, get_board_screenshot: 0, ask_user: 0 }
     let context: AgentContext
-    let lastError: AgentError | undefined, finalRequested = false, argumentCorrectionUsed = false
+    const unresolvedErrors = new Map<ToolCallProposal['name'], AgentError>()
+    let finalRequested = false, argumentCorrectionUsed = false
     const fail = (message: string): never => { throw new AgentApplicationError({ code: ERROR_CODES.INVALID_ARGUMENTS, message }) }
     const assertActive = async () => { dependencies.signal.throwIfAborted(); await dependencies.checkAccess(); dependencies.signal.throwIfAborted() }
     const finish = (text: string): AgentOutcome => outcomeSchema.parse({ status: 'completed', text, changes, uncertainCalls })
@@ -31,6 +32,19 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
             { role: 'assistant', content: [{ type: 'data', source: 'assistant', data: { taskBrief: preparation.brief } }] },
         ] })
         await dependencies.emit?.({ type: 'plan', task: preparation.brief })
+
+        const finishTask = (text: string): AgentOutcome => {
+            const error = [...unresolvedErrors.values()].at(-1)
+            if (error) throw new AgentApplicationError(error)
+            if (uncertainCalls.length) throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED, message: '仍有写入结果未知，不能确认任务完成' })
+            const missing = changes.length ? getUncoveredTaskObjects(preparation.brief, covered, []) : []
+            if (missing.length) throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED,
+                message: `任务尚未完成，以下对象没有成功执行记录：${missing.map(object => object.key).join('、')}`.slice(0, 1000),
+                issues: missing.map(object => ({ path: `brief.objects[${preparation.brief.objects.findIndex(item => item.key === object.key)}].key`,
+                    message: `需求对象 "${object.key}" 尚无成功执行记录` })),
+            })
+            return finish(text)
+        }
 
         for (let step = 0; step < MAX_BOARD_MODEL_CALLS; step++) {
             await assertActive()
@@ -48,9 +62,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
             if (!parsed.success) throw validationFailure(parsed.error, ERROR_CODES.INVALID_MODEL_RESPONSE, '模型决策格式不合法')
             const decision = parsed.data
             if (decision.kind === 'text') {
-                if (lastError) throw new AgentApplicationError(lastError)
-                if (changes.length) throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED, message: '任务只完成部分写入，已有内容保留在草稿中' })
-                return finish(reference ? decision.text : '本轮没有执行白板修改。')
+                return finishTask((changes.length ? decision.text : `本轮未执行白板修改。\n\n${decision.text}`).slice(0, 8000))
             }
             if (decision.calls.length > MAX_BOARD_TOOL_CALLS) fail('工具列表超过本轮上限')
             if (decision.calls.some(call => !allowed.includes(call.name))) fail('本轮工具未开放')
@@ -117,9 +129,12 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     // 在下一道执行屏障前提交事实和未知写入，后续工具不能使用过期的观察或授权状态。
                     if (result.state === 'unknown' && tools.registry[result.name].contract.kind === 'write') uncertainCalls.push({ id: result.callId, name: result.name })
                     await dependencies.record?.('tool_result', { callId: result.callId, result }, durations.get(result.callId))
+                    // shortcut: 暂按工具名关联恢复；接入 retryOf 后按调用精确关联，读取成功不能掩盖失败写入。
+                    unresolvedErrors.delete(result.name)
                     if (result.state !== 'known' || !result.output.ok) {
                         batchFailed = true
-                        lastError = result.state === 'known' && !result.output.ok ? result.output.error : result.state !== 'known' ? result.error : undefined
+                        const error = result.state === 'known' && !result.output.ok ? result.output.error : result.state !== 'known' ? result.error : undefined
+                        if (error) unresolvedErrors.set(result.name, error)
                     }
                     if (result.state === 'not_executed' && result.error.code === ERROR_CODES.INVALID_ARGUMENTS) argumentError = result.error
                 }
@@ -136,10 +151,9 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     text: '工具参数未通过校验。请根据本批工具结果中的具体字段错误及工具 schema 修正参数；数组直接使用 [...]，对象使用 {...}，不能二次编码成字符串。保持原始需求，本任务只有一次参数纠正机会；仅纠正 not_executed 的调用，禁止重放已成功或结果未知的调用。',
                 }] }] })
             }
-            if (!batchFailed && !uncertainCalls.length) lastError = undefined
-            if (finalRequested && !batchFailed && !uncertainCalls.length) return finish('已经执行草稿修改，请检查白板预览。')
+            if (finalRequested && !batchFailed && !uncertainCalls.length) return finishTask('已经执行草稿修改，请检查白板预览。')
         }
-        throw new AgentApplicationError(lastError ?? { code: ERROR_CODES.TASK_FAILED, message: '后端模型请求次数已达上限' })
+        throw new AgentApplicationError([...unresolvedErrors.values()].at(-1) ?? { code: ERROR_CODES.TASK_FAILED, message: '后端模型请求次数已达上限' })
     } catch (cause) {
         const cancelled = dependencies.signal.aborted
         const error = cancelled ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时，已完成的内容仅保留在草稿中' } : applicationError(cause, dependencies)
