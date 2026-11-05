@@ -29,15 +29,25 @@ export function validateBoardRecords(store: TLStore, records: ReadonlyMap<string
 }
 
 export function bindTldrawYjs(
-    store: TLStore, records: Y.Map<Y.Map<unknown>>, onError: (error: Error | null) => void = () => {},
+    store: TLStore,
+    records: Y.Map<Y.Map<unknown>>,
+    onError: (error: Error | null) => void = () => {},
 ) {
     const doc = records.doc
     if (!doc) throw new Error('画板共享记录尚未接入文档')
     const origin = {}
-    const undoManager = new Y.UndoManager(records, { trackedOrigins: new Set([origin]), captureTimeout: Infinity, ignoreRemoteMapChanges: false })
     let error: Error | null = null
     let disposed = false
     let current = new Map<string, TLRecord>()
+    const remoteVersions = new Map<string, number>()
+    let pendingFootprint = new Set<string>()
+    const undoManager = new Y.UndoManager(records, {
+        trackedOrigins: new Set([origin]),
+        captureTimeout: Infinity,
+        ignoreRemoteMapChanges: false,
+    })
+    const unit = (id: string, ...path: string[]) => JSON.stringify([id, ...path])
+    const version = (key: string) => remoteVersions.get(key) ?? 0
 
     function report(cause: unknown) {
         error = cause instanceof Error ? cause : new Error(String(cause))
@@ -68,18 +78,52 @@ export function bindTldrawYjs(
     apply(new Set(records.keys()))
 
     function changed(events: Y.YEvent<Y.AbstractType<unknown>>[], transaction: Y.Transaction) {
-        if (transaction.origin === origin) return
         const ids = new Set<string>()
+        const touched = new Set<string>()
+        const wholeRecords = new Set<string>()
         for (const event of events) {
-            if (event.target === records && event instanceof Y.YMapEvent) {
-                for (const id of event.keysChanged) ids.add(id)
-            } else if (typeof event.path[0] === 'string') ids.add(event.path[0])
+            if (!(event instanceof Y.YMapEvent)) continue
+            if (event.target === records) {
+                for (const id of event.keysChanged) {
+                    ids.add(id)
+                    touched.add(unit(id, 'root'))
+                    touched.add(unit(id, 'record'))
+                    wholeRecords.add(unit(id, 'record'))
+                }
+            } else {
+                const [id, ...path] = event.path
+                if (typeof id !== 'string') continue
+                ids.add(id)
+                touched.add(unit(id, 'record'))
+                wholeRecords.add(unit(id, 'root'))
+                for (const key of event.keysChanged) {
+                    const field = unit(id, 'field', ...path.map(String), key)
+                    touched.add(field)
+                    wholeRecords.add(field)
+                }
+            }
         }
+        if (transaction.origin === origin || transaction.origin === undoManager) {
+            pendingFootprint = wholeRecords
+        } else {
+            for (const key of touched) remoteVersions.set(key, version(key) + 1)
+            undoManager.stopCapturing()
+        }
+        if (transaction.origin === origin) return
         try {
+            // Re-read the full root after an invalid batch so later repairs can recover the view.
             apply(error ? new Set([...records.keys(), ...current.keys()]) : ids)
         } catch (cause) { report(cause) }
     }
     records.observeDeep(changed)
+
+    function capture({ stackItem }: { stackItem: Y.UndoManager['undoStack'][number] }) {
+        const footprint: Map<string, number> = stackItem.meta.get('board-footprint') ?? new Map()
+        for (const key of pendingFootprint) footprint.set(key, version(key))
+        stackItem.meta.set('board-footprint', footprint)
+    }
+    undoManager.on('stack-item-added', capture)
+    undoManager.on('stack-item-updated', capture)
 
     const unlisten = store.listen(({ changes }) => {
         if (disposed || error) return
@@ -96,6 +140,7 @@ export function bindTldrawYjs(
                 if (records.has(value.id)) throw new Error('新增画板记录 ID 冲突')
                 store.schema.validateRecord(store, value, 'createRecord', null)
             }
+            pendingFootprint = new Set()
             doc.transact(() => {
                 for (const value of added) records.set(value.id, createYRecord(value))
                 for (const [before, after] of updated) patchYRecord(records.get(after.id)!, before, after)
@@ -107,11 +152,28 @@ export function bindTldrawYjs(
     }, { source: 'user', scope: 'document' })
     const unflush = store.sideEffects.registerOperationCompleteHandler(() => store._flushHistory())
 
+    function canReplay(step: Y.UndoManager['undoStack'][number]): boolean {
+        const footprint: Map<string, number> | undefined = step.meta.get('board-footprint')
+        return !disposed && !error && !!footprint && [...footprint].every(([key, expected]) => version(key) === expected)
+    }
+
+    function replay(direction: 'undo' | 'redo'): boolean {
+        if (disposed || error) return false
+        const stack = direction === 'undo' ? undoManager.undoStack : undoManager.redoStack
+        const step = stack.at(-1)
+        if (!step || !canReplay(step)) return false
+        pendingFootprint = new Set()
+        undoManager.stopCapturing()
+        undoManager[direction]()
+        return true
+    }
+
     return {
         undoManager,
-        undo: () => { undoManager.stopCapturing(); undoManager.undo(); return true },
-        redo: () => { undoManager.stopCapturing(); undoManager.redo(); return true },
+        canReplay,
         get error() { return error },
+        undo: () => replay('undo'),
+        redo: () => replay('redo'),
         dispose() {
             if (disposed) return
             disposed = true
@@ -122,4 +184,5 @@ export function bindTldrawYjs(
         },
     }
 }
+
 export type TldrawYjsBinding = ReturnType<typeof bindTldrawYjs>

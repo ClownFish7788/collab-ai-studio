@@ -57,3 +57,24 @@ test('offline undo continues to merge independent edits when reconnected',t=>{
   assert.equal(stores[0].get('shape:test').props.color,'red');
   assert.deepEqual(stores[0].serialize('document'),stores[1].serialize('document'));
 });
+
+
+test('a conflict in one record blocks the entire multi-record undo',t=>{
+  const {docs,stores,bindings}=setup(t);
+  const other={...shape(),id:'shape:other',index:'a2'};
+  stores[0].put([other]);sync(docs);
+  bindings[0].undoManager.stopCapturing();
+  stores[0].put([{...shape(),x:30},{...other,x:40}]);sync(docs);
+  stores[1].put([{...stores[1].get('shape:other'),x:90}]);sync(docs);
+  assert.equal(bindings[0].undo(),false);
+  assert.equal(stores[0].get('shape:test').x,30);
+  assert.equal(stores[0].get('shape:other').x,90);
+});
+test('undo creation is blocked if another user has edited the created record',t=>{
+  const {docs,stores,bindings}=setup(t);
+  const other={...shape(),id:'shape:other',index:'a2'};
+  stores[0].put([other]);sync(docs);
+  stores[1].put([{...stores[1].get('shape:other'),props:{...other.props,color:'red'}}]);sync(docs);
+  assert.equal(bindings[0].undo(),false);
+  assert.equal(stores[0].get('shape:other').props.color,'red');
+});
