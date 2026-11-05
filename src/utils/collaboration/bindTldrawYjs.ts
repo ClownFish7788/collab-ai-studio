@@ -34,11 +34,13 @@ export function bindTldrawYjs(
     store: TLStore,
     records: Y.Map<Y.Map<unknown>>,
     onError: (error: Error | null) => void = () => {},
+    canWrite: () => boolean = () => true,
 ) {
     const doc = records.doc
     if (!doc) throw new Error('画板共享记录尚未接入文档')
     const origin = {}
     let error: Error | null = null
+    let protocolError: Error | null = null
     let disposed = false
     let current = new Map<string, TLRecord>()
     const remoteVersions = new Map<string, number>()
@@ -57,6 +59,7 @@ export function bindTldrawYjs(
     }
 
     function apply(ids: Set<string>) {
+        if (protocolError) throw protocolError
         const next = new Map(current)
         for (const id of ids) {
             const value = records.get(id)
@@ -118,6 +121,12 @@ export function bindTldrawYjs(
         } catch (cause) { report(cause) }
     }
     records.observeDeep(changed)
+    const legacy = doc.getArray('tl_records')
+    const legacyChanged = () => {
+        protocolError = new Error('检测到旧版本仍在修改白板，已暂停编辑；请导出备份后恢复')
+        report(protocolError)
+    }
+    legacy.observe(legacyChanged)
 
     function capture({ stackItem }: { stackItem: Y.UndoManager['undoStack'][number] }) {
         const footprint: Map<string, number> = stackItem.meta.get('board-footprint') ?? new Map()
@@ -134,6 +143,7 @@ export function bindTldrawYjs(
         const removed = Object.values(changes.removed).filter(isDocumentRecord)
         if (!added.length && !updated.length && !removed.length) return
         try {
+            if (!canWrite()) throw new Error('当前没有白板编辑权限')
             for (const [before, after] of updated) {
                 if (!records.has(before.id)) throw new Error('图形已被删除，不能通过更新恢复')
                 store.schema.validateRecord(store, after, 'updateRecord', before)
@@ -156,7 +166,7 @@ export function bindTldrawYjs(
 
     function canReplay(step: Y.UndoManager['undoStack'][number]): boolean {
         const footprint: Map<string, number> | undefined = step.meta.get('board-footprint')
-        return !disposed && !error && !!footprint && [...footprint].every(([key, expected]) => version(key) === expected)
+        return !disposed && !error && canWrite() && !!footprint && [...footprint].every(([key, expected]) => version(key) === expected)
     }
 
     function replay(direction: 'undo' | 'redo'): boolean {
@@ -182,6 +192,7 @@ export function bindTldrawYjs(
             unlisten()
             unflush()
             records.unobserveDeep(changed)
+            legacy.unobserve(legacyChanged)
             undoManager.destroy()
         },
     }

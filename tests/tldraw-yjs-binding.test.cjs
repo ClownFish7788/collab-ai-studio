@@ -45,3 +45,22 @@ test('missing record update never recreates a deleted shape',t=>{
   assert.equal(docs[0].getMap('tl_records_v2').has('shape:test'),false);
   assert.equal(bindings[0].error,null);
 });
+
+test('readonly binding never writes document changes or adds undo entries', t => {
+  const docs = pair(), value = store();
+  const binding = bindTldrawYjs(value, docs[0].getMap('tl_records_v2'), () => {}, () => false);
+  t.after(() => { binding.dispose(); docs.forEach(doc => doc.destroy()); });
+  value.put([{ ...shape(), x: 55 }]);
+  assert.equal(docs[0].getMap('tl_records_v2').get('shape:test').get('placement').x, 0);
+  assert.equal(binding.undoManager.undoStack.length, 0);
+  assert.match(binding.error.message, /权限/);
+});
+
+test('a late v1 writer freezes v2 editing and preserves both roots for recovery', t => {
+  const { docs, stores, bindings } = setup(t);
+  docs[0].getArray('tl_records').push([{ key: shape().id, val: { ...shape(), x: 99 } }]);
+  assert.match(bindings[0].error.message, /旧版本/);
+  stores[0].put([{ ...shape(), x: 50 }]);
+  assert.equal(docs[0].getMap('tl_records_v2').get('shape:test').get('placement').x, 0);
+  assert.equal(docs[0].getArray('tl_records').length, 1);
+});
