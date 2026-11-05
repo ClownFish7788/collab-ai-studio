@@ -34,6 +34,7 @@ export function bindTldrawYjs(
     const doc = records.doc
     if (!doc) throw new Error('画板共享记录尚未接入文档')
     const origin = {}
+    const undoManager = new Y.UndoManager(records, { trackedOrigins: new Set([origin]), captureTimeout: Infinity, ignoreRemoteMapChanges: false })
     let error: Error | null = null
     let disposed = false
     let current = new Map<string, TLRecord>()
@@ -107,6 +108,9 @@ export function bindTldrawYjs(
     const unflush = store.sideEffects.registerOperationCompleteHandler(() => store._flushHistory())
 
     return {
+        undoManager,
+        undo: () => { undoManager.stopCapturing(); undoManager.undo(); return true },
+        redo: () => { undoManager.stopCapturing(); undoManager.redo(); return true },
         get error() { return error },
         dispose() {
             if (disposed) return
@@ -114,6 +118,7 @@ export function bindTldrawYjs(
             unlisten()
             unflush()
             records.unobserveDeep(changed)
+            undoManager.destroy()
         },
     }
 }
