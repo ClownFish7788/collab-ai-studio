@@ -24,11 +24,15 @@ export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, 
     const room = useRoom()
     const connection = useStatus()
     const permission = useRef(canEdit)
+    const verifiedWrite = useRef(false)
     const [preferences] = useState(() => atom('board-user', user))
     useLayoutEffect(() => {
         permission.current = canEdit
+        const self = room.getSelf()
+        if (!canEdit) verifiedWrite.current = false
+        else if (self) verifiedWrite.current = self.canWrite
         preferences.set(user)
-    }, [canEdit, preferences, user])
+    }, [canEdit, connection, preferences, room, user])
     const isOpenNetwork = useNetworkStore(state => state.isOpenNetwork)
     const [store] = useState(() => createTLStore({ shapeUtils: [...defaultShapeUtils, ...shapeUtils] }))
     const [state, setState] = useState<BoardYjsStoreState>({ status: 'loading' })
@@ -61,7 +65,7 @@ export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, 
             try {
                 assertBoardV2(yDoc, store.schema)
                 binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), error => error ? fail(error) : ready(),
-                    () => permission.current && room.getSelf()?.canWrite !== false)
+                    () => permission.current && verifiedWrite.current && room.getSelf()?.canWrite !== false)
 
                 const presenceId = InstancePresenceRecordType.createId(provider.awareness.doc.clientID.toString())
                 const presence = createPresenceStateDerivation(preferences, presenceId)(store)

@@ -24,6 +24,7 @@ const useEditorStore = create<EditorStore>((set) => ({
     toggleId: (newId: string) => set((state) => {
         if(newId !== state.id) return {
             id: newId,
+            role: null,
             docData: null,
             editorData: null
         }
