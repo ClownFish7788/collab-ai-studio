@@ -56,3 +56,14 @@ test('a valid initialized snapshot survives binary encode and reload with the sa
   assert.equal(restored.getMap('tl_records_v2').size,2);
   doc.destroy();restored.destroy();
 });
+
+test('late v1 writes are detected again after a complete binary reload', () => {
+  const doc = new Y.Doc(), restored = new Y.Doc(), schema = store().schema;
+  doc.getArray('tl_records').push(initialRecords().map(val => ({ key: val.id, val })));
+  initializeBoardV2(doc, schema, { allowLegacy: true });
+  doc.getArray('tl_records').push([{ key: shape().id, val: { ...shape(), x: 77 } }]);
+  Y.applyUpdate(restored, Y.encodeStateAsUpdate(doc));
+  assert.throws(() => assertBoardV2(restored, schema), /旧版本/);
+  assert.equal(restored.getMap('tl_records_v2').get(shape().id).get('placement').x, 0);
+  doc.destroy(); restored.destroy();
+});

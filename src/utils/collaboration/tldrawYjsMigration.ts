@@ -14,13 +14,14 @@ export function readLegacyBoard(doc: Y.Doc): TLRecord[] {
         if (!val || val.id !== key || !isDocumentRecord(val)) throw new Error('旧白板记录损坏，保留原始数据后检查')
         logical.set(key, val)
     }
-    return [...logical.values()]
+    return [...logical.values()].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 }
 
 export function assertBoardV2(doc: Y.Doc, schema: TLStore['schema']): void {
     const meta = doc.getMap(BOARD_META)
     if (meta.get('format') !== 2) throw new Error('白板尚未完成升级，请保留数据并完成受控迁移')
     if (!isEqual(meta.get('schema'), schema.serialize())) throw new Error('白板数据版本不兼容，需要受控升级')
+    if (!isEqual(meta.get('legacyBaseline'), readLegacyBoard(doc))) throw new Error('检测到旧版本迟到修改，请导出备份后恢复')
     const values = new Map([...doc.getMap<Y.Map<unknown>>(BOARD_RECORDS)].map(([id, record]) => [id, decodeYRecord(record)]))
     validateBoardRecords(schema, values)
 }
@@ -41,6 +42,8 @@ export function initializeBoardV2(doc: Y.Doc, schema: TLStore['schema'], { allow
     doc.transact(() => {
         for (const [id, record] of encoded) root.set(id, record)
         meta.set('schema', schema.serialize())
+        // One immutable baseline makes late v1 writes detectable after every reload.
+        meta.set('legacyBaseline', structuredClone(old))
         meta.set('format', 2)
     }, 'board-initialization')
     return values.length
