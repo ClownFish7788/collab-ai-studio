@@ -11,6 +11,7 @@ import {
 } from 'tldraw'
 
 import { DRAFT_SHAPE_TYPES } from './draftShapeSchema'
+import { flushBoardChanges } from '@/utils/collaboration/bindTldrawYjs'
 export { DRAFT_SHAPE_TYPES, type DraftShapeType } from './draftShapeSchema'
 
 export type BoardDraft = {
@@ -288,7 +289,7 @@ export function applyBoardDraft(draft: BoardDraft, target: TLStore): {
     }
     // 已在草稿完成重排；正式 Editor 不重复运行书签请求和绑定回调。
     target.applyDiff(documentDiff(draft.baseline.store, current), { runCallbacks: false })
-    target._flushHistory()
+    flushBoardChanges(target)
     draft.status = 'applied'
 
     return summary

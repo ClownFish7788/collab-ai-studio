@@ -6,6 +6,7 @@ import { bindTldrawYjs, type TldrawYjsBinding } from '@/utils/collaboration/bind
 import { assertBoardV2, BOARD_META, BOARD_RECORDS, initializeBoardV2 } from '@/utils/collaboration/tldrawYjsMigration'
 import CustomBoradcastChannel from '@/utils/collaboration/BoradcastChannelProvider'
 import type { BoardYjsStoreState } from './boardYjsStoreState'
+import { toast } from '@/components/Toast'
 
 export function useLocalYjsStore(yDoc: Y.Doc, roomId: string) {
     const [store] = useState(() => createTLStore({ shapeUtils: defaultShapeUtils }))
@@ -39,7 +40,10 @@ export function useLocalYjsStore(yDoc: Y.Doc, roomId: string) {
             if (disposed) return
             if (binding) return
             assertBoardV2(yDoc, store.schema)
-            binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), error => error ? fail(error) : ready())
+            binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), (error, source) => {
+                if (source === 'write') { if (error) toast.show(error.message); return }
+                if (error) fail(error); else ready()
+            })
             ready()
         }
         void start().catch(fail)
