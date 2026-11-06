@@ -1,6 +1,8 @@
 import { useEffect } from "react"
-import { AssetRecordType, Editor, createShapeId, react } from "tldraw"
+import { Editor, react } from "tldraw"
 import { toast } from "@/components/Toast"
+
+import { insertPastedImage } from '@/utils/collaboration/insertPastedImage'
 
 type GetImageSize = (src: string) => Promise<{width: number, height: number}>
 
@@ -44,7 +46,6 @@ export const usePasteImageToTldraw = (editor: Editor | null) => {
             const pasteVersion = version
             const canPaste = () => !disposed && !editor.isDisposed && !editor.getIsReadonly() && version === pasteVersion
             if (!canPaste()) return
-            let w = 400, h = 400
             const items = e.clipboardData?.items
             const text = e.clipboardData?.getData('text')
             // 复制的是网络图片地址
@@ -54,33 +55,7 @@ export const usePasteImageToTldraw = (editor: Editor | null) => {
                 try {
                     const {width, height} = await getImageSize(text)
                     if (!canPaste()) return
-                    w = width
-                    h = height
-                    const assetId = AssetRecordType.createId()
-
-                    editor.createAssets([{
-                        id: assetId,
-                        type: 'image',
-                        typeName: 'asset',
-                        props: {
-                            name: 'pasted-url-image',
-                            src: text, // 直接使用网络地址
-                            w, h,
-                            mimeType: 'image/png', // 默认给定一个类型
-                            isAnimated: false,
-                        },
-                        meta: {}
-                    }])
-
-                    // 获取鼠标坐标
-                    const {x, y} = editor.inputs.getCurrentPagePoint()
-                    editor.createShapes([{
-                        id: createShapeId(),
-                        type: 'image',
-                        x: x - w / 2, // 居中显示
-                        y: y - h / 2,
-                        props: { assetId, w, h },
-                    }])
+                    insertPastedImage(editor, { src: text, w: width, h: height, name: 'pasted-url-image', mimeType: 'image/png' })
                 } catch (err) {
                     console.error(err)
                     toast.show('无法插入网络图片，请检查链接或跨域限制')
@@ -104,32 +79,7 @@ export const usePasteImageToTldraw = (editor: Editor | null) => {
                             try {
                                 const {width, height} = await getImageSize(base64Src)
                                 if (!canPaste()) return
-                                w = width
-                                h = height
-                                const assetId = AssetRecordType.createId()
-
-                                editor.createAssets([{
-                                    id: assetId,
-                                    type: 'image',
-                                    typeName: 'asset',
-                                    props: {
-                                        name: file.name || 'pasted-image',
-                                        src: base64Src, // 使用 Base64 数据
-                                        w, h,
-                                        mimeType: file.type,
-                                        isAnimated: false
-                                    },
-                                    meta: {}
-                                }])
-
-                                const { x, y } = editor.inputs.getCurrentPagePoint()
-                                editor.createShapes([{
-                                    id: createShapeId(),
-                                    type: 'image',
-                                    x: x - w / 2,
-                                    y: y - h / 2,
-                                    props: { assetId, w, h }
-                                }])
+                                insertPastedImage(editor, { src: base64Src, w: width, h: height, name: file.name || 'pasted-image', mimeType: file.type })
                             }catch (err) {
                                 console.error(err)
                                 toast.show('图片粘贴失败')
