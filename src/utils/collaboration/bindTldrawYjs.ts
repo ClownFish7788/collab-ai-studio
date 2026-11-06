@@ -162,10 +162,15 @@ export function bindTldrawYjs(
             }
         }
         if (transaction.origin === origin || transaction.origin === undoManager) {
+            for (const id of ids) {
+                const value = records.get(id)
+                for (const ref of new Set([...references(current.get(id)), ...references(value ? decodeYRecord(value) : undefined)])) {
+                    wholeRecords.add(unit(ref, 'root'))
+                }
+            }
             pendingFootprint = wholeRecords
         } else {
             for (const key of touched) remoteVersions.set(key, version(key) + 1)
-            undoManager.stopCapturing()
         }
         if (transaction.origin === origin) return
         try {
@@ -183,7 +188,7 @@ export function bindTldrawYjs(
 
     function capture({ stackItem }: { stackItem: Y.UndoManager['undoStack'][number] }) {
         const footprint: Map<string, number> = stackItem.meta.get('board-footprint') ?? new Map()
-        for (const key of pendingFootprint) footprint.set(key, version(key))
+        for (const key of pendingFootprint) if (!footprint.has(key)) footprint.set(key, version(key))
         stackItem.meta.set('board-footprint', footprint)
     }
     undoManager.on('stack-item-added', capture)
@@ -230,19 +235,37 @@ export function bindTldrawYjs(
     }, { source: 'user', scope: 'document' })
     const unflush = store.sideEffects.registerOperationCompleteHandler(() => store._flushHistory())
 
-    function canReplay(step: Y.UndoManager['undoStack'][number]): boolean {
+    function canReplay(step: Y.UndoManager['undoStack'][number], direction: 'undo' | 'redo' = 'undo'): boolean {
         const footprint: Map<string, number> | undefined = step.meta.get('board-footprint')
-        return !disposed && !error && canWrite() && !!footprint && [...footprint].every(([key, expected]) => version(key) === expected)
+        if (disposed || error || !canWrite() || !footprint || [...footprint].some(([key, expected]) => version(key) !== expected)) return false
+        const fork = new Y.Doc({ gc: false })
+        let history: Y.UndoManager | undefined
+        try {
+            Y.applyUpdate(fork, Y.encodeStateAsUpdate(doc!))
+            const root = fork.getMap<Y.Map<unknown>>(Y.findRootTypeKey(records))
+            history = new Y.UndoManager(root, { ignoreRemoteMapChanges: false })
+            const stack = direction === 'undo' ? history.undoStack : history.redoStack
+            stack.push({ insertions: step.insertions, deletions: step.deletions, meta: new Map() })
+            history[direction]()
+            validateBoardRecords(store.schema, new Map([...root].map(([id, value]) => [id, decodeYRecord(value)])))
+            return true
+        } catch { return false }
+        finally { history?.destroy(); fork.destroy() }
     }
 
     function replay(direction: 'undo' | 'redo'): boolean {
         if (disposed || error) return false
         const stack = direction === 'undo' ? undoManager.undoStack : undoManager.redoStack
         const step = stack.at(-1)
-        if (!step || !canReplay(step)) return false
+        if (!step || !canReplay(step, direction)) return false
         pendingFootprint = new Set()
         undoManager.stopCapturing()
-        undoManager[direction]()
+        // Yjs skips empty entries; isolate this one so it cannot reach an unchecked older step.
+        const older = stack.slice(0, -1)
+        const key = direction === 'undo' ? 'undoStack' : 'redoStack'
+        undoManager[key] = [step]
+        try { undoManager[direction]() }
+        finally { undoManager[key] = older.concat(undoManager[key]) }
         return true
     }
 
