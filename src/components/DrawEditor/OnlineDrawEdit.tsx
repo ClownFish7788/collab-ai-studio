@@ -15,7 +15,7 @@ import { useUserStore } from '@/app/store/useUserStore'
 import AIChat from '../AIChat/AIChat'
 import BoardDraftProvider, { BoardChatSlot } from './BoardDraftProvider'
 import { attachTldrawYjsHistory } from '@/utils/collaboration/tldrawYjsHistory'
-import { BoardSyncError } from './BoardSyncError'
+import { BoardSyncError, downloadBoardBackup } from './BoardSyncError'
 import { toast } from '@/components/Toast'
 
 const OnlineDrawEditor = ({licenseKey}: {
@@ -34,11 +34,12 @@ const OnlineDrawEditor = ({licenseKey}: {
     const storeWithStatus = useOnlineYjsStore(yDoc, yProvider, {
         user, canEdit,
     })
+    const allowEdit = canEdit && !storeWithStatus.readOnly
     
     usePasteImageToTldraw(tldrawRef)
     useEffect(() => {
-        if (tldrawRef && !tldrawRef.isDisposed) tldrawRef.updateInstanceState({ isReadonly: !canEdit })
-    }, [canEdit, tldrawRef])
+        if (tldrawRef && !tldrawRef.isDisposed) tldrawRef.updateInstanceState({ isReadonly: !allowEdit })
+    }, [allowEdit, tldrawRef])
 
     const theme = useStyleStore((state) => state.theme)
     useEffect(() => {
@@ -52,21 +53,28 @@ const OnlineDrawEditor = ({licenseKey}: {
     </div>
 
     return (
-        <div className={styles.container}>
-            <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={room.id} canEdit={canEdit} chat={<AIChat key={room.id} />}>
+        <div className={`${styles.container} ${styles.boardLayout}`}>
+            {storeWithStatus.readOnly && <div role="status">
+                此白板使用旧版格式，当前只读；升级前请先导出备份。
+                <button type="button" onClick={() => downloadBoardBackup(storeWithStatus.backup, room.id)}>导出恢复备份</button>
+            </div>}
+            <div className={styles.canvas}>
+            <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={room.id} canEdit={allowEdit} chat={<AIChat key={room.id} />}>
             <Tldraw
+                key={storeWithStatus.readOnly ? 'legacy' : 'v2'}
                 components={{ SharePanel: BoardChatSlot }}
                 licenseKey={licenseKey}
                 store={storeWithStatus.store}
                 onMount={(editor) => {
                     editor.user.updateUserPreferences({ locale: 'zh-cn' })
-                    editor.updateInstanceState({isReadonly: !canEdit})
+                    editor.updateInstanceState({isReadonly: !allowEdit})
                     setTldrawRef(editor)
                     if (storeWithStatus.binding) return attachTldrawYjsHistory(editor, storeWithStatus.binding,
                         () => toast.show('相关内容已被协作者修改，本次撤销或重做未执行'))
                 }}
             />
             </BoardDraftProvider>
+            </div>
         </div>
     )
 }

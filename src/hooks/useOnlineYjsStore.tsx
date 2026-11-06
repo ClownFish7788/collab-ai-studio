@@ -12,7 +12,9 @@ import useNetworkStore from '@/app/store/useNetworkStore'
 import CustomBoradcastChannel from '@/utils/collaboration/BoradcastChannelProvider'
 import { bindTldrawYjs, type TldrawYjsBinding } from '@/utils/collaboration/bindTldrawYjs'
 import { assertBoardV2, BOARD_META, BOARD_RECORDS } from '@/utils/collaboration/tldrawYjsMigration'
+import { bindLegacyBoardReadOnly, canLoadBoard } from '@/utils/collaboration/legacyBoard'
 import type { BoardYjsStoreState } from './boardYjsStoreState'
+import { toast } from '@/components/Toast'
 
 export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, {
     shapeUtils = [], user, canEdit,
@@ -48,53 +50,74 @@ export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, 
     useEffect(() => {
         let disposed = false, localLoaded = false
         let binding: TldrawYjsBinding | undefined
+        let stopLegacy: (() => void) | undefined
+        let presenceStarted = false
         const persistence = new IndexeddbPersistence(`room-${room.id}`, yDoc)
         const unsubs: (() => void)[] = []
         const fail = (cause: unknown) => {
             if (!disposed) setState({ status: 'error', error: cause instanceof Error ? cause : new Error(String(cause)) })
         }
         const ready = () => {
-            if (!disposed) setState({ store, binding, status: 'synced-remote',
+            if (!disposed) setState({ store, binding, readOnly: !binding, status: 'synced-remote',
                 connectionStatus: room.getStatus() === 'connected' ? 'online' : 'offline' })
+        }
+
+        function startPresence() {
+            if (presenceStarted) return
+            presenceStarted = true
+            const presenceId = InstancePresenceRecordType.createId(provider.awareness.doc.clientID.toString())
+            const presence = createPresenceStateDerivation(preferences, presenceId)(store)
+            unsubs.push(react('board-presence', () => {
+                const value = presence.get()
+                const payload = value ? {
+                    ...value, selectedShapeIds: value.selectedShapeIds.length > 10 ? [] : value.selectedShapeIds,
+                } : null
+                // tldraw's JSON-safe presence interfaces lack Liveblocks' JSON index signature.
+                provider.awareness.setLocalStateField('presence', payload as unknown as JsonObject | null)
+            }))
+            const updatePresence = (update: { added: number[]; updated: number[]; removed: number[] }) => {
+                const states = provider.awareness.getStates() as Map<number, { presence?: TLInstancePresence }>
+                const toPut = [...update.added, ...update.updated].flatMap(id => {
+                    const value = states.get(id)?.presence
+                    return value && value.id !== presenceId ? [value] : []
+                })
+                const toRemove = update.removed.map(id => InstancePresenceRecordType.createId(String(id)))
+                store.mergeRemoteChanges(() => {
+                    if (toRemove.length) store.remove(toRemove)
+                    if (toPut.length) store.put(toPut)
+                })
+            }
+            provider.awareness.on('change', updatePresence)
+            unsubs.push(() => provider.awareness.off('change', updatePresence))
+            updatePresence({ added: [...provider.awareness.getStates().keys()], updated: [], removed: [] })
         }
 
         function start() {
             if (disposed || binding || !localLoaded) return
             // A valid cache is usable offline; an empty cache must await the authoritative cloud snapshot.
-            if (yDoc.getMap(BOARD_META).get('format') !== 2 && !provider.synced) return
+            if (!canLoadBoard(yDoc, provider.synced)) return
             try {
-                assertBoardV2(yDoc, store.schema)
-                binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), error => error ? fail(error) : ready(),
-                    () => permission.current && verifiedWrite.current && room.getSelf()?.canWrite !== false)
-
-                const presenceId = InstancePresenceRecordType.createId(provider.awareness.doc.clientID.toString())
-                const presence = createPresenceStateDerivation(preferences, presenceId)(store)
-                unsubs.push(react('board-presence', () => {
-                    const value = presence.get()
-                    const payload = value ? {
-                        ...value, selectedShapeIds: value.selectedShapeIds.length > 10 ? [] : value.selectedShapeIds,
-                    } : null
-                    // tldraw's JSON-safe presence interfaces lack Liveblocks' JSON index signature.
-                    provider.awareness.setLocalStateField('presence', payload as unknown as JsonObject | null)
-                }))
-                const updatePresence = (update: { added: number[]; updated: number[]; removed: number[] }) => {
-                    const states = provider.awareness.getStates() as Map<number, { presence?: TLInstancePresence }>
-                    const toPut = [...update.added, ...update.updated].flatMap(id => {
-                        const value = states.get(id)?.presence
-                        return value && value.id !== presenceId ? [value] : []
-                    })
-                    const toRemove = update.removed.map(id => InstancePresenceRecordType.createId(String(id)))
-                    store.mergeRemoteChanges(() => {
-                        if (toRemove.length) store.remove(toRemove)
-                        if (toPut.length) store.put(toPut)
-                    })
+                if (yDoc.getMap(BOARD_META).get('format') !== 2) {
+                    if (!stopLegacy) {
+                        stopLegacy = bindLegacyBoardReadOnly(store, yDoc, error => { if (error) fail(error); else ready() })
+                        startPresence()
+                    }
+                    return
                 }
-                provider.awareness.on('change', updatePresence)
-                unsubs.push(() => provider.awareness.off('change', updatePresence))
-                updatePresence({ added: [...provider.awareness.getStates().keys()], updated: [], removed: [] })
+                stopLegacy?.()
+                stopLegacy = undefined
+                assertBoardV2(yDoc, store.schema)
+                binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), (error, source) => {
+                    if (source === 'write') { if (error) toast.show(error.message); return }
+                    if (error) fail(error); else ready()
+                }, () => permission.current && verifiedWrite.current && room.getSelf()?.canWrite !== false)
+
+                startPresence()
                 ready()
             } catch (cause) { fail(cause) }
         }
+        yDoc.getMap(BOARD_META).observe(start)
+        unsubs.push(() => yDoc.getMap(BOARD_META).unobserve(start))
         provider.on('sync', start)
         unsubs.push(() => provider.off('sync', start))
         void persistence.whenSynced.then(() => { localLoaded = true; start() }).catch(fail)
@@ -104,6 +127,7 @@ export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, 
             disposed = true
             window.removeEventListener('beforeunload', beforeUnload)
             unsubs.forEach(unsubscribe => unsubscribe())
+            stopLegacy?.()
             binding?.dispose()
             provider.awareness.setLocalStateField('presence', null)
             void persistence.destroy()
