@@ -3,17 +3,38 @@ import { createTLSchema } from '@tldraw/tlschema'
 import * as Y from 'yjs'
 import { assertBoardV2, initializeBoardV2 } from '@/utils/collaboration/tldrawYjsMigration'
 
-type RoomClient = Pick<Liveblocks, 'createRoom' | 'sendYjsBinaryUpdate' | 'getYjsDocumentAsBinaryUpdate' | 'updateRoom'>
+type RoomClient = Pick<Liveblocks, 'createRoom' | 'getRoom' | 'deleteRoom' | 'sendYjsBinaryUpdate' | 'getYjsDocumentAsBinaryUpdate' | 'updateRoom'>
 
-export async function createBoardRoom(client: RoomClient, roomId: string): Promise<void> {
-    await client.createRoom(roomId, { defaultAccesses: [], metadata: { boardProtocol: 'initializing' } })
+export async function createBoardRoom<T>(client: RoomClient, roomId: string, ownerId: string, publish: () => Promise<T>): Promise<T> {
+    let created = false, publishing = false
+    try {
+        await client.createRoom(roomId, { defaultAccesses: [],
+            metadata: { boardProtocol: 'initializing', boardBootstrapOwner: ownerId } })
+        created = true
+    } catch (cause) {
+        if (!cause || typeof cause !== 'object' || !('status' in cause) || cause.status !== 409) throw cause
+        const room = await client.getRoom(roomId)
+        if (room.metadata.boardBootstrapOwner !== ownerId
+            || !['initializing', '2'].includes(String(room.metadata.boardProtocol))) throw cause
+    }
     const doc = new Y.Doc(), readBack = new Y.Doc(), schema = createTLSchema()
     try {
-        initializeBoardV2(doc, schema, { allowLegacy: false })
-        await client.sendYjsBinaryUpdate(roomId, Y.encodeStateAsUpdate(doc))
+        if (created) {
+            initializeBoardV2(doc, schema, { allowLegacy: false })
+            await client.sendYjsBinaryUpdate(roomId, Y.encodeStateAsUpdate(doc))
+        }
         Y.applyUpdate(readBack, new Uint8Array(await client.getYjsDocumentAsBinaryUpdate(roomId)))
         assertBoardV2(readBack, schema)
-        await client.updateRoom(roomId, { metadata: { boardProtocol: '2' } })
+        publishing = true
+        const result = await publish()
+        await client.updateRoom(roomId, { metadata: { boardProtocol: '2', boardBootstrapOwner: ownerId } })
+        return result
+    } catch (cause) {
+        if (created && !publishing) {
+            try { await client.deleteRoom(roomId) }
+            catch (cleanup) { throw new AggregateError([cause, cleanup], '新白板初始化失败，房间已保留供恢复') }
+        }
+        throw cause
     } finally {
         doc.destroy()
         readBack.destroy()

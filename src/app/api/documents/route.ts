@@ -43,15 +43,18 @@ export async function POST (request: NextRequest) {
         }
         
         // 创建新文档
-        const newDocument = await prisma.document.create({
-            data: {
+        const existing = await prisma.document.findUnique({ where: { roomId } })
+        if (existing && existing.ownerId !== userId) {
+            return NextResponse.json({ success: false, error: '房间已存在' }, { status: 409 })
+        }
+        const newDocument = await createBoardRoom(liveblocks, roomId, userId, () => prisma.document.upsert({
+            where: { roomId }, update: {}, create: {
                 title: '未命名新文档',
                 roomId: roomId,
                 ownerId: userId,
                 isPublic: false
             }
-        })
-        await createBoardRoom(liveblocks, roomId)
+        }))
         return NextResponse.json({ 
             success: true, 
             data: newDocument 
