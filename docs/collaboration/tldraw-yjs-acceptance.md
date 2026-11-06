@@ -1,23 +1,56 @@
-# Scheme A acceptance evidence
+# 方案 A 验收记录
 
-2026-11-05, isolated worktree codex/tldraw-yjs-scheme-a.
+2026-11-06，独立分支 `codex/tldraw-yjs-scheme-a`，基点 `a2fe860`。
+依赖复用原仓库 node_modules junction；未安装包、修改 lockfile 或重新生成共享 Prisma client。
 
-## Baseline
-npm test initially failed: missing tests/register.cjs. Restoring that loader is part of the change.
-Installed dependencies are reused through a node_modules junction; no installation or lockfile changes.
+## 自动化验证
 
-## Recorded checks
-- Record codec: 7/7 Node tests passed after first observing missing behavior failures.
-- Shared binding/history: initial 12/12 Node tests passed, using two real TLStores and Y.Docs.
-- Initial TypeScript check found that addHistoryInterceptor exists at runtime but is excluded from public types.
-  Resolution: use public Store.listen and operation-complete flushing instead of relying on that internal API.
-- Production migration, real multiuser browsers and performance have not been exercised.
+- `npm test`：52/52 通过，使用真实 TLStore / Y.Doc，包含 codec、差量、双端合并、整步撤销、草稿与迁移。
+- `npx tsc --noEmit`：通过。
+- 对分支所有新增/修改的 TS、TSX、CJS 文件运行 ESLint：通过；排除已删除路径。
+- `git diff --check`：通过。
+- 最初 `npm test` 缺少 tests/register.cjs；本分支恢复了 TypeScript 测试加载器与 Node 环境必要的 RAF/channel 生命周期。
 
-## Required cases before activation
-- Preserve move plus independent color; atomic placement candidates include parent and index.
-- No undo entry for remote, initialization or system-origin changes.
-- Conflict in one unit blocks an entire multi-record undo; creation plus remote edit also blocks.
-- Undo/redo, cancellation and drag boundaries use one document history path.
-- Delete/restore same ID, stale offline updates, viewer zero writes and invalid graph recovery.
-- Actual network disconnection, IndexedDB reload, cloud-empty/cache-empty distinction.
-- Old-client isolation and migration read-back/restore before upgrading online rooms.
+审查发现的问题均先由回归测试复现，再修复：
+空 undo 步骤跳过保护、跨远端更新的手势边界、父级重建与引用完整性、远端派生写入、整批失败的部分发布、AI 提交误报成功、刷新后旧写入检测丢失、房间发布顺序、房间身份校验、旧版只读与图片粘贴分组。
+服务端创建顺序使用可控 RoomClient 测试替身验证；没有实际创建或迁移 Liveblocks 云房间。
+访问范围测试覆盖匹配逻辑与切房间清 role，不能代替真实账号的在线权限验收。
+
+## 真实浏览器验证
+
+2026-11-05 首轮、2026-11-06 最终核心复测：Chrome 双标签，临时本机页面调用实际 local hook、绑定与原生 Tldraw。
+2026-11-06 使用新的 IndexedDB 房间 `codex-scheme-a-acceptance-20261106-v2`，避免旧测试数据影响。
+
+- A 新建并移动到 (100,100)，B 显示相同记录，且 B 没有撤销条目。
+- A 移动到 (200,200)，B 改红色；A 使用原生工具栏撤销后，两端均为 (100,100)/red。
+- A 再移动到 (200,200)，B 移到 (100,100)；A 撤销整步未执行，位置和红色保持，冲突计数为 1。
+- 关闭 B 并刷新 A，IndexedDB 恢复 (100,100)/red；新编辑器会话 undo/redo 均为空。
+- 2026-11-05 首轮另验证删除后撤销恢复，以及新建后被另一端编辑时不能撤销新建。
+
+这是同机 BroadcastChannel + IndexedDB 的本地协作验证，不代表 Liveblocks 多设备、真实断网重连或线上迁移已经通过。
+旧版只读投影与图片粘贴分组有 Node 回归测试，完整在线界面和系统剪贴板尚未做浏览器验收。
+浏览器日志出现 tldraw 自带 zh-cn 字典缺少部分菜单翻译的警告；上述协同操作正常，本次未修改上游翻译。
+临时页面位于忽略目录 `.superpowers/browser`，没有使用真实房间或业务凭据。
+
+## 可复现数据量与处理开销对比
+
+命令：`node tests/tldraw-yjs-benchmark.cjs`。
+Node v24.14.0，500 个 geo shape，1000 次位置更新，源/目标均为真实 Store 与 Y.Doc，同步转发每个 update 并断言收敛。
+v1 采用旧 YKeyValue 整条记录更新路径，v2 采用当前完整 binding（含历史与校验），测量不包括渲染、IndexedDB 或真实网络延迟。
+
+2026-11-06 单次样本：
+- v1 update 合计 397314 B；v2 85872 B，约减少 78.4%。
+- v1 完整编码文档 184948 B；v2 375270 B，约为 2.03 倍。
+- 本次本地加远端处理耗时 v1 87.6 ms；v2 249.2 ms，约为 2.84 倍。
+
+结果表明此负载的更新传输数据更少，但嵌套树与历史保留有体积/处理开销。不能据此宣称整体更快、FPS 提升或生产延迟改善。
+耗时是顺序执行的单次样本，没有统计显著性；上线前需要代表真实图形/文本/资源规模的浏览器性能测试。
+
+## 未完成的部署验收
+
+- 真实账号 owner/collaborator/viewer、在线 presence、跨设备 Liveblocks 同步和服务端权限变更。
+- 真正断网与重连、网络乱序、多浏览器/旧客户端混用、大文档/富文本/图片负载。
+- 线上旧 token 隔离、备份恢复演练和受控迁移发布；本分支不会自动迁移旧云房间。
+- 生产构建/PWA/部署回归。未运行 npm run build，其前置脚本会通过共享 junction 生成原仓库 Prisma client。
+
+撤销冲突保证以已接收更新为边界；离线未收到的协作者修改无法提前判断。
