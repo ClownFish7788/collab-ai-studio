@@ -37,12 +37,13 @@ export function createYRecord(record: TLRecord): Y.Map<unknown> {
     ]))
 }
 
-export function patchYRecord(target: Y.Map<unknown>, before: TLRecord, after: TLRecord): void {
+export function prepareYRecordPatch(target: Y.Map<unknown>, before: TLRecord, after: TLRecord): () => void {
     if (before.id !== after.id || before.typeName !== after.typeName
         || ('type' in before && (!('type' in after) || before.type !== after.type))) {
         throw new Error('不能修改画板记录的身份')
     }
     const previous = fields(before), next = fields(after)
+    const operations: (() => void)[] = []
     for (const key of new Set([...Object.keys(previous), ...Object.keys(next)])) {
         if (isEqual(previous[key], next[key])) continue
         if (key === 'props') {
@@ -52,12 +53,21 @@ export function patchYRecord(target: Y.Map<unknown>, before: TLRecord, after: TL
             const newProps = next.props as Record<string, unknown>
             for (const prop of new Set([...Object.keys(oldProps), ...Object.keys(newProps)])) {
                 if (isEqual(oldProps[prop], newProps[prop])) continue
-                if (Object.hasOwn(newProps, prop)) props.set(prop, structuredClone(newProps[prop]))
-                else props.delete(prop)
+                if (Object.hasOwn(newProps, prop)) {
+                    const value = structuredClone(newProps[prop])
+                    operations.push(() => { props.set(prop, value) })
+                } else operations.push(() => { props.delete(prop) })
             }
-        } else if (Object.hasOwn(next, key)) target.set(key, structuredClone(next[key]))
-        else target.delete(key)
+        } else if (Object.hasOwn(next, key)) {
+            const value = structuredClone(next[key])
+            operations.push(() => { target.set(key, value) })
+        } else operations.push(() => { target.delete(key) })
     }
+    return () => { for (const operation of operations) operation() }
+}
+
+export function patchYRecord(target: Y.Map<unknown>, before: TLRecord, after: TLRecord): void {
+    prepareYRecordPatch(target, before, after)()
 }
 
 export function decodeYRecord(record: Y.Map<unknown>): TLRecord {
