@@ -20,3 +20,12 @@ Before continuing, read docs/collaboration/tldraw-yjs-scheme-a.md and git log/st
 - Run npm test, targeted ESLint, npx tsc --noEmit and git diff --check before completion.
 - Keep worktree-local dependencies isolated; node_modules is a junction to the original checkout. Do not reinstall or regenerate shared packages through it.
 - Keep ignored scratch in .superpowers; durable handoff and decisions belong in docs/collaboration.
+
+## Handoff (2026-11-06)
+- Implementation and local acceptance are recorded in docs/collaboration/tldraw-yjs-acceptance.md.
+- New boards use v2. Existing online v1 boards remain viewable read-only with backup export; do not silently migrate them.
+- Conflict guards include record references and full-graph simulation before replay. Keep the earliest remote revision across a gesture and never let Yjs skip into an unchecked older entry.
+- Prepare the entire local batch before Yjs mutation; rejected writes restore the Store and must fail AI formal application visibly.
+- Persist the exact legacy baseline for reload-time detection. Do not remove it as redundant metadata.
+- Keep changes as small independent commits, inspect each staged file list, and do not merge or push without instruction.
+- Remaining deployment checks: real Liveblocks multi-device/roles/reconnect, old-token isolation and production migration/recovery; no cloud migration has been performed.
