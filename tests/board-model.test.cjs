@@ -44,6 +44,11 @@ test('OpenAI preparation uses its token field and omits tool settings when no to
     assert.equal(body.parallel_tool_calls, undefined)
 })
 
+test('preparation normalizes nullable transport placeholders before the application sees the reply', async () => {
+    assert.equal(await model(stream(textFrames('{"kind":"reply","brief":null,"text":"你好"}'))).prepare(prompt, signal()),
+        '{"kind":"reply","text":"你好"}')
+})
+
 test('OpenAI execution sends only allowed function schemas and returns domain tool decisions', async () => {
     let body
     const adapter = model(null, {

@@ -10,6 +10,7 @@ import { modelDecisionSchema, type AgentMessage, type ContentBlock, type ModelDe
 import { boardToolNameSchema, type BoardToolName, type createBoardToolContracts } from '../../domain/tool'
 import { getToolCorrectionContract } from '../../domain/toolCorrection'
 import { boardTaskBriefPrompt } from '../../../prompts/boardTaskBriefPrompt'
+import { normalizePreparationOutput } from './preparationOutput'
 import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../../../utils/board/boardCapabilities'
 
 type ModelOptions = {
@@ -268,7 +269,7 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
         async prepare(messages, signal) {
             const reply = await requestModel(messages, [], signal, 'preparation')
             if (reply.kind !== 'text') throw modelError('需求拆分不能调用工具')
-            return reply.text
+            return normalizePreparationOutput(reply.text)
         },
         async next(context, allowedTools, signal) {
             if (!allowedTools.length) throw modelError('没有可调用的工具，本轮不请求执行模型')
