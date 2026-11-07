@@ -8,6 +8,8 @@ import { traceAgentRequest, type AgentTrace } from '@/lib/agentTraceRequest'
 import { observeModelFetch } from '@/lib/modelTrace'
 import { CreateAccessError } from '@/agent/adapters/server/access'
 import { classifyTraceError } from '@/utils/agent-traces/outcomes'
+import type OpenAI from 'openai'
+import { createModelClient, ModelRequestError, readModelConfig, requestCompletion } from '@/agent/adapters/model/client'
 
 export const maxDuration = 60
 
@@ -115,11 +117,9 @@ async function handleChat(request: Request, trace: AgentTrace) {
     ]
 
     await trace.record('operation_result', { operation: 'request_validation', outcome: 'success' })
-    const apiKey = process.env.API_KEY?.trim()
-    const model = process.env.BASE_MODEL?.trim()
-    const baseUrl = process.env.BASE_URL?.trim()
-    if (!apiKey || !model || !baseUrl) {
-        return Response.json({ error: '服务端尚未配置 AI 接口' }, { status: 500 })
+    const config = readModelConfig()
+    if (!config) {
+        return Response.json({ error: '服务端 AI 接口配置不完整或 MODEL_PROVIDER 不受支持' }, { status: 500 })
     }
 
     await trace.record('operation_result', { operation: 'configuration', outcome: 'success' })
@@ -137,20 +137,17 @@ async function handleChat(request: Request, trace: AgentTrace) {
     })
 
     try {
-        const response = await tracedFetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model, messages: modelMessages, stream: true, enable_thinking: false, max_tokens: 1024 }),
-            signal,
-        })
-        if (!response.ok || !response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
-            const error = response.ok ? classifyTraceError({ code: 'INVALID_MODEL_RESPONSE', message: !response.body ? '模型响应体为空' : '模型未返回合法的流式响应' }, { operation: 'model_call' })
-                : classifyTraceError(undefined, { operation: 'model_fetch', httpStatus: response.status })
+        const client = createModelClient(config, signal, tracedFetch)
+        const response = await requestCompletion(client, config, {
+            messages: modelMessages as OpenAI.ChatCompletionMessageParam[], outputLimit: 1024,
+        }, signal)
+        if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
+            const error = classifyTraceError({ code: 'INVALID_MODEL_RESPONSE', message: !response.body ? '模型响应体为空' : '模型未返回合法的流式响应' }, { operation: 'model_call' })
             await trace.record('operation_result', { operation: 'model_call', outcome: 'error', error })
             // 告知采集器这是响应拒绝后的清理，而不是用户取消；保留同一错误分类。
             await response.body?.cancel(Object.assign(new Error(error.message), { code: error.code }))
             await trace.end('failed', undefined, error.message)
-            return Response.json({ error: error.message }, { status: response.status === 429 ? 429 : 502 })
+            return Response.json({ error: error.message }, { status: 502 })
         }
         responseAccepted = true
         return new Response(response.body, {
@@ -161,10 +158,16 @@ async function handleChat(request: Request, trace: AgentTrace) {
             },
         })
     } catch (error) {
-        await trace.end(isTimedOut() ? 'timed_out' : request.signal.aborted ? 'cancelled' : 'failed', undefined,
-            isTimedOut() ? '模型响应超时' : request.signal.aborted ? '用户取消请求' : '模型连接失败')
+        if (error instanceof ModelRequestError && error.httpStatus) {
+            const failure = classifyTraceError(error, { operation: 'model_fetch', httpStatus: error.httpStatus })
+            await trace.record('operation_result', { operation: 'model_call', outcome: 'error', error: failure })
+            await trace.end('failed', undefined, failure.message)
+            return Response.json({ error: failure.message }, { status: error.httpStatus === 429 ? 429 : 502 })
+        }
+        const timedOut = isTimedOut() || error instanceof Error && error.name === 'TimeoutError'
+        await trace.end(timedOut ? 'timed_out' : request.signal.aborted ? 'cancelled' : 'failed', undefined,
+            timedOut ? '模型响应超时' : request.signal.aborted ? '用户取消请求' : '模型连接失败')
         if (request.signal.aborted) return new Response(null, { status: 499 })
-        const timedOut = error instanceof Error && error.name === 'TimeoutError'
         return Response.json({ error: timedOut ? '模型响应超时，请重试' : '无法连接模型服务，请稍后重试' }, { status: timedOut ? 504 : 502 })
     }
 }

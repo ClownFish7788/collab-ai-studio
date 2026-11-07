@@ -53,6 +53,24 @@
 - 右侧可拉伸 AI 聊天框，随时唤出，可隐藏
 - 普通聊天与白板 Agent 的模型请求、工具执行及结果可在独立密码保护的开发者后台查看
 
+### 模型接口配置
+
+普通聊天与白板 Agent 共用服务端的 `API_KEY`、`BASE_URL`、`BASE_MODEL` 和 `MODEL_PROVIDER`。请求通过 `openai` SDK 的 Chat Completions 接口发送；密钥不传给浏览器。
+
+```dotenv
+# Qwen：省略 MODEL_PROVIDER 时也沿用此行为，现有配置无需修改。
+MODEL_PROVIDER=qwen
+API_KEY=<服务商 API Key>
+BASE_URL=<服务商提供的兼容接口基础地址，不含 /chat/completions>
+BASE_MODEL=<已开通的 Qwen 模型 ID>
+```
+
+使用 OpenAI 时，设置 `MODEL_PROVIDER=openai`、`BASE_URL=https://api.openai.com/v1`，并填写 OpenAI API Key 及支持 Chat Completions 的模型 ID。`openai` 模式发送 `max_completion_tokens`，不发送 Qwen 的 `enable_thinking`；`qwen` 模式保留 `max_tokens` 和 `enable_thinking: false`。目前仅接受这两个 provider 值；同一个 SDK 的其他厂商兼容接口尚未逐家接入验证。
+
+白板使用的模型须支持工具调用；上传图片或读取白板截图还需要视觉能力。不要仅凭接口兼容就替换为纯文本模型。两条调用链均关闭 SDK 自动重试，并沿用现有取消信号、60 秒聊天超时和 180 秒白板任务超时。应用层和领域层不依赖 SDK 类型。
+
+依赖锁定为 `openai@6.49.0`（支持 Node.js 20+）。验证命令为 `npm test`、`npx tsc --noEmit --incremental false`，以及针对改动文件运行 ESLint。自动测试使用模拟的模型 HTTP 响应，不代表已完成真实厂商或浏览器验收。
+
 ### Agent 运行记录后台
 
 访问 `/admin/agent-traces`，使用独立后台密码登录；普通用户账号没有查看权限，工作区导航不提供后台入口。
@@ -77,7 +95,7 @@ npm run trace:setup:postgres
 - 每步保存 `outcome`（待完成／成功／失败／取消）、`source`、`errorCategory`、`errorCode` 和脱敏诊断。分类覆盖参数、认证、权限、限流、配置、网络、超时、取消、模型、工具、通信协议、草稿、存储及内部异常。任务最终成功也会保留此前已纠正的失败；成功只表示执行通过，不代表答案质量已通过评估。
 - 埋点覆盖 AI 请求入口拒绝、模型与工具循环、结果回传、浏览器流接收和草稿操作。浏览器只可向本人任务上报白名单操作，每任务最多 32 条、每请求最多 16 KiB；标记为 `client`，不能修改服务端结果。后台可按错误类别和最终状态筛选。
 - 登录/退出：`POST` / `DELETE /api/admin/agent-traces/session`，写操作校验同源；密码尝试共享数据库限额（每 10 分钟 20 次）。Cookie 为 HttpOnly，8 小时过期；修改密码可使所有既有后台会话失效。
-- 保持原有 `enable_thinking: false` 配置。只记录服务商实际返回的推理内容，未返回时显示“未提供”，不会生成或补写隐藏思维链。
+- Qwen 模式保持原有 `enable_thinking: false` 配置。只记录服务商实际返回的推理内容，未返回时显示“未提供”，不会生成或补写隐藏思维链。
 - API Key、Cookie 等传输凭据不进入记录；图片仅保留省略标记和类型。用户主动写入正文的敏感信息仍属于对话内容，需要按后台数据保护。
 - 每个字段最多记录 65536 字符，超出单事件上限时保存截断预览。记录逐步写入；数据库不可用时，写入失败回退为分类后的服务端 JSON 错误日志，不递归写数据库。崩溃后未写回的任务标为“状态未回写”。旧事件保留原文，未伪造新增埋点；类别筛选匹配已落库的分类字段，不回填历史对话。
 - 首版未配置自动清理或保留期限；上线前根据业务要求安排日志保留与清理。后台共享密码仅适合小范围开发/运维团队。
@@ -97,7 +115,7 @@ npm test
 
 ### 环境要求
 
-- Node.js >= 18
+- Node.js >= 20.9（与 Next.js 16 的最低要求一致）
 - npm >= 9
 
 ### 安装与运行

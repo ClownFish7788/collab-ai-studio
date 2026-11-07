@@ -14,8 +14,12 @@ export function readModelConfig(env: NodeJS.ProcessEnv = process.env): ModelConf
     return { apiKey, model, baseUrl, provider }
 }
 
-export function createModelClient(config: ModelConfig, fetcher: typeof fetch = fetch) {
-    return new OpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl, fetch: fetcher, maxRetries: 0 })
+export function createModelClient(config: ModelConfig, signal: AbortSignal, fetcher: typeof fetch = fetch) {
+    return new OpenAI({
+        apiKey: config.apiKey, baseURL: config.baseUrl, maxRetries: 0,
+        // SDK 的内部取消信号丢失 TimeoutError；合并原始信号以保留逐步 trace 的超时分类。
+        fetch: (input, init) => fetcher(input, { ...init, signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal }),
+    })
 }
 
 /** 不暴露 SDK 的响应正文或 status，避免厂商鉴权失败被误判为用户无白板权限。 */

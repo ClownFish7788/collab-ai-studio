@@ -5,6 +5,7 @@ const { observeModelFetch } = require('../src/lib/modelTrace.ts')
 
 const config = { apiKey: 'test-key', model: 'test-model', baseUrl: 'https://model.test/v1', provider: 'qwen' }
 const input = { messages: [{ role: 'user', content: 'hello' }], outputLimit: 1024 }
+const defaultSignal = new AbortController().signal
 const sse = 'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"hello"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'
 const response = () => new Response(sse, { headers: { 'content-type': 'text/event-stream' } })
 
@@ -32,11 +33,11 @@ for (const [provider, expectedFields] of [
 ]) test(`${provider} sends only its own token and thinking fields and preserves SSE bytes`, async () => {
     const settings = { ...config, provider }
     let request
-    const client = createModelClient(settings, async (url, init) => {
+    const client = createModelClient(settings, defaultSignal, async (url, init) => {
         request = { url: String(url), body: JSON.parse(init.body), headers: new Headers(init.headers) }
         return response()
     })
-    const result = await requestCompletion(client, settings, input, new AbortController().signal)
+    const result = await requestCompletion(client, settings, input, defaultSignal)
     assert.equal(request.url, 'https://model.test/v1/chat/completions')
     assert.equal(request.headers.get('authorization'), 'Bearer test-key')
     assert.deepEqual(request.body, { model: 'test-model', messages: input.messages, stream: true, ...expectedFields })
@@ -47,11 +48,11 @@ for (const [provider, expectedFields] of [
 test('HTTP errors are safe, not retried, and cannot impersonate user access errors', async () => {
     for (const status of [401, 403, 429, 500]) {
         let calls = 0
-        const client = createModelClient(config, async () => {
+        const client = createModelClient(config, defaultSignal, async () => {
             calls++
             return new Response(JSON.stringify({ error: { message: 'provider-secret-do-not-expose' } }), { status, headers: { 'content-type': 'application/json' } })
         })
-        await assert.rejects(requestCompletion(client, config, input, new AbortController().signal), error => {
+        await assert.rejects(requestCompletion(client, config, input, defaultSignal), error => {
             assert.ok(error instanceof ModelRequestError)
             assert.equal(error.httpStatus, status)
             assert.equal(error.status, undefined)
@@ -66,8 +67,8 @@ test('HTTP errors are safe, not retried, and cannot impersonate user access erro
 
 test('connection errors are sanitized and never retried', async () => {
     let calls = 0
-    const client = createModelClient(config, async () => { calls++; throw new Error('sensitive-network-detail') })
-    await assert.rejects(requestCompletion(client, config, input, new AbortController().signal), error => {
+    const client = createModelClient(config, defaultSignal, async () => { calls++; throw new Error('sensitive-network-detail') })
+    await assert.rejects(requestCompletion(client, config, input, defaultSignal), error => {
         assert.ok(error instanceof ModelRequestError)
         assert.equal(error.httpStatus, undefined)
         assert.ok(!error.message.includes('sensitive-network-detail'))
@@ -78,9 +79,10 @@ test('connection errors are sanitized and never retried', async () => {
 
 test('already cancelled requests do not reach the provider', async () => {
     let calls = 0
-    const client = createModelClient(config, async () => { calls++; return response() })
     const reason = new Error('cancelled by caller')
-    await assert.rejects(requestCompletion(client, config, input, AbortSignal.abort(reason)), error => error === reason)
+    const signal = AbortSignal.abort(reason)
+    const client = createModelClient(config, signal, async () => { calls++; return response() })
+    await assert.rejects(requestCompletion(client, config, input, signal), error => error === reason)
     assert.equal(calls, 0)
 })
 
@@ -88,7 +90,7 @@ test('an in-flight request respects the caller timeout reason', async () => {
     let markStarted
     const started = new Promise(resolve => { markStarted = resolve })
     const controller = new AbortController()
-    const client = createModelClient(config, async (_url, init) => {
+    const client = createModelClient(config, controller.signal, async (_url, init) => {
         markStarted()
         return new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true }))
     })
@@ -104,8 +106,8 @@ test('traced requests keep their own model, messages and response association', 
     await Promise.all(traces.map(async (events, index) => {
         const settings = { ...config, model: `model-${index}` }
         const tracedFetch = observeModelFetch(async (type, data) => events.push({ type, data }), async () => response())
-        const client = createModelClient(settings, tracedFetch)
-        const result = await requestCompletion(client, settings, { ...input, messages: [{ role: 'user', content: `request-${index}` }] }, new AbortController().signal)
+        const client = createModelClient(settings, defaultSignal, tracedFetch)
+        const result = await requestCompletion(client, settings, { ...input, messages: [{ role: 'user', content: `request-${index}` }] }, defaultSignal)
         assert.equal(await result.text(), sse)
     }))
     for (const [index, events] of traces.entries()) {

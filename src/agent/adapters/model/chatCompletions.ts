@@ -219,7 +219,6 @@ function encodeMessages(messages: readonly AgentMessage[]): object[] {
 
 /** Chat Completions 兼容适配器：对外仅实现模型端口，调用预算和任务重试仍由应用层决定。 */
 export function createChatCompletionsModel({ config, contracts, fetcher = fetch, onPreview }: ModelOptions): ModelPort {
-    const client = createModelClient(config, fetcher)
     async function requestModel(
         messages: readonly AgentMessage[], allowedTools: readonly BoardToolName[], signal: AbortSignal,
         phase: 'preparation' | 'tool', elementKeys: readonly string[] = [],
@@ -236,6 +235,7 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
         const encoded = encodeMessages(messages)
         let response: Response
         try {
+            const client = createModelClient(config, signal, fetcher)
             response = await requestCompletion(client, config, {
                 messages: [
                     { role: 'system', content: boardAgentCapabilitiesPrompt },
