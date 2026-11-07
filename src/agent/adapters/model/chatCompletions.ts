@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { jsonrepair } from 'jsonrepair'
+import type OpenAI from 'openai'
+import { createModelClient, ModelRequestError, requestCompletion, type ModelConfig } from './client'
 import { AgentApplicationError, MAX_BOARD_TOOL_CALLS, type ModelPort } from '../../application/ports'
 import { ERROR_CODES } from '../../domain/error'
 import { jsonValueSchema, type JsonValue } from '../../domain/data'
@@ -11,7 +13,7 @@ import { boardTaskBriefPrompt } from '../../../prompts/boardTaskBriefPrompt'
 import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../../../utils/board/boardCapabilities'
 
 type ModelOptions = {
-    config: { apiKey: string; model: string; baseUrl: string }
+    config: ModelConfig
     contracts: ReturnType<typeof createBoardToolContracts>
     fetcher?: typeof fetch
     onPreview?: (source: 'preparation' | 'tool', delta: string, start: boolean) => void
@@ -217,6 +219,7 @@ function encodeMessages(messages: readonly AgentMessage[]): object[] {
 
 /** Chat Completions 兼容适配器：对外仅实现模型端口，调用预算和任务重试仍由应用层决定。 */
 export function createChatCompletionsModel({ config, contracts, fetcher = fetch, onPreview }: ModelOptions): ModelPort {
+    const client = createModelClient(config, fetcher)
     async function requestModel(
         messages: readonly AgentMessage[], allowedTools: readonly BoardToolName[], signal: AbortSignal,
         phase: 'preparation' | 'tool', elementKeys: readonly string[] = [],
@@ -226,34 +229,26 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
         const tools = boardToolNameSchema.options.filter(name => allowedTools.includes(name)).map(name => {
             const schema = name === 'create_shapes' ? mutationSchemas.create : name === 'update_shapes' ? mutationSchemas.update
                 : name === 'delete_shapes' ? mutationSchemas.delete : contracts.tools[name].inputSchema
-            return { type: 'function', function: { name, description: contracts.tools[name].description,
+            return { type: 'function' as const, function: { name, description: contracts.tools[name].description,
                 parameters: z.toJSONSchema(contracts.tools[name].kind === 'write' ? getToolCorrectionContract(schema).modelSchema : schema, { target: 'draft-7' }),
             } }
         })
         const encoded = encodeMessages(messages)
         let response: Response
         try {
-            response = await fetcher(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
-                body: JSON.stringify({
-                    model: config.model,
-                    messages: [
-                        { role: 'system', content: boardAgentCapabilitiesPrompt },
-                        ...(phase === 'preparation' ? [{ role: 'system', content: boardTaskBriefPrompt }] : []),
-                        ...encoded,
-                        ...(phase === 'tool' ? [{ role: 'system', content: executionInstructions(allowedTools) }] : []),
-                    ],
-                    ...(allowedTools.length ? { tools } : {}), tool_choice: allowedTools.length ? 'auto' : 'none',
-                    parallel_tool_calls: true, stream: true, enable_thinking: false, max_tokens: phase === 'preparation' ? 2000 : 4000,
-                }), signal,
-            })
-        } catch {
+            response = await requestCompletion(client, config, {
+                messages: [
+                    { role: 'system', content: boardAgentCapabilitiesPrompt },
+                    ...(phase === 'preparation' ? [{ role: 'system', content: boardTaskBriefPrompt }] : []),
+                    ...encoded,
+                    ...(phase === 'tool' ? [{ role: 'system', content: executionInstructions(allowedTools) }] : []),
+                ] as OpenAI.ChatCompletionMessageParam[],
+                ...(allowedTools.length ? { tools, tool_choice: 'auto', parallel_tool_calls: true } : {}),
+                outputLimit: phase === 'preparation' ? 2000 : 4000,
+            }, signal)
+        } catch (cause) {
             signal.throwIfAborted()
-            throw modelError('模型服务连接失败')
-        }
-        if (!response.ok) {
-            await response.body?.cancel()
-            throw modelError(`模型服务请求失败（HTTP ${response.status}）`)
+            throw modelError(cause instanceof ModelRequestError ? cause.message : '模型服务连接失败')
         }
         let data: unknown
         let start = true

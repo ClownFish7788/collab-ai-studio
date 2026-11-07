@@ -1,5 +1,6 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/agent/adapters/server/access'
 import { createChatCompletionsModel } from '@/agent/adapters/model/chatCompletions'
+import { readModelConfig } from '@/agent/adapters/model/client'
 import type { ModelPort } from '@/agent/application/ports'
 import { boardToolContractSet } from "../../../agent/adapters/board/contracts"
 import { runBoardAgent } from '@/agent/adapters/server/runBoardAgent'
@@ -48,12 +49,9 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
             return Response.json({ error: '白板任务过于频繁，请稍后再试' }, { status: 429 })
         }
 
-        const apiKey = process.env.API_KEY?.trim()
-        const model = process.env.BASE_MODEL?.trim()
-        const baseUrl = process.env.BASE_URL?.trim()
-
-        if (!apiKey || !model || !baseUrl) {
-            return Response.json({ error: '服务端尚未配置 AI 接口' }, { status: 500 })
+        const config = readModelConfig()
+        if (!config) {
+            return Response.json({ error: '服务端 AI 接口配置不完整或 MODEL_PROVIDER 不受支持' }, { status: 500 })
         }
 
         await trace.record('operation_result', { operation: 'rate_limit', outcome: 'success' })
@@ -75,7 +73,7 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                     controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
                 }
                 const adapter = createChatCompletionsModel({
-                    config: { apiKey, model, baseUrl }, contracts: boardToolContractSet, fetcher: tracedFetch,
+                    config, contracts: boardToolContractSet, fetcher: tracedFetch,
                     onPreview(source, delta, start) {
                         activeRun.signal.throwIfAborted()
                         emit({ type: 'preview', runId: activeRun.id, source, delta, start })
