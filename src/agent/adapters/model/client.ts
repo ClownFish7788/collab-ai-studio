@@ -36,17 +36,19 @@ type CompletionInput = Pick<OpenAI.ChatCompletionCreateParamsStreaming,
 
 function outputFailure(cause: APIError, format: CompletionInput['response_format']): ModelRequestError['reason'] {
     if (!format || format.type === 'text' || ![400, 422].includes(cause.status ?? 0)) return 'other'
+    // SDK 的静态类型不校验兼容网关正文；字段类型异常时不猜测能力。
+    if (cause.param != null && typeof cause.param !== 'string' || cause.code != null && typeof cause.code !== 'string') return 'other'
     const detail = cause.error as { message?: unknown } | undefined
     const message = typeof detail?.message === 'string' ? detail.message.slice(0, 2000).toLowerCase() : ''
     if (cause.code === 'invalid_json_schema' || cause.param?.startsWith('response_format.json_schema.schema')
-        || /invalid (?:json )?schema/.test(message)) return 'invalid_schema'
+        || /invalid (?:json )?schema|response_format\.json_schema\.schema(?:[.\s'":]|$)/.test(message)) return 'invalid_schema'
     // 组合冲突和提示词缺失都可能是 400，不能外推为模型整体不支持该格式。
     if (/thinking|stream|tools?|strict|messages?|prompts?/.test(message)) return 'other'
     if (cause.param && cause.param !== 'response_format' && cause.param !== 'response_format.type') return 'other'
-    const identifiesFormat = message.includes('response_format') && (message.includes(format.type)
-        || cause.code === 'unsupported_parameter' && cause.param === 'response_format')
-    // 只认可明确的格式/模型拒绝；未知 400、通用 InvalidParameter 和模糊 unavailable 均保留失败。
-    return identifiesFormat && /(?:not supported (?:with|by|for) (?:this |the )?model|model does not support|unsupported parameter)/.test(message)
+    // 整句匹配顶层格式拒绝，防止缺少 param 的嵌套 schema 错误被缓存为模型能力缺失。
+    const rejectedType = /^(?:invalid parameter:\s*)?['"]?response_format['"]? of type ['"]?(json_schema|json_object)['"]? is not supported (?:with|by|for) (?:this |the )?model\.?$/.exec(message)?.[1]
+    const rejectedParameter = /^unsupported parameter:\s*['"]?response_format(?:\.type)?['"]?(?: is not supported (?:with|by|for) (?:this |the )?model)?\.?$/.test(message)
+    return rejectedType === format.type || rejectedParameter
         ? 'unsupported_output_format' : 'other'
 }
 
