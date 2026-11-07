@@ -28,8 +28,9 @@ function fields(record: TLRecord): Record<string, unknown> {
     return result
 }
 
-export function createYRecord(record: TLRecord): Y.Map<unknown> {
-    return new Y.Map(Object.entries(fields(record)).map(([key, value]) => [
+export function createYRecord(record: TLRecord, keep = false): Y.Map<unknown> {
+    const data: Record<string, unknown> = { ...fields(record), keep }
+    return new Y.Map(Object.entries(data).map(([key, value]) => [
         key,
         key === 'props'
             ? new Y.Map(Object.entries(structuredClone(value as Record<string, unknown>)))
@@ -73,6 +74,7 @@ export function patchYRecord(target: Y.Map<unknown>, before: TLRecord, after: TL
 export function decodeYRecord(record: Y.Map<unknown>): TLRecord {
     if (!(record instanceof Y.Map)) throw new Error('画板记录不是共享 Map')
     const value = structuredClone(record.toJSON())
+    delete value.keep
     if (!isDocumentRecord(value) || typeof value.id !== 'string') throw new Error('无效的画板记录')
     if (value.typeName === 'shape') {
         if (!(record.get('props') instanceof Y.Map)) throw new Error('画板属性映射缺失')

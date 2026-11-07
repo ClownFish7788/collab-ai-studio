@@ -11,7 +11,7 @@ import {
 import useNetworkStore from '@/app/store/useNetworkStore'
 import CustomBoradcastChannel from '@/utils/collaboration/BoradcastChannelProvider'
 import { bindTldrawYjs, type TldrawYjsBinding } from '@/utils/collaboration/bindTldrawYjs'
-import { assertBoardV2, BOARD_META, BOARD_RECORDS } from '@/utils/collaboration/tldrawYjsMigration'
+import { assertBoard, BOARD_FORMAT, BOARD_META, BOARD_RECORDS } from '@/utils/collaboration/tldrawYjsMigration'
 import { bindLegacyBoardReadOnly, canLoadBoard } from '@/utils/collaboration/legacyBoard'
 import type { BoardYjsStoreState } from './boardYjsStoreState'
 import { toast } from '@/components/Toast'
@@ -97,7 +97,7 @@ export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, 
             // A valid cache is usable offline; an empty cache must await the authoritative cloud snapshot.
             if (!canLoadBoard(yDoc, provider.synced)) return
             try {
-                if (yDoc.getMap(BOARD_META).get('format') !== 2) {
+                if (yDoc.getMap(BOARD_META).get('format') !== BOARD_FORMAT) {
                     if (!stopLegacy) {
                         stopLegacy = bindLegacyBoardReadOnly(store, yDoc, error => { if (error) fail(error); else ready() })
                         startPresence()
@@ -106,7 +106,7 @@ export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, 
                 }
                 stopLegacy?.()
                 stopLegacy = undefined
-                assertBoardV2(yDoc, store.schema)
+                assertBoard(yDoc, store.schema)
                 binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), (error, source) => {
                     if (source === 'write') { if (error) toast.show(error.message); return }
                     if (error) fail(error); else ready()

@@ -1,0 +1,2042 @@
+{
+  "start": "2026-11-07T15:48:41.139Z",
+  "updated": "2026-11-07T15:48:52.932Z",
+  "format": 3,
+  "environment": "Chrome real Editor + production v3 binding/history + per-client IndexedDB + durable localhost relay; no Liveblocks",
+  "results": [
+    {
+      "name": "received-child-control",
+      "round": 1,
+      "room": "liveness-1794066521139-received-child-control-1",
+      "ok": true,
+      "details": {
+        "client": "A",
+        "error": null,
+        "rootIds": [
+          "document:document",
+          "page:page",
+          "shape:race-child",
+          "shape:race-parent"
+        ],
+        "storeIds": [
+          "shape:race-child",
+          "shape:race-parent"
+        ],
+        "parent": true,
+        "child": true,
+        "rawParent": true,
+        "parentKeep": true,
+        "retained": 0,
+        "repairWrites": 0,
+        "childParent": "shape:race-parent",
+        "parentX": 80,
+        "parentColor": "black",
+        "undo": 1,
+        "redo": 0,
+        "conflicts": 1
+      }
+    },
+    {
+      "name": "unseen-child-A-first",
+      "round": 1,
+      "room": "liveness-1794066521737-unseen-child-A-first-1",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "unseen-child-B-first",
+      "round": 1,
+      "room": "liveness-1794066522010-unseen-child-B-first-1",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "pair": {
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          },
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "child-author-closed",
+      "round": 1,
+      "room": "liveness-1794066522309-child-author-closed-1",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "c": {
+          "client": "C",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 0,
+          "conflicts": 0
+        },
+        "childAuthorClosed": true
+      }
+    },
+    {
+      "name": "reload-after-race",
+      "round": 1,
+      "room": "liveness-1794066522729-reload-after-race-1",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "reloaded": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "redo-after-race",
+      "round": 1,
+      "room": "liveness-1794066523169-redo-after-race-1",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "redo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "duplicate-out-of-order",
+      "round": 1,
+      "room": "liveness-1794066523475-duplicate-out-of-order-1",
+      "ok": true,
+      "details": {
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "independent-field-control",
+      "round": 1,
+      "room": "liveness-1794066523761-independent-field-control-1",
+      "ok": true,
+      "details": {
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "red",
+          "undo": 1,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "red",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "retained-child-undo",
+      "round": 1,
+      "room": "liveness-1794066524047-retained-child-undo-1",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "received-child-control",
+      "round": 2,
+      "room": "liveness-1794066524371-received-child-control-2",
+      "ok": true,
+      "details": {
+        "client": "A",
+        "error": null,
+        "rootIds": [
+          "document:document",
+          "page:page",
+          "shape:race-child",
+          "shape:race-parent"
+        ],
+        "storeIds": [
+          "shape:race-child",
+          "shape:race-parent"
+        ],
+        "parent": true,
+        "child": true,
+        "rawParent": true,
+        "parentKeep": true,
+        "retained": 0,
+        "repairWrites": 0,
+        "childParent": "shape:race-parent",
+        "parentX": 80,
+        "parentColor": "black",
+        "undo": 1,
+        "redo": 0,
+        "conflicts": 1
+      }
+    },
+    {
+      "name": "unseen-child-A-first",
+      "round": 2,
+      "room": "liveness-1794066524643-unseen-child-A-first-2",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "unseen-child-B-first",
+      "round": 2,
+      "room": "liveness-1794066524981-unseen-child-B-first-2",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "pair": {
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          },
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "child-author-closed",
+      "round": 2,
+      "room": "liveness-1794066525392-child-author-closed-2",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "c": {
+          "client": "C",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 0,
+          "conflicts": 0
+        },
+        "childAuthorClosed": true
+      }
+    },
+    {
+      "name": "reload-after-race",
+      "round": 2,
+      "room": "liveness-1794066525829-reload-after-race-2",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "reloaded": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "redo-after-race",
+      "round": 2,
+      "room": "liveness-1794066526315-redo-after-race-2",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "redo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "duplicate-out-of-order",
+      "round": 2,
+      "room": "liveness-1794066526674-duplicate-out-of-order-2",
+      "ok": true,
+      "details": {
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "independent-field-control",
+      "round": 2,
+      "room": "liveness-1794066526981-independent-field-control-2",
+      "ok": true,
+      "details": {
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "red",
+          "undo": 1,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "red",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "retained-child-undo",
+      "round": 2,
+      "room": "liveness-1794066527363-retained-child-undo-2",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "received-child-control",
+      "round": 3,
+      "room": "liveness-1794066527794-received-child-control-3",
+      "ok": true,
+      "details": {
+        "client": "A",
+        "error": null,
+        "rootIds": [
+          "document:document",
+          "page:page",
+          "shape:race-child",
+          "shape:race-parent"
+        ],
+        "storeIds": [
+          "shape:race-child",
+          "shape:race-parent"
+        ],
+        "parent": true,
+        "child": true,
+        "rawParent": true,
+        "parentKeep": true,
+        "retained": 0,
+        "repairWrites": 0,
+        "childParent": "shape:race-parent",
+        "parentX": 80,
+        "parentColor": "black",
+        "undo": 1,
+        "redo": 0,
+        "conflicts": 1
+      }
+    },
+    {
+      "name": "unseen-child-A-first",
+      "round": 3,
+      "room": "liveness-1794066528122-unseen-child-A-first-3",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "unseen-child-B-first",
+      "round": 3,
+      "room": "liveness-1794066528453-unseen-child-B-first-3",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "pair": {
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          },
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "child-author-closed",
+      "round": 3,
+      "room": "liveness-1794066528781-child-author-closed-3",
+      "ok": true,
+      "details": {
+        "undo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "c": {
+          "client": "C",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 0,
+          "conflicts": 0
+        },
+        "childAuthorClosed": true
+      }
+    },
+    {
+      "name": "reload-after-race",
+      "round": 3,
+      "room": "liveness-1794066529290-reload-after-race-3",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "reloaded": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "redo-after-race",
+      "round": 3,
+      "room": "liveness-1794066530538-redo-after-race-3",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "redo": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "duplicate-out-of-order",
+      "round": 3,
+      "room": "liveness-1794066531124-duplicate-out-of-order-3",
+      "ok": true,
+      "details": {
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": true,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 1,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "independent-field-control",
+      "round": 3,
+      "room": "liveness-1794066531815-independent-field-control-3",
+      "ok": true,
+      "details": {
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "red",
+          "undo": 1,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-parent"
+          ],
+          "storeIds": [
+            "shape:race-parent"
+          ],
+          "parent": true,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": true,
+          "retained": 0,
+          "repairWrites": 0,
+          "parentX": 80,
+          "parentColor": "red",
+          "undo": 1,
+          "redo": 0,
+          "conflicts": 0
+        }
+      }
+    },
+    {
+      "name": "retained-child-undo",
+      "round": 3,
+      "room": "liveness-1794066532415-retained-child-undo-3",
+      "ok": true,
+      "details": {
+        "pair": {
+          "A": {
+            "client": "A",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 0,
+            "redo": 1,
+            "conflicts": 0
+          },
+          "B": {
+            "client": "B",
+            "error": null,
+            "rootIds": [
+              "document:document",
+              "page:page",
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "storeIds": [
+              "shape:race-child",
+              "shape:race-parent"
+            ],
+            "parent": true,
+            "child": true,
+            "rawParent": true,
+            "parentKeep": false,
+            "retained": 1,
+            "repairWrites": 0,
+            "childParent": "shape:race-parent",
+            "parentX": 80,
+            "parentColor": "black",
+            "undo": 1,
+            "redo": 0,
+            "conflicts": 0
+          }
+        },
+        "b": {
+          "client": "B",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        },
+        "a": {
+          "client": "A",
+          "error": null,
+          "rootIds": [
+            "document:document",
+            "page:page",
+            "shape:race-child",
+            "shape:race-parent"
+          ],
+          "storeIds": [],
+          "parent": false,
+          "child": false,
+          "rawParent": true,
+          "parentKeep": false,
+          "retained": 0,
+          "repairWrites": 0,
+          "childParent": "shape:race-parent",
+          "parentX": 80,
+          "parentColor": "black",
+          "undo": 0,
+          "redo": 1,
+          "conflicts": 0
+        }
+      }
+    }
+  ]
+}

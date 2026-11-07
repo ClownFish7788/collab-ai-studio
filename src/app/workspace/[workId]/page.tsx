@@ -29,7 +29,7 @@ const EditorPage = ({
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                room, boardProtocol: 2
+                room, boardProtocol: 3
             })
         })
         if (!response.ok) throw new Error(await response.text())

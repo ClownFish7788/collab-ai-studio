@@ -14,6 +14,7 @@ import BoardDraftProvider, { BoardChatSlot } from './BoardDraftProvider'
 import { attachTldrawYjsHistory } from '@/utils/collaboration/tldrawYjsHistory'
 import { BoardSyncError } from './BoardSyncError'
 import { toast } from '@/components/Toast'
+import { BoardRetainedNotice } from './BoardRetainedNotice'
 
 const LocalDrawEditor = ({licenseKey}: {
     licenseKey:string
@@ -41,7 +42,9 @@ const LocalDrawEditor = ({licenseKey}: {
             onUpgrade={storeWithStatus.upgrade} />
     </div>
     return (
-        <div className={styles.container}>
+        <div className={`${styles.container} ${styles.boardLayout}`}>
+            <BoardRetainedNotice binding={storeWithStatus.binding} />
+            <div className={styles.canvas}>
             <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={roomId} canEdit local chat={<AIChat key={roomId} />}>
             <Tldraw
                 components={{ SharePanel: BoardChatSlot }}
@@ -56,6 +59,7 @@ const LocalDrawEditor = ({licenseKey}: {
                 }}
             />
             </BoardDraftProvider>
+            </div>
         </div>
     )
 }

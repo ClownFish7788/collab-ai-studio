@@ -3,7 +3,7 @@ import { IndexeddbPersistence, fetchUpdates, storeState } from 'y-indexeddb'
 import * as Y from 'yjs'
 import { createTLStore, defaultShapeUtils } from 'tldraw'
 import { bindTldrawYjs, type TldrawYjsBinding } from '@/utils/collaboration/bindTldrawYjs'
-import { assertBoardV2, BOARD_META, BOARD_RECORDS, initializeBoardV2 } from '@/utils/collaboration/tldrawYjsMigration'
+import { assertBoard, BOARD_META, BOARD_RECORDS, initializeBoard } from '@/utils/collaboration/tldrawYjsMigration'
 import CustomBoradcastChannel from '@/utils/collaboration/BoradcastChannelProvider'
 import type { BoardYjsStoreState } from './boardYjsStoreState'
 import { toast } from '@/components/Toast'
@@ -34,12 +34,12 @@ export function useLocalYjsStore(yDoc: Y.Doc, roomId: string) {
                 if (disposed) return
                 await fetchUpdates(persistence)
                 if (disposed) return
-                initializeBoardV2(yDoc, store.schema, { allowLegacy })
+                initializeBoard(yDoc, store.schema, { allowLegacy })
                 await storeState(persistence, true)
             })
             if (disposed) return
             if (binding) return
-            assertBoardV2(yDoc, store.schema)
+            assertBoard(yDoc, store.schema)
             binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), (error, source) => {
                 if (source === 'write') { if (error) toast.show(error.message); return }
                 if (error) fail(error); else ready()
@@ -60,7 +60,8 @@ export function useLocalYjsStore(yDoc: Y.Doc, roomId: string) {
         }
     }, [roomId, store, yDoc])
 
-    const canUpgrade = state.status === 'error' && yDoc.getMap(BOARD_META).get('format') !== 2
+    const format = yDoc.getMap(BOARD_META).get('format')
+    const canUpgrade = state.status === 'error' && (format === undefined || format === 1 || format === 2)
     return { ...state, backup: () => Y.encodeStateAsUpdate(yDoc),
         upgrade: canUpgrade ? () => upgrade.current?.() : undefined }
 }

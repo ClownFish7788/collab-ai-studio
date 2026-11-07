@@ -17,6 +17,7 @@ import BoardDraftProvider, { BoardChatSlot } from './BoardDraftProvider'
 import { attachTldrawYjsHistory } from '@/utils/collaboration/tldrawYjsHistory'
 import { BoardSyncError, downloadBoardBackup } from './BoardSyncError'
 import { toast } from '@/components/Toast'
+import { BoardRetainedNotice } from './BoardRetainedNotice'
 
 const OnlineDrawEditor = ({licenseKey}: {
     licenseKey: string
@@ -58,10 +59,11 @@ const OnlineDrawEditor = ({licenseKey}: {
                 此白板使用旧版格式，当前只读；升级前请先导出备份。
                 <button type="button" onClick={() => downloadBoardBackup(storeWithStatus.backup, room.id)}>导出恢复备份</button>
             </div>}
+            <BoardRetainedNotice binding={storeWithStatus.binding} />
             <div className={styles.canvas}>
             <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={room.id} canEdit={allowEdit} chat={<AIChat key={room.id} />}>
             <Tldraw
-                key={storeWithStatus.readOnly ? 'legacy' : 'v2'}
+                key={storeWithStatus.readOnly ? 'legacy' : 'v3'}
                 components={{ SharePanel: BoardChatSlot }}
                 licenseKey={licenseKey}
                 store={storeWithStatus.store}
