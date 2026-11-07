@@ -1,9 +1,10 @@
 import { atom } from '@tldraw/state'
-import type { Editor } from 'tldraw'
+import { uniqueId } from '@tldraw/utils'
+import type { Editor, HistoryManager, TLRecord } from 'tldraw'
 import * as Y from 'yjs'
 import type { TldrawYjsBinding } from './bindTldrawYjs'
 
-/** Route public history commands, including gesture cancellation, through one guarded document history. */
+/** Own history for this Editor's lifetime; detaching does not restart native recording. */
 export function attachTldrawYjsHistory(editor: Editor, binding: TldrawYjsBinding, onConflict: () => void): () => void {
     const manager = binding.undoManager
     const revision = atom('board-history', 0)
@@ -17,6 +18,17 @@ export function attachTldrawYjsHistory(editor: Editor, binding: TldrawYjsBinding
         getMarkIdMatching: (editor as Editor & { getMarkIdMatching(name: string): string | undefined }).getMarkIdMatching,
         bail: editor.bail, bailToMark: editor.bailToMark, squashToMark: editor.squashToMark,
     }
+    // tldraw 4.5.3 exposes no public switch for its protected history recorder.
+    const nativeHistory = (editor as unknown as {
+        history: Pick<HistoryManager<TLRecord>, 'dispose' | 'getNumUndos' | 'getNumRedos'>
+    }).history
+    const nativeCounts = { getNumUndos: nativeHistory.getNumUndos, getNumRedos: nativeHistory.getNumRedos }
+    nativeHistory.dispose()
+    original.clearHistory.call(editor)
+    Object.assign(nativeHistory, {
+        getNumUndos: () => { revision.get(); return manager.undoStack.length },
+        getNumRedos: () => { revision.get(); return manager.redoStack.length },
+    })
     const events = ['stack-item-added', 'stack-item-updated', 'stack-item-popped', 'stack-cleared'] as const
     for (const event of events) manager.on(event, refresh)
 
@@ -47,13 +59,13 @@ export function attachTldrawYjsHistory(editor: Editor, binding: TldrawYjsBinding
     Object.assign(editor, {
         undo: () => replay('undo'),
         redo: () => replay('redo'),
-        getCanUndo: () => { revision.get(); return manager.undoStack.length > 0 },
-        getCanRedo: () => { revision.get(); return manager.redoStack.length > 0 },
+        getCanUndo: () => nativeHistory.getNumUndos() > 0,
+        getCanRedo: () => nativeHistory.getNumRedos() > 0,
         clearHistory: () => { manager.clear(); marks.clear(); original.clearHistory.call(editor); refresh(); return editor },
         markHistoryStoppingPoint: (name?: string) => {
             editor.store._flushHistory()
             manager.stopCapturing()
-            const id = original.markHistoryStoppingPoint.call(editor, name)
+            const id = `[${name ?? 'stop'}]_${uniqueId()}`
             marks.set(id, manager.undoStack.length)
             return id
         },
@@ -83,8 +95,17 @@ export function attachTldrawYjsHistory(editor: Editor, binding: TldrawYjsBinding
             return editor
         },
     })
+    let detached = false
+    // Editor creation batches state changes; rebind cached UI queries after that batch ends.
+    queueMicrotask(() => {
+        if (detached) return
+        original.markHistoryStoppingPoint.call(editor, 'shared-history')
+        original.clearHistory.call(editor)
+    })
     return () => {
+        detached = true
         for (const event of events) manager.off(event, refresh)
+        Object.assign(nativeHistory, nativeCounts)
         Object.assign(editor, original)
     }
 }
