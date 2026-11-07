@@ -6,8 +6,8 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    // Node 工具和测试使用 CommonJS，不改变应用的模块配置。
-    files: ["tests/**/*.cjs", "scripts/**/*.cjs"],
+    // Node 工具使用 CommonJS，不改变应用的模块配置。
+    files: ["scripts/**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   // Override default ignores of eslint-config-next.

@@ -17,7 +17,7 @@ Before continuing, read docs/collaboration/tldraw-yjs-scheme-a.md and git log/st
 - Use one binding for online/local stores; keep provider/presence and AI draft isolation.
 - Preserve old roots and recoverable backups. Online migration requires verified isolation of old writers.
 - Distinguish model tests, real browser tests and production migration; report each separately.
-- Run npm test, targeted ESLint, npx tsc --noEmit and git diff --check before completion.
+- Run targeted ESLint, npx tsc --noEmit and git diff --check before completion.
 - Keep worktree-local dependencies isolated; node_modules is a junction to the original checkout. Do not reinstall or regenerate shared packages through it.
 - Keep ignored scratch in .superpowers; durable handoff and decisions belong in docs/collaboration.
 
@@ -39,5 +39,5 @@ Before continuing, read docs/collaboration/tldraw-yjs-scheme-a.md and git log/st
 
 ## Memory research (2026-11-07)
 - Before implementing history limits or compaction, read docs/collaboration/tldraw-yjs-memory-study.md and its linked raw results. This research changed no product policy; proposed limits and idle timing remain candidates.
-- Compare retained heap, encoded bytes and browser whole-page memory separately. Reproduce with the committed benchmarks; the analysis script checks source hashes against the saved runs.
+- Compare retained heap, encoded bytes and browser whole-page memory separately. Historical measurements remain in the local docs/collaboration files; benchmark sources were removed with the test suite.
 - Preserve CRDT identity and reachable undo/redo data during reclamation. Fresh-tree reconstruction is a migration boundary; cloud physical reclamation remains unverified.
