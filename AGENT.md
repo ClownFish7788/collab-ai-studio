@@ -36,3 +36,8 @@ Before continuing, read docs/collaboration/tldraw-yjs-scheme-a.md and git log/st
 - The protected history access is compatibility code for tldraw 4.5.3; validate native toolbar and empty native stacks on dependency upgrades.
 - The adapter owns history for the Editor lifetime. Detaching does not restart native recording; create a new Editor to return to native history.
 - Yjs history limits and document compaction remain separate work; stopping native recording does not bound Yjs memory.
+
+## Memory research (2026-11-07)
+- Before implementing history limits or compaction, read docs/collaboration/tldraw-yjs-memory-study.md and its linked raw results. This research changed no product policy; proposed limits and idle timing remain candidates.
+- Compare retained heap, encoded bytes and browser whole-page memory separately. Reproduce with the committed benchmarks; the analysis script checks source hashes against the saved runs.
+- Preserve CRDT identity and reachable undo/redo data during reclamation. Fresh-tree reconstruction is a migration boundary; cloud physical reclamation remains unverified.
