@@ -73,7 +73,7 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                     controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
                 }
                 const adapter = createChatCompletionsModel({
-                    config, contracts: boardToolContractSet, fetcher: tracedFetch,
+                    config, contracts: boardToolContractSet, fetcher: tracedFetch, record: trace.record,
                     onPreview(source, delta, start) {
                         activeRun.signal.throwIfAborted()
                         emit({ type: 'preview', runId: activeRun.id, source, delta, start })

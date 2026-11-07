@@ -238,3 +238,49 @@ test('board access validation still blocks non-editors before model calls', asyn
     assert.equal(response.status, 403)
     assert.equal(calls, 0)
 })
+
+test('board route traces a format downgrade, domain reply and subsequent capability reuse', async t => {
+    process.env.BASE_MODEL = 'route-format-fallback'
+    const requests = []
+    t.mock.method(globalThis, 'fetch', async (_url, init) => {
+        const body = JSON.parse(init.body)
+        requests.push(body)
+        if (body.response_format?.type === 'json_schema') return Response.json({ error: {
+            code: 'unsupported_value', param: 'response_format',
+            message: "response_format of type 'json_schema' is not supported with this model",
+        } }, { status: 400, headers: { 'x-request-id': 'req-route-format' } })
+        return providerResponse('{"kind":"reply","brief":null,"text":"你好"}')
+    })
+    const response = await board(request('board-create', boardPayload))
+    const frames = (await response.text()).trim().split('\n').map(line => JSON.parse(line))
+    assert.deepEqual(requests.map(body => body.response_format?.type), ['json_schema', 'json_object'])
+    assert.equal(frames.find(frame => frame.type === 'completed').text, '你好')
+    assert.equal(frames.some(frame => frame.type === 'error'), false)
+    assert.equal(traceFor(response).status, 'completed')
+    const decisions = events.map(event => JSON.parse(event.data)).filter(data => data.operation === 'preparation_format')
+    assert.deepEqual(decisions.map(data => [data.mode, data.attempt, data.willFallback]), [['schema', 1, true], ['object', 2, false]])
+    assert.equal(decisions[0].diagnostic.requestId, 'req-route-format')
+    assert.ok(!JSON.stringify(events).includes('route-test-key'))
+    const next = await board(request('board-create', boardPayload))
+    await next.text()
+    assert.equal(requests.length, 3)
+    assert.equal(requests[2].response_format.type, 'json_object')
+})
+
+test('board route reports invalid schema without retrying or exposing provider body', async t => {
+    process.env.BASE_MODEL = 'route-format-invalid-schema'
+    let calls = 0
+    t.mock.method(globalThis, 'fetch', async () => {
+        calls++
+        return Response.json({ error: { code: 'invalid_json_schema', param: 'response_format', message: 'Invalid schema: private-provider-detail' } }, { status: 400 })
+    })
+    const response = await board(request('board-create', boardPayload))
+    const text = await response.text()
+    assert.equal(calls, 1)
+    assert.equal(traceFor(response).status, 'failed')
+    assert.ok(!text.includes('private-provider-detail'))
+    assert.ok(!JSON.stringify(events).includes('private-provider-detail'))
+    const failure = events.map(event => JSON.parse(event.data)).find(data => data.operation === 'preparation_format')
+    assert.equal(failure.reason, 'invalid_schema')
+    assert.equal(failure.willFallback, false)
+})

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { jsonrepair } from 'jsonrepair'
 import type OpenAI from 'openai'
 import { createModelClient, ModelRequestError, requestCompletion, type ModelConfig } from './client'
-import { AgentApplicationError, MAX_BOARD_TOOL_CALLS, type ModelPort } from '../../application/ports'
+import { AgentApplicationError, MAX_BOARD_TOOL_CALLS, type AgentRecord, type ModelPort } from '../../application/ports'
 import { ERROR_CODES } from '../../domain/error'
 import { jsonValueSchema, type JsonValue } from '../../domain/data'
 import { toolCallIdSchema } from '../../domain/invocation'
@@ -13,12 +13,14 @@ import { boardTaskBriefPrompt } from '../../../prompts/boardTaskBriefPrompt'
 import { normalizePreparationOutput, preparationResponseFormat } from './preparationOutput'
 import { getPreparationModes, rememberOutputCapability, type OutputMode } from './outputCapabilities'
 import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../../../utils/board/boardCapabilities'
+import { classifyTraceError } from '../../../utils/agent-traces/outcomes'
 
 type ModelOptions = {
     config: ModelConfig
     contracts: ReturnType<typeof createBoardToolContracts>
     fetcher?: typeof fetch
     onPreview?: (source: 'preparation' | 'tool', delta: string, start: boolean) => void
+    record?: AgentRecord
 }
 
 const modelError = (message: string) => new AgentApplicationError({ code: ERROR_CODES.INVALID_MODEL_RESPONSE, message })
@@ -220,10 +222,14 @@ function encodeMessages(messages: readonly AgentMessage[]): object[] {
 }
 
 /** Chat Completions 兼容适配器：内部协商有界，任务步骤和输出纠错仍由应用层决定。 */
-export function createChatCompletionsModel({ config, contracts, fetcher = fetch, onPreview }: ModelOptions): ModelPort {
+export function createChatCompletionsModel({ config, contracts, fetcher = fetch, onPreview, record }: ModelOptions): ModelPort {
     let preparationRounds = 0
     let preparationRequests = 0
     let selectedMode: OutputMode | undefined
+    async function recordFormat(data: Record<string, unknown>, durationMs: number) {
+        try { await record?.('operation_result', { operation: 'preparation_format', ...data }, durationMs) }
+        catch { /* 观测失败不能改变模型请求结果、缓存或重试次数。 */ }
+    }
     async function requestModel(
         messages: readonly AgentMessage[], allowedTools: readonly BoardToolName[], signal: AbortSignal,
         phase: 'preparation' | 'tool', elementKeys: readonly string[] = [],
@@ -257,19 +263,30 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
                 for (const mode of modes) {
                     if (preparationRequests >= 4) throw modelError('需求拆分已用尽四次模型请求预算')
                     preparationRequests++
+                    const began = Date.now()
                     try {
                         response = await requestCompletion(client, config, { ...input,
                             ...(mode === 'schema' ? { response_format: preparationResponseFormat }
                                 : mode === 'object' ? { response_format: { type: 'json_object' as const } } : {}),
                         }, signal)
                     } catch (cause) {
+                        const unsupported = cause instanceof ModelRequestError && cause.reason === 'unsupported_output_format' && mode !== 'prompt'
+                        await recordFormat({ mode, attempt: preparationRequests, accepted: false,
+                            outcome: signal.aborted && signal.reason?.name !== 'TimeoutError' ? 'cancelled' : 'error',
+                            willFallback: !signal.aborted && !selectedMode && unsupported && preparationRequests < 4,
+                            ...(cause instanceof ModelRequestError ? { reason: cause.reason, diagnostic: cause.diagnostic, httpStatus: cause.httpStatus } : {}),
+                            error: classifyTraceError(cause, { operation: cause instanceof ModelRequestError && cause.reason !== 'other' ? 'model_call' : 'model_fetch',
+                                signal, httpStatus: cause instanceof ModelRequestError ? cause.httpStatus : undefined }),
+                        }, Date.now() - began)
                         signal.throwIfAborted()
-                        if (cause instanceof ModelRequestError && cause.reason === 'unsupported_output_format' && mode !== 'prompt') {
+                        if (unsupported) {
                             rememberOutputCapability(config, mode, 'unsupported')
                             if (!selectedMode) continue
                         }
                         throw cause
                     }
+                    // success 仅表示本次格式请求被接收；完整输出仍由流解析和领域校验决定是否成功。
+                    await recordFormat({ mode, attempt: preparationRequests, outcome: 'success', accepted: true, willFallback: false }, Date.now() - began)
                     if (mode !== 'prompt') rememberOutputCapability(config, mode, 'accepted')
                     selectedMode = mode
                     break

@@ -49,8 +49,10 @@ test('schema and object rejection fall back to prompt and stay within four physi
 test('the physical request ceiling still holds if capabilities expire after a failed negotiation', async t => {
     let now = 1000
     t.mock.method(Date, 'now', () => now)
-    const requests = []
-    const model = adapter(settings(), body => body.response_format ? unsupported(body.response_format.type) : unsupported('json_schema', 500), requests)
+    const requests = [], events = []
+    const model = adapter(settings(), body => body.response_format ? unsupported(body.response_format.type) : unsupported('json_schema', 500), requests, {
+        record: async (_type, data) => events.push(data),
+    })
     await assert.rejects(model.prepare(prompt, signal()))
     now += 3600000
     await assert.rejects(model.prepare(prompt, signal()), cause => {
@@ -58,6 +60,7 @@ test('the physical request ceiling still holds if capabilities expire after a fa
         return true
     })
     assert.equal(requests.length, 4)
+    assert.equal(events.at(-1).willFallback, false)
 })
 
 for (const status of [401, 403, 404, 429, 500]) test(`HTTP ${status} never downgrades or poisons capabilities`, async () => {
@@ -71,6 +74,7 @@ test('invalid schema and unknown 400 do not downgrade or poison capabilities', a
     for (const error of [
         { code: 'invalid_json_schema', message: 'Invalid schema' },
         { code: 'InvalidParameter', message: 'invalid response_format' },
+        { code: 'unsupported_parameter', message: "Unsupported parameter: 'response_format.json_schema.schema.patternProperties'." },
     ]) {
         const config = settings(), requests = []
         await assert.rejects(adapter(config, () => new Response(JSON.stringify({ error }), { status: 400 }), requests).prepare(prompt, signal()))
@@ -115,4 +119,32 @@ test('execution does not inherit preparation response_format or its fallback loo
     await assert.rejects(model.next({ runId: 'run', messages: prompt, toolResults: [] }, ['get_board_snapshot'], signal()))
     assert.deepEqual(formats(requests), ['prompt'])
     assert.ok(requests[0].tools)
+})
+
+test('preparation records safe format acceptance and rejection with the physical attempt number', async () => {
+    const events = [], requests = []
+    const model = adapter(settings(), body => body.response_format?.type === 'json_schema' ? unsupported('json_schema') : stream(), requests, {
+        record: async (type, data) => events.push({ type, data }),
+    })
+    await model.prepare(prompt, signal())
+    assert.deepEqual(events.map(event => [event.type, event.data.operation, event.data.mode, event.data.attempt, event.data.outcome, event.data.willFallback]), [
+        ['operation_result', 'preparation_format', 'schema', 1, 'error', true],
+        ['operation_result', 'preparation_format', 'object', 2, 'success', false],
+    ])
+    assert.equal(events[0].data.reason, 'unsupported_output_format')
+    assert.equal(events[0].data.diagnostic.code, 'unsupported_value')
+    assert.equal(events[1].data.accepted, true)
+    assert.ok(!JSON.stringify(events).includes('fallback-test-key'))
+    assert.ok(!JSON.stringify(events).includes('is not supported with this model'))
+})
+
+test('trace observer failures never change request count, output or mode selection', async () => {
+    const requests = []
+    let reports = 0
+    const model = adapter(settings(), body => body.response_format?.type === 'json_schema' ? unsupported('json_schema') : stream(), requests, {
+        record: async () => { reports++; throw new Error('trace storage offline') },
+    })
+    await model.prepare(prompt, signal())
+    assert.deepEqual(formats(requests), ['json_schema', 'json_object'])
+    assert.equal(reports, 2)
 })

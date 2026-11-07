@@ -3,6 +3,7 @@ import type { ModelConfig } from './client'
 
 export type OutputMode = 'schema' | 'object' | 'prompt'
 type Observation = { outcome: 'accepted' | 'unsupported'; expires: number }
+// shortcut: 能力缓存只在单进程生效，需要跨实例复用时改为共享存储。
 const observations = new Map<string, Partial<Record<Exclude<OutputMode, 'prompt'>, Observation>>>()
 const TTL = 60 * 60 * 1000
 const MAX_CONFIGURATIONS = 128
