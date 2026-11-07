@@ -1,0 +1,5147 @@
+{
+  "generatedAt": "2026-11-07T03:49:04.536Z",
+  "sourceSha256": "d0d744dfd28312ac5c3de699ef13372350e8ab3627f71487999dccee94d498f2",
+  "environment": {
+    "node": "v24.14.0",
+    "v8": "13.6.233.17-node.41",
+    "platform": "win32",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i7-14700HX",
+    "logicalCpus": 28,
+    "systemMemoryBytes": 16873545728,
+    "yjs": "13.6.30",
+    "tldraw": "4.5.3"
+  },
+  "repeats": 3,
+  "staticCases": [
+    {
+      "shapes": 100,
+      "heapMiB": {
+        "median": 1.4369430541992188,
+        "min": 1.4002151489257812,
+        "max": 1.4423446655273438
+      },
+      "encodedBytes": {
+        "median": 71982,
+        "min": 71982,
+        "max": 71982
+      }
+    },
+    {
+      "shapes": 4000,
+      "heapMiB": {
+        "median": 42.683738708496094,
+        "min": 42.68328857421875,
+        "max": 42.73472595214844
+      },
+      "encodedBytes": {
+        "median": 2947055,
+        "min": 2947055,
+        "max": 2947055
+      }
+    }
+  ],
+  "cases": [
+    {
+      "kind": "position",
+      "shapes": 100,
+      "updates": 30000,
+      "capture": true,
+      "loadedHeapMiB": {
+        "median": 1.400543212890625,
+        "min": 1.4003219604492188,
+        "max": 1.4367523193359375
+      },
+      "editedHeapMiB": {
+        "median": 8.102890014648438,
+        "min": 8.102775573730469,
+        "max": 8.161262512207031
+      },
+      "growthHeapMiB": {
+        "median": 6.702568054199219,
+        "min": 6.702232360839844,
+        "max": 6.724510192871094
+      },
+      "stages": {
+        "loaded": {
+          "retainedHeapAboveEmpty": {
+            "median": 1468576,
+            "min": 1468344,
+            "max": 1506544
+          },
+          "heapUsed": {
+            "median": 40508184,
+            "min": 40505400,
+            "max": 40555664
+          },
+          "encodedBytes": {
+            "median": 71982,
+            "min": 71982,
+            "max": 71982
+          },
+          "gzipBytes": {
+            "median": 9584,
+            "min": 9578,
+            "max": 9586
+          },
+          "logicalJsonBytes": {
+            "median": 57713,
+            "min": 57713,
+            "max": 57713
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2415,
+            "min": 2415,
+            "max": 2415
+          },
+          "clockUnits": {
+            "median": 2415,
+            "min": 2415,
+            "max": 2415
+          },
+          "deletedClockUnits": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "edited-1000": {
+          "retainedHeapAboveEmpty": {
+            "median": 2580488,
+            "min": 2576512,
+            "max": 2614232
+          },
+          "heapUsed": {
+            "median": 41620096,
+            "min": 41613568,
+            "max": 41663352
+          },
+          "encodedBytes": {
+            "median": 130293,
+            "min": 130293,
+            "max": 130293
+          },
+          "gzipBytes": {
+            "median": 16372,
+            "min": 16369,
+            "max": 16373
+          },
+          "logicalJsonBytes": {
+            "median": 57732,
+            "min": 57732,
+            "max": 57732
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 72274,
+            "min": 72274,
+            "max": 72274
+          },
+          "undoSteps": {
+            "median": 17,
+            "min": 17,
+            "max": 17
+          },
+          "structs": {
+            "median": 2449,
+            "min": 2449,
+            "max": 2449
+          },
+          "clockUnits": {
+            "median": 3415,
+            "min": 3415,
+            "max": 3415
+          },
+          "deletedClockUnits": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000
+          }
+        },
+        "edited-5000": {
+          "retainedHeapAboveEmpty": {
+            "median": 3423840,
+            "min": 3423672,
+            "max": 3468144
+          },
+          "heapUsed": {
+            "median": 42463448,
+            "min": 42460728,
+            "max": 42517264
+          },
+          "encodedBytes": {
+            "median": 366057,
+            "min": 366057,
+            "max": 366057
+          },
+          "gzipBytes": {
+            "median": 39767,
+            "min": 39762,
+            "max": 39768
+          },
+          "logicalJsonBytes": {
+            "median": 57799,
+            "min": 57799,
+            "max": 57799
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 365138,
+            "min": 365138,
+            "max": 365138
+          },
+          "undoSteps": {
+            "median": 84,
+            "min": 84,
+            "max": 84
+          },
+          "structs": {
+            "median": 2583,
+            "min": 2583,
+            "max": 2583
+          },
+          "clockUnits": {
+            "median": 7415,
+            "min": 7415,
+            "max": 7415
+          },
+          "deletedClockUnits": {
+            "median": 5000,
+            "min": 5000,
+            "max": 5000
+          }
+        },
+        "edited-15000": {
+          "retainedHeapAboveEmpty": {
+            "median": 5508080,
+            "min": 5493728,
+            "max": 5560064
+          },
+          "heapUsed": {
+            "median": 44547688,
+            "min": 44530784,
+            "max": 44609184
+          },
+          "encodedBytes": {
+            "median": 962659,
+            "min": 962659,
+            "max": 962659
+          },
+          "gzipBytes": {
+            "median": 94793,
+            "min": 94790,
+            "max": 94799
+          },
+          "logicalJsonBytes": {
+            "median": 57918,
+            "min": 57918,
+            "max": 57918
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 1104580,
+            "min": 1104580,
+            "max": 1104580
+          },
+          "undoSteps": {
+            "median": 250,
+            "min": 250,
+            "max": 250
+          },
+          "structs": {
+            "median": 2765,
+            "min": 2765,
+            "max": 2765
+          },
+          "clockUnits": {
+            "median": 17415,
+            "min": 17415,
+            "max": 17415
+          },
+          "deletedClockUnits": {
+            "median": 15000,
+            "min": 15000,
+            "max": 15000
+          }
+        },
+        "edited-30000": {
+          "retainedHeapAboveEmpty": {
+            "median": 8496496,
+            "min": 8496376,
+            "max": 8557704
+          },
+          "heapUsed": {
+            "median": 47535984,
+            "min": 47533552,
+            "max": 47606824
+          },
+          "encodedBytes": {
+            "median": 1863130,
+            "min": 1863130,
+            "max": 1863130
+          },
+          "gzipBytes": {
+            "median": 177382,
+            "min": 177346,
+            "max": 177390
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 2224430,
+            "min": 2224430,
+            "max": 2224430
+          },
+          "undoSteps": {
+            "median": 500,
+            "min": 500,
+            "max": 500
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "sweep-retaining-history": {
+          "retainedHeapAboveEmpty": {
+            "median": 8521064,
+            "min": 8521008,
+            "max": 8582272
+          },
+          "heapUsed": {
+            "median": 47560616,
+            "min": 47558120,
+            "max": 47631392
+          },
+          "encodedBytes": {
+            "median": 1863130,
+            "min": 1863130,
+            "max": 1863130
+          },
+          "gzipBytes": {
+            "median": 177382,
+            "min": 177346,
+            "max": 177390
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 2224430,
+            "min": 2224430,
+            "max": 2224430
+          },
+          "undoSteps": {
+            "median": 500,
+            "min": 500,
+            "max": 500
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "after-undo-preflight": {
+          "retainedHeapAboveEmpty": {
+            "median": 8530776,
+            "min": 8530704,
+            "max": 8630272
+          },
+          "heapUsed": {
+            "median": 47570312,
+            "min": 47567832,
+            "max": 47679392
+          },
+          "encodedBytes": {
+            "median": 1863130,
+            "min": 1863130,
+            "max": 1863130
+          },
+          "gzipBytes": {
+            "median": 177382,
+            "min": 177346,
+            "max": 177390
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 2224430,
+            "min": 2224430,
+            "max": 2224430
+          },
+          "undoSteps": {
+            "median": 500,
+            "min": 500,
+            "max": 500
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "history-cleared": {
+          "retainedHeapAboveEmpty": {
+            "median": 7694120,
+            "min": 7694064,
+            "max": 7717088
+          },
+          "heapUsed": {
+            "median": 46733672,
+            "min": 46731176,
+            "max": 46766208
+          },
+          "encodedBytes": {
+            "median": 1863130,
+            "min": 1863130,
+            "max": 1863130
+          },
+          "gzipBytes": {
+            "median": 177382,
+            "min": 177346,
+            "max": 177390
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "sweep-after-clear": {
+          "retainedHeapAboveEmpty": {
+            "median": 2797144,
+            "min": 2797088,
+            "max": 2815296
+          },
+          "heapUsed": {
+            "median": 41836696,
+            "min": 41834200,
+            "max": 41864416
+          },
+          "encodedBytes": {
+            "median": 77850,
+            "min": 77850,
+            "max": 77850
+          },
+          "gzipBytes": {
+            "median": 12103,
+            "min": 12096,
+            "max": 12105
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "reload-gc": {
+          "retainedHeapAboveEmpty": {
+            "median": 2787320,
+            "min": 2786800,
+            "max": 2809728
+          },
+          "heapUsed": {
+            "median": 41826928,
+            "min": 41823856,
+            "max": 41858848
+          },
+          "encodedBytes": {
+            "median": 77850,
+            "min": 77850,
+            "max": 77850
+          },
+          "gzipBytes": {
+            "median": 12103,
+            "min": 12096,
+            "max": 12105
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "rebuilt-new-ids": {
+          "retainedHeapAboveEmpty": {
+            "median": 2330736,
+            "min": 2330720,
+            "max": 2353168
+          },
+          "heapUsed": {
+            "median": 41370328,
+            "min": 41367792,
+            "max": 41402288
+          },
+          "encodedBytes": {
+            "median": 72100,
+            "min": 72100,
+            "max": 72100
+          },
+          "gzipBytes": {
+            "median": 9850,
+            "min": 9846,
+            "max": 9853
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2416,
+            "min": 2416,
+            "max": 2416
+          },
+          "clockUnits": {
+            "median": 2416,
+            "min": 2416,
+            "max": 2416
+          },
+          "deletedClockUnits": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        }
+      },
+      "curve": [
+        {
+          "updates": 0,
+          "growthMiB": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "updates": 1000,
+          "growthMiB": {
+            "median": 1.0568313598632812,
+            "min": 1.0563735961914062,
+            "max": 1.0604019165039062
+          }
+        },
+        {
+          "updates": 5000,
+          "growthMiB": {
+            "median": 1.86474609375,
+            "min": 1.86468505859375,
+            "max": 1.8707275390625
+          }
+        },
+        {
+          "updates": 15000,
+          "growthMiB": {
+            "median": 3.8523712158203125,
+            "min": 3.8389053344726562,
+            "max": 3.8657379150390625
+          }
+        },
+        {
+          "updates": 30000,
+          "growthMiB": {
+            "median": 6.702568054199219,
+            "min": 6.702232360839844,
+            "max": 6.724510192871094
+          }
+        }
+      ],
+      "timings": {
+        "preflightMs": {
+          "median": 56.40949999999975,
+          "min": 53.059099999999944,
+          "max": 58.63779999999997
+        },
+        "preflightPostOperationHeapDeltaMiB": {
+          "median": 14.782035827636719,
+          "min": 14.760940551757812,
+          "max": 14.963203430175781
+        },
+        "sweepReleasedMs": {
+          "median": 0.6536000000000968,
+          "min": 0.6498000000001412,
+          "max": 0.6631999999999607
+        },
+        "reloadMs": {
+          "median": 18.413600000000315,
+          "min": 17.38670000000002,
+          "max": 24.351599999999962
+        },
+        "rebuildMs": {
+          "median": 11.762900000000172,
+          "min": 10.612900000000081,
+          "max": 18.791600000000017
+        }
+      },
+      "gcReleasedHeapMiB": {
+        "median": 4.6701202392578125,
+        "min": 4.6701202392578125,
+        "max": 4.674713134765625
+      },
+      "preflightAssociatedHeapChangeMiB": {
+        "median": 0.0092620849609375,
+        "min": 0.009246826171875,
+        "max": 0.0457763671875
+      }
+    },
+    {
+      "kind": "position",
+      "shapes": 100,
+      "updates": 30000,
+      "capture": false,
+      "loadedHeapMiB": {
+        "median": 1.4376296997070312,
+        "min": 1.4367599487304688,
+        "max": 1.4377593994140625
+      },
+      "editedHeapMiB": {
+        "median": 2.7405548095703125,
+        "min": 2.739349365234375,
+        "max": 2.7411575317382812
+      },
+      "growthHeapMiB": {
+        "median": 1.3029251098632812,
+        "min": 1.3015899658203125,
+        "max": 1.3043975830078125
+      },
+      "stages": {
+        "loaded": {
+          "retainedHeapAboveEmpty": {
+            "median": 1507464,
+            "min": 1506552,
+            "max": 1507600
+          },
+          "heapUsed": {
+            "median": 40551640,
+            "min": 40547424,
+            "max": 40556824
+          },
+          "encodedBytes": {
+            "median": 71982,
+            "min": 71982,
+            "max": 71982
+          },
+          "gzipBytes": {
+            "median": 9578,
+            "min": 9565,
+            "max": 9581
+          },
+          "logicalJsonBytes": {
+            "median": 57713,
+            "min": 57713,
+            "max": 57713
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2415,
+            "min": 2415,
+            "max": 2415
+          },
+          "clockUnits": {
+            "median": 2415,
+            "min": 2415,
+            "max": 2415
+          },
+          "deletedClockUnits": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "edited-1000": {
+          "retainedHeapAboveEmpty": {
+            "median": 2398840,
+            "min": 2397736,
+            "max": 2682472
+          },
+          "heapUsed": {
+            "median": 41449112,
+            "min": 41437560,
+            "max": 41726648
+          },
+          "encodedBytes": {
+            "median": 72353,
+            "min": 72353,
+            "max": 72353
+          },
+          "gzipBytes": {
+            "median": 9894,
+            "min": 9885,
+            "max": 9894
+          },
+          "logicalJsonBytes": {
+            "median": 57732,
+            "min": 57732,
+            "max": 57732
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2449,
+            "min": 2449,
+            "max": 2449
+          },
+          "clockUnits": {
+            "median": 3415,
+            "min": 3415,
+            "max": 3415
+          },
+          "deletedClockUnits": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000
+          }
+        },
+        "edited-5000": {
+          "retainedHeapAboveEmpty": {
+            "median": 2503520,
+            "min": 2503496,
+            "max": 2503544
+          },
+          "heapUsed": {
+            "median": 41547672,
+            "min": 41543344,
+            "max": 41553816
+          },
+          "encodedBytes": {
+            "median": 73829,
+            "min": 73829,
+            "max": 73829
+          },
+          "gzipBytes": {
+            "median": 10682,
+            "min": 10681,
+            "max": 10690
+          },
+          "logicalJsonBytes": {
+            "median": 57799,
+            "min": 57799,
+            "max": 57799
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2583,
+            "min": 2583,
+            "max": 2583
+          },
+          "clockUnits": {
+            "median": 7415,
+            "min": 7415,
+            "max": 7415
+          },
+          "deletedClockUnits": {
+            "median": 5000,
+            "min": 5000,
+            "max": 5000
+          }
+        },
+        "edited-15000": {
+          "retainedHeapAboveEmpty": {
+            "median": 2693464,
+            "min": 2678672,
+            "max": 2694040
+          },
+          "heapUsed": {
+            "median": 41737640,
+            "min": 41718496,
+            "max": 41744312
+          },
+          "encodedBytes": {
+            "median": 75515,
+            "min": 75515,
+            "max": 75515
+          },
+          "gzipBytes": {
+            "median": 11309,
+            "min": 11305,
+            "max": 11311
+          },
+          "logicalJsonBytes": {
+            "median": 57918,
+            "min": 57918,
+            "max": 57918
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2765,
+            "min": 2765,
+            "max": 2765
+          },
+          "clockUnits": {
+            "median": 17415,
+            "min": 17415,
+            "max": 17415
+          },
+          "deletedClockUnits": {
+            "median": 15000,
+            "min": 15000,
+            "max": 15000
+          }
+        },
+        "edited-30000": {
+          "retainedHeapAboveEmpty": {
+            "median": 2873680,
+            "min": 2872416,
+            "max": 2874312
+          },
+          "heapUsed": {
+            "median": 41917856,
+            "min": 41912240,
+            "max": 41924584
+          },
+          "encodedBytes": {
+            "median": 77850,
+            "min": 77850,
+            "max": 77850
+          },
+          "gzipBytes": {
+            "median": 12097,
+            "min": 12091,
+            "max": 12098
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "sweep-retaining-history": {
+          "retainedHeapAboveEmpty": {
+            "median": 2894560,
+            "min": 2893296,
+            "max": 2895192
+          },
+          "heapUsed": {
+            "median": 41938736,
+            "min": 41933120,
+            "max": 41945464
+          },
+          "encodedBytes": {
+            "median": 77850,
+            "min": 77850,
+            "max": 77850
+          },
+          "gzipBytes": {
+            "median": 12097,
+            "min": 12091,
+            "max": 12098
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "after-undo-preflight": {
+          "retainedHeapAboveEmpty": {
+            "median": 2917896,
+            "min": 2916440,
+            "max": 2918528
+          },
+          "heapUsed": {
+            "median": 41962072,
+            "min": 41956264,
+            "max": 41968800
+          },
+          "encodedBytes": {
+            "median": 77850,
+            "min": 77850,
+            "max": 77850
+          },
+          "gzipBytes": {
+            "median": 12097,
+            "min": 12091,
+            "max": 12098
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "history-cleared": {
+          "retainedHeapAboveEmpty": {
+            "median": 2720000,
+            "min": 2718544,
+            "max": 2720632
+          },
+          "heapUsed": {
+            "median": 41764176,
+            "min": 41758368,
+            "max": 41770904
+          },
+          "encodedBytes": {
+            "median": 77850,
+            "min": 77850,
+            "max": 77850
+          },
+          "gzipBytes": {
+            "median": 12097,
+            "min": 12091,
+            "max": 12098
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "sweep-after-clear": {
+          "retainedHeapAboveEmpty": {
+            "median": 2760520,
+            "min": 2759064,
+            "max": 2761152
+          },
+          "heapUsed": {
+            "median": 41804696,
+            "min": 41798888,
+            "max": 41811424
+          },
+          "encodedBytes": {
+            "median": 77850,
+            "min": 77850,
+            "max": 77850
+          },
+          "gzipBytes": {
+            "median": 12097,
+            "min": 12091,
+            "max": 12098
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "reload-gc": {
+          "retainedHeapAboveEmpty": {
+            "median": 2731320,
+            "min": 2730248,
+            "max": 2731952
+          },
+          "heapUsed": {
+            "median": 41775496,
+            "min": 41770072,
+            "max": 41782224
+          },
+          "encodedBytes": {
+            "median": 77850,
+            "min": 77850,
+            "max": 77850
+          },
+          "gzipBytes": {
+            "median": 12097,
+            "min": 12091,
+            "max": 12098
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 3015,
+            "min": 3015,
+            "max": 3015
+          },
+          "clockUnits": {
+            "median": 32415,
+            "min": 32415,
+            "max": 32415
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "rebuilt-new-ids": {
+          "retainedHeapAboveEmpty": {
+            "median": 2291176,
+            "min": 2290592,
+            "max": 2291224
+          },
+          "heapUsed": {
+            "median": 41334768,
+            "min": 41331000,
+            "max": 41341496
+          },
+          "encodedBytes": {
+            "median": 72100,
+            "min": 72100,
+            "max": 72100
+          },
+          "gzipBytes": {
+            "median": 9851,
+            "min": 9846,
+            "max": 9852
+          },
+          "logicalJsonBytes": {
+            "median": 57921,
+            "min": 57921,
+            "max": 57921
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2416,
+            "min": 2416,
+            "max": 2416
+          },
+          "clockUnits": {
+            "median": 2416,
+            "min": 2416,
+            "max": 2416
+          },
+          "deletedClockUnits": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        }
+      },
+      "curve": [
+        {
+          "updates": 0,
+          "growthMiB": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "updates": 1000,
+          "growthMiB": {
+            "median": 0.8509521484375,
+            "min": 0.8488998413085938,
+            "max": 1.120574951171875
+          }
+        },
+        {
+          "updates": 5000,
+          "growthMiB": {
+            "median": 0.94989013671875,
+            "min": 0.9497833251953125,
+            "max": 0.9508056640625
+          }
+        },
+        {
+          "updates": 15000,
+          "growthMiB": {
+            "median": 1.1310577392578125,
+            "min": 1.1168212890625,
+            "max": 1.132476806640625
+          }
+        },
+        {
+          "updates": 30000,
+          "growthMiB": {
+            "median": 1.3029251098632812,
+            "min": 1.3015899658203125,
+            "max": 1.3043975830078125
+          }
+        }
+      ],
+      "timings": {
+        "preflightMs": null,
+        "preflightPostOperationHeapDeltaMiB": null,
+        "sweepReleasedMs": {
+          "median": 0.40650000000005093,
+          "min": 0.3766000000000531,
+          "max": 0.5444999999999709
+        },
+        "reloadMs": {
+          "median": 20.002399999999852,
+          "min": 18.23799999999983,
+          "max": 23.41509999999971
+        },
+        "rebuildMs": {
+          "median": 11.015199999999822,
+          "min": 10.563599999999951,
+          "max": 11.017699999999877
+        }
+      },
+      "gcReleasedHeapMiB": {
+        "median": -0.03864288330078125,
+        "min": -0.03864288330078125,
+        "max": -0.03864288330078125
+      },
+      "preflightAssociatedHeapChangeMiB": {
+        "median": 0.02225494384765625,
+        "min": 0.02207183837890625,
+        "max": 0.02225494384765625
+      }
+    },
+    {
+      "kind": "position",
+      "shapes": 4000,
+      "updates": 30000,
+      "capture": true,
+      "loadedHeapMiB": {
+        "median": 42.67866516113281,
+        "min": 41.26026153564453,
+        "max": 42.69026184082031
+      },
+      "editedHeapMiB": {
+        "median": 49.026573181152344,
+        "min": 47.58026885986328,
+        "max": 49.033607482910156
+      },
+      "growthHeapMiB": {
+        "median": 6.343345642089844,
+        "min": 6.32000732421875,
+        "max": 6.347908020019531
+      },
+      "stages": {
+        "loaded": {
+          "retainedHeapAboveEmpty": {
+            "median": 44751824,
+            "min": 43264520,
+            "max": 44763984
+          },
+          "heapUsed": {
+            "median": 83794696,
+            "min": 82310504,
+            "max": 83814880
+          },
+          "encodedBytes": {
+            "median": 2947055,
+            "min": 2947055,
+            "max": 2947055
+          },
+          "gzipBytes": {
+            "median": 346744,
+            "min": 346708,
+            "max": 346754
+          },
+          "logicalJsonBytes": {
+            "median": 2336004,
+            "min": 2336004,
+            "max": 2336004
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96015,
+            "min": 96015,
+            "max": 96015
+          },
+          "clockUnits": {
+            "median": 96015,
+            "min": 96015,
+            "max": 96015
+          },
+          "deletedClockUnits": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "edited-1000": {
+          "retainedHeapAboveEmpty": {
+            "median": 45575376,
+            "min": 44079880,
+            "max": 45580112
+          },
+          "heapUsed": {
+            "median": 84618248,
+            "min": 83125864,
+            "max": 84631008
+          },
+          "encodedBytes": {
+            "median": 3005400,
+            "min": 3005400,
+            "max": 3005400
+          },
+          "gzipBytes": {
+            "median": 353756,
+            "min": 353715,
+            "max": 353760
+          },
+          "logicalJsonBytes": {
+            "median": 2336023,
+            "min": 2336023,
+            "max": 2336023
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 72274,
+            "min": 72274,
+            "max": 72274
+          },
+          "undoSteps": {
+            "median": 17,
+            "min": 17,
+            "max": 17
+          },
+          "structs": {
+            "median": 96049,
+            "min": 96049,
+            "max": 96049
+          },
+          "clockUnits": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "deletedClockUnits": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000
+          }
+        },
+        "edited-5000": {
+          "retainedHeapAboveEmpty": {
+            "median": 46437896,
+            "min": 44916744,
+            "max": 46444960
+          },
+          "heapUsed": {
+            "median": 85480768,
+            "min": 83962728,
+            "max": 85495856
+          },
+          "encodedBytes": {
+            "median": 3241298,
+            "min": 3241298,
+            "max": 3241298
+          },
+          "gzipBytes": {
+            "median": 377148,
+            "min": 377124,
+            "max": 377159
+          },
+          "logicalJsonBytes": {
+            "median": 2336090,
+            "min": 2336090,
+            "max": 2336090
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 365138,
+            "min": 365138,
+            "max": 365138
+          },
+          "undoSteps": {
+            "median": 84,
+            "min": 84,
+            "max": 84
+          },
+          "structs": {
+            "median": 96183,
+            "min": 96183,
+            "max": 96183
+          },
+          "clockUnits": {
+            "median": 101015,
+            "min": 101015,
+            "max": 101015
+          },
+          "deletedClockUnits": {
+            "median": 5000,
+            "min": 5000,
+            "max": 5000
+          }
+        },
+        "edited-15000": {
+          "retainedHeapAboveEmpty": {
+            "median": 48441400,
+            "min": 46935528,
+            "max": 48448704
+          },
+          "heapUsed": {
+            "median": 87484272,
+            "min": 85981512,
+            "max": 87499600
+          },
+          "encodedBytes": {
+            "median": 3847051,
+            "min": 3847051,
+            "max": 3847051
+          },
+          "gzipBytes": {
+            "median": 433966,
+            "min": 433950,
+            "max": 433994
+          },
+          "logicalJsonBytes": {
+            "median": 2336112,
+            "min": 2336112,
+            "max": 2336112
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 1115090,
+            "min": 1115090,
+            "max": 1115090
+          },
+          "undoSteps": {
+            "median": 250,
+            "min": 250,
+            "max": 250
+          },
+          "structs": {
+            "median": 96515,
+            "min": 96515,
+            "max": 96515
+          },
+          "clockUnits": {
+            "median": 111015,
+            "min": 111015,
+            "max": 111015
+          },
+          "deletedClockUnits": {
+            "median": 15000,
+            "min": 15000,
+            "max": 15000
+          }
+        },
+        "edited-30000": {
+          "retainedHeapAboveEmpty": {
+            "median": 51408088,
+            "min": 49891528,
+            "max": 51415464
+          },
+          "heapUsed": {
+            "median": 90450960,
+            "min": 88937512,
+            "max": 90466360
+          },
+          "encodedBytes": {
+            "median": 4758598,
+            "min": 4758598,
+            "max": 4758598
+          },
+          "gzipBytes": {
+            "median": 519081,
+            "min": 519060,
+            "max": 519086
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 2242350,
+            "min": 2242350,
+            "max": 2242350
+          },
+          "undoSteps": {
+            "median": 500,
+            "min": 500,
+            "max": 500
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "sweep-retaining-history": {
+          "retainedHeapAboveEmpty": {
+            "median": 49881152,
+            "min": 48062360,
+            "max": 51408704
+          },
+          "heapUsed": {
+            "median": 88927136,
+            "min": 87113256,
+            "max": 90451576
+          },
+          "encodedBytes": {
+            "median": 4758598,
+            "min": 4758598,
+            "max": 4758598
+          },
+          "gzipBytes": {
+            "median": 519081,
+            "min": 519060,
+            "max": 519086
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 2242350,
+            "min": 2242350,
+            "max": 2242350
+          },
+          "undoSteps": {
+            "median": 500,
+            "min": 500,
+            "max": 500
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "after-undo-preflight": {
+          "retainedHeapAboveEmpty": {
+            "median": 47403040,
+            "min": 46557456,
+            "max": 48085648
+          },
+          "heapUsed": {
+            "median": 86453936,
+            "min": 85603440,
+            "max": 87128520
+          },
+          "encodedBytes": {
+            "median": 4758598,
+            "min": 4758598,
+            "max": 4758598
+          },
+          "gzipBytes": {
+            "median": 519081,
+            "min": 519060,
+            "max": 519086
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 2242350,
+            "min": 2242350,
+            "max": 2242350
+          },
+          "undoSteps": {
+            "median": 500,
+            "min": 500,
+            "max": 500
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "history-cleared": {
+          "retainedHeapAboveEmpty": {
+            "median": 46474736,
+            "min": 45638272,
+            "max": 47155024
+          },
+          "heapUsed": {
+            "median": 85525632,
+            "min": 84684256,
+            "max": 86197896
+          },
+          "encodedBytes": {
+            "median": 4758598,
+            "min": 4758598,
+            "max": 4758598
+          },
+          "gzipBytes": {
+            "median": 519081,
+            "min": 519060,
+            "max": 519086
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "sweep-after-clear": {
+          "retainedHeapAboveEmpty": {
+            "median": 41448936,
+            "min": 40614872,
+            "max": 42130088
+          },
+          "heapUsed": {
+            "median": 80499832,
+            "min": 79660856,
+            "max": 81172960
+          },
+          "encodedBytes": {
+            "median": 2959058,
+            "min": 2959058,
+            "max": 2959058
+          },
+          "gzipBytes": {
+            "median": 351562,
+            "min": 351520,
+            "max": 351584
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "reload-gc": {
+          "retainedHeapAboveEmpty": {
+            "median": 55765296,
+            "min": 54274136,
+            "max": 55769040
+          },
+          "heapUsed": {
+            "median": 94811912,
+            "min": 93320120,
+            "max": 94816192
+          },
+          "encodedBytes": {
+            "median": 2959058,
+            "min": 2959058,
+            "max": 2959058
+          },
+          "gzipBytes": {
+            "median": 351562,
+            "min": 351520,
+            "max": 351584
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "rebuilt-new-ids": {
+          "retainedHeapAboveEmpty": {
+            "median": 41537776,
+            "min": 41519312,
+            "max": 41552744
+          },
+          "heapUsed": {
+            "median": 80583760,
+            "min": 80570208,
+            "max": 80595616
+          },
+          "encodedBytes": {
+            "median": 2947074,
+            "min": 2947074,
+            "max": 2947074
+          },
+          "gzipBytes": {
+            "median": 370855,
+            "min": 370851,
+            "max": 370873
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96016,
+            "min": 96016,
+            "max": 96016
+          },
+          "clockUnits": {
+            "median": 96016,
+            "min": 96016,
+            "max": 96016
+          },
+          "deletedClockUnits": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        }
+      },
+      "curve": [
+        {
+          "updates": 0,
+          "growthMiB": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "updates": 1000,
+          "growthMiB": {
+            "median": 0.7783203125,
+            "min": 0.777587890625,
+            "max": 0.785400390625
+          }
+        },
+        {
+          "updates": 5000,
+          "growthMiB": {
+            "median": 1.6031036376953125,
+            "min": 1.57568359375,
+            "max": 1.6079635620117188
+          }
+        },
+        {
+          "updates": 15000,
+          "growthMiB": {
+            "median": 3.5140228271484375,
+            "min": 3.500946044921875,
+            "max": 3.5186538696289062
+          }
+        },
+        {
+          "updates": 30000,
+          "growthMiB": {
+            "median": 6.343345642089844,
+            "min": 6.32000732421875,
+            "max": 6.347908020019531
+          }
+        }
+      ],
+      "timings": {
+        "preflightMs": {
+          "median": 278.48209999999926,
+          "min": 265.14849999999933,
+          "max": 400.8011000000006
+        },
+        "preflightPostOperationHeapDeltaMiB": {
+          "median": 62.357452392578125,
+          "min": 61.636016845703125,
+          "max": 72.48602294921875
+        },
+        "sweepReleasedMs": {
+          "median": 5.528100000001359,
+          "min": 5.445100000000821,
+          "max": 6.57930000000124
+        },
+        "reloadMs": {
+          "median": 405.22100000000137,
+          "min": 370.616399999999,
+          "max": 426.3001000000004
+        },
+        "rebuildMs": {
+          "median": 354.7589000000007,
+          "min": 296.446100000001,
+          "max": 393.2309000000005
+        }
+      },
+      "gcReleasedHeapMiB": {
+        "median": 4.792152404785156,
+        "min": 4.790687561035156,
+        "max": 4.792976379394531
+      },
+      "preflightAssociatedHeapChangeMiB": {
+        "median": -3.1691131591796875,
+        "min": -3.1697235107421875,
+        "max": -0.6287765502929688
+      }
+    },
+    {
+      "kind": "position",
+      "shapes": 4000,
+      "updates": 30000,
+      "capture": false,
+      "loadedHeapMiB": {
+        "median": 42.676422119140625,
+        "min": 41.22319030761719,
+        "max": 42.68022918701172
+      },
+      "editedHeapMiB": {
+        "median": 43.49479675292969,
+        "min": 42.01471710205078,
+        "max": 43.497032165527344
+      },
+      "growthHeapMiB": {
+        "median": 0.816802978515625,
+        "min": 0.7915267944335938,
+        "max": 0.8183746337890625
+      },
+      "stages": {
+        "loaded": {
+          "retainedHeapAboveEmpty": {
+            "median": 44749472,
+            "min": 43225648,
+            "max": 44753464
+          },
+          "heapUsed": {
+            "median": 83794984,
+            "min": 82264400,
+            "max": 83798256
+          },
+          "encodedBytes": {
+            "median": 2947055,
+            "min": 2947055,
+            "max": 2947055
+          },
+          "gzipBytes": {
+            "median": 346753,
+            "min": 346730,
+            "max": 346756
+          },
+          "logicalJsonBytes": {
+            "median": 2336004,
+            "min": 2336004,
+            "max": 2336004
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96015,
+            "min": 96015,
+            "max": 96015
+          },
+          "clockUnits": {
+            "median": 96015,
+            "min": 96015,
+            "max": 96015
+          },
+          "deletedClockUnits": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "edited-1000": {
+          "retainedHeapAboveEmpty": {
+            "median": 45345208,
+            "min": 43813016,
+            "max": 45695088
+          },
+          "heapUsed": {
+            "median": 84386728,
+            "min": 82851768,
+            "max": 84743872
+          },
+          "encodedBytes": {
+            "median": 2947460,
+            "min": 2947460,
+            "max": 2947460
+          },
+          "gzipBytes": {
+            "median": 347133,
+            "min": 347115,
+            "max": 347134
+          },
+          "logicalJsonBytes": {
+            "median": 2336023,
+            "min": 2336023,
+            "max": 2336023
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96049,
+            "min": 96049,
+            "max": 96049
+          },
+          "clockUnits": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "deletedClockUnits": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000
+          }
+        },
+        "edited-5000": {
+          "retainedHeapAboveEmpty": {
+            "median": 45433848,
+            "min": 43902560,
+            "max": 45438544
+          },
+          "heapUsed": {
+            "median": 84480064,
+            "min": 82941312,
+            "max": 84482632
+          },
+          "encodedBytes": {
+            "median": 2949070,
+            "min": 2949070,
+            "max": 2949070
+          },
+          "gzipBytes": {
+            "median": 348050,
+            "min": 348037,
+            "max": 348054
+          },
+          "logicalJsonBytes": {
+            "median": 2336090,
+            "min": 2336090,
+            "max": 2336090
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96183,
+            "min": 96183,
+            "max": 96183
+          },
+          "clockUnits": {
+            "median": 101015,
+            "min": 101015,
+            "max": 101015
+          },
+          "deletedClockUnits": {
+            "median": 5000,
+            "min": 5000,
+            "max": 5000
+          }
+        },
+        "edited-15000": {
+          "retainedHeapAboveEmpty": {
+            "median": 45518528,
+            "min": 43989792,
+            "max": 45522688
+          },
+          "heapUsed": {
+            "median": 84564208,
+            "min": 83028544,
+            "max": 84567312
+          },
+          "encodedBytes": {
+            "median": 2953055,
+            "min": 2953055,
+            "max": 2953055
+          },
+          "gzipBytes": {
+            "median": 349698,
+            "min": 349658,
+            "max": 349699
+          },
+          "logicalJsonBytes": {
+            "median": 2336112,
+            "min": 2336112,
+            "max": 2336112
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96515,
+            "min": 96515,
+            "max": 96515
+          },
+          "clockUnits": {
+            "median": 111015,
+            "min": 111015,
+            "max": 111015
+          },
+          "deletedClockUnits": {
+            "median": 15000,
+            "min": 15000,
+            "max": 15000
+          }
+        },
+        "edited-30000": {
+          "retainedHeapAboveEmpty": {
+            "median": 45607600,
+            "min": 44055624,
+            "max": 45609944
+          },
+          "heapUsed": {
+            "median": 84651464,
+            "min": 83094376,
+            "max": 84656384
+          },
+          "encodedBytes": {
+            "median": 2959058,
+            "min": 2959058,
+            "max": 2959058
+          },
+          "gzipBytes": {
+            "median": 351579,
+            "min": 351534,
+            "max": 351589
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "sweep-retaining-history": {
+          "retainedHeapAboveEmpty": {
+            "median": 45606944,
+            "min": 44054104,
+            "max": 45609224
+          },
+          "heapUsed": {
+            "median": 84650744,
+            "min": 83092856,
+            "max": 84655728
+          },
+          "encodedBytes": {
+            "median": 2959058,
+            "min": 2959058,
+            "max": 2959058
+          },
+          "gzipBytes": {
+            "median": 351579,
+            "min": 351534,
+            "max": 351589
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "after-undo-preflight": {
+          "retainedHeapAboveEmpty": {
+            "median": 45609176,
+            "min": 44056504,
+            "max": 45611456
+          },
+          "heapUsed": {
+            "median": 84652976,
+            "min": 83095256,
+            "max": 84657960
+          },
+          "encodedBytes": {
+            "median": 2959058,
+            "min": 2959058,
+            "max": 2959058
+          },
+          "gzipBytes": {
+            "median": 351579,
+            "min": 351534,
+            "max": 351589
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "history-cleared": {
+          "retainedHeapAboveEmpty": {
+            "median": 45413840,
+            "min": 43859632,
+            "max": 45416984
+          },
+          "heapUsed": {
+            "median": 84458504,
+            "min": 82898384,
+            "max": 84462624
+          },
+          "encodedBytes": {
+            "median": 2959058,
+            "min": 2959058,
+            "max": 2959058
+          },
+          "gzipBytes": {
+            "median": 351579,
+            "min": 351534,
+            "max": 351589
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "sweep-after-clear": {
+          "retainedHeapAboveEmpty": {
+            "median": 45440976,
+            "min": 43888136,
+            "max": 45444984
+          },
+          "heapUsed": {
+            "median": 84486504,
+            "min": 82926888,
+            "max": 84489760
+          },
+          "encodedBytes": {
+            "median": 2959058,
+            "min": 2959058,
+            "max": 2959058
+          },
+          "gzipBytes": {
+            "median": 351579,
+            "min": 351534,
+            "max": 351589
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "reload-gc": {
+          "retainedHeapAboveEmpty": {
+            "median": 56300560,
+            "min": 54686960,
+            "max": 56337264
+          },
+          "heapUsed": {
+            "median": 95349344,
+            "min": 93725712,
+            "max": 95378784
+          },
+          "encodedBytes": {
+            "median": 2959058,
+            "min": 2959058,
+            "max": 2959058
+          },
+          "gzipBytes": {
+            "median": 351579,
+            "min": 351534,
+            "max": 351589
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "clockUnits": {
+            "median": 126015,
+            "min": 126015,
+            "max": 126015
+          },
+          "deletedClockUnits": {
+            "median": 30000,
+            "min": 30000,
+            "max": 30000
+          }
+        },
+        "rebuilt-new-ids": {
+          "retainedHeapAboveEmpty": {
+            "median": 42156328,
+            "min": 42152456,
+            "max": 42163080
+          },
+          "heapUsed": {
+            "median": 81201240,
+            "min": 81195080,
+            "max": 81204600
+          },
+          "encodedBytes": {
+            "median": 2947074,
+            "min": 2947074,
+            "max": 2947074
+          },
+          "gzipBytes": {
+            "median": 370917,
+            "min": 370809,
+            "max": 370924
+          },
+          "logicalJsonBytes": {
+            "median": 2336119,
+            "min": 2336119,
+            "max": 2336119
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96016,
+            "min": 96016,
+            "max": 96016
+          },
+          "clockUnits": {
+            "median": 96016,
+            "min": 96016,
+            "max": 96016
+          },
+          "deletedClockUnits": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        }
+      },
+      "curve": [
+        {
+          "updates": 0,
+          "growthMiB": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "updates": 1000,
+          "growthMiB": {
+            "median": 0.5643310546875,
+            "min": 0.5601577758789062,
+            "max": 0.9018096923828125
+          }
+        },
+        {
+          "updates": 5000,
+          "growthMiB": {
+            "median": 0.6526718139648438,
+            "min": 0.6455535888671875,
+            "max": 0.6533432006835938
+          }
+        },
+        {
+          "updates": 15000,
+          "growthMiB": {
+            "median": 0.733428955078125,
+            "min": 0.7287445068359375,
+            "max": 0.7335891723632812
+          }
+        },
+        {
+          "updates": 30000,
+          "growthMiB": {
+            "median": 0.816802978515625,
+            "min": 0.7915267944335938,
+            "max": 0.8183746337890625
+          }
+        }
+      ],
+      "timings": {
+        "preflightMs": null,
+        "preflightPostOperationHeapDeltaMiB": null,
+        "sweepReleasedMs": {
+          "median": 5.179900000000998,
+          "min": 4.62119999999959,
+          "max": 5.512700000001132
+        },
+        "reloadMs": {
+          "median": 390.5475000000006,
+          "min": 364.3143,
+          "max": 406.7042000000001
+        },
+        "rebuildMs": {
+          "median": 339.22400000000016,
+          "min": 326.6926000000003,
+          "max": 340.3294999999998
+        }
+      },
+      "gcReleasedHeapMiB": {
+        "median": -0.026702880859375,
+        "min": -0.02718353271484375,
+        "max": -0.02587890625
+      },
+      "preflightAssociatedHeapChangeMiB": {
+        "median": 0.00212860107421875,
+        "min": 0.00212860107421875,
+        "max": 0.002288818359375
+      }
+    },
+    {
+      "kind": "text",
+      "shapes": 100,
+      "updates": 3000,
+      "capture": true,
+      "loadedHeapMiB": {
+        "median": 1.43798828125,
+        "min": 1.4367599487304688,
+        "max": 1.4413070678710938
+      },
+      "editedHeapMiB": {
+        "median": 11.858810424804688,
+        "min": 11.856681823730469,
+        "max": 11.874549865722656
+      },
+      "growthHeapMiB": {
+        "median": 10.420822143554688,
+        "min": 10.419921875,
+        "max": 10.433242797851562
+      },
+      "stages": {
+        "loaded": {
+          "retainedHeapAboveEmpty": {
+            "median": 1507840,
+            "min": 1506552,
+            "max": 1511320
+          },
+          "heapUsed": {
+            "median": 40556376,
+            "min": 40547992,
+            "max": 40556488
+          },
+          "encodedBytes": {
+            "median": 71982,
+            "min": 71982,
+            "max": 71982
+          },
+          "gzipBytes": {
+            "median": 9573,
+            "min": 9565,
+            "max": 9584
+          },
+          "logicalJsonBytes": {
+            "median": 57713,
+            "min": 57713,
+            "max": 57713
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2415,
+            "min": 2415,
+            "max": 2415
+          },
+          "clockUnits": {
+            "median": 2415,
+            "min": 2415,
+            "max": 2415
+          },
+          "deletedClockUnits": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "edited-1000": {
+          "retainedHeapAboveEmpty": {
+            "median": 7647160,
+            "min": 7396392,
+            "max": 7667216
+          },
+          "heapUsed": {
+            "median": 46697096,
+            "min": 46441448,
+            "max": 46707368
+          },
+          "encodedBytes": {
+            "median": 2191353,
+            "min": 2191353,
+            "max": 2191353
+          },
+          "gzipBytes": {
+            "median": 19516,
+            "min": 19516,
+            "max": 19532
+          },
+          "logicalJsonBytes": {
+            "median": 91026,
+            "min": 91026,
+            "max": 91026
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 2100721,
+            "min": 2100721,
+            "max": 2100721
+          },
+          "undoSteps": {
+            "median": 17,
+            "min": 17,
+            "max": 17
+          },
+          "structs": {
+            "median": 2449,
+            "min": 2449,
+            "max": 2449
+          },
+          "clockUnits": {
+            "median": 3415,
+            "min": 3415,
+            "max": 3415
+          },
+          "deletedClockUnits": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000
+          }
+        },
+        "edited-3000": {
+          "retainedHeapAboveEmpty": {
+            "median": 12434864,
+            "min": 12432632,
+            "max": 12451368
+          },
+          "heapUsed": {
+            "median": 51482568,
+            "min": 51475016,
+            "max": 51496424
+          },
+          "encodedBytes": {
+            "median": 6430079,
+            "min": 6430079,
+            "max": 6430079
+          },
+          "gzipBytes": {
+            "median": 34301,
+            "min": 34301,
+            "max": 34317
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 6304140,
+            "min": 6304140,
+            "max": 6304140
+          },
+          "undoSteps": {
+            "median": 50,
+            "min": 50,
+            "max": 50
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "sweep-retaining-history": {
+          "retainedHeapAboveEmpty": {
+            "median": 12489144,
+            "min": 12486912,
+            "max": 12505648
+          },
+          "heapUsed": {
+            "median": 51536848,
+            "min": 51529296,
+            "max": 51550704
+          },
+          "encodedBytes": {
+            "median": 6430079,
+            "min": 6430079,
+            "max": 6430079
+          },
+          "gzipBytes": {
+            "median": 34301,
+            "min": 34301,
+            "max": 34317
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 6304140,
+            "min": 6304140,
+            "max": 6304140
+          },
+          "undoSteps": {
+            "median": 50,
+            "min": 50,
+            "max": 50
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "after-undo-preflight": {
+          "retainedHeapAboveEmpty": {
+            "median": 12517928,
+            "min": 12515696,
+            "max": 12530968
+          },
+          "heapUsed": {
+            "median": 51565632,
+            "min": 51558080,
+            "max": 51576024
+          },
+          "encodedBytes": {
+            "median": 6430079,
+            "min": 6430079,
+            "max": 6430079
+          },
+          "gzipBytes": {
+            "median": 34301,
+            "min": 34301,
+            "max": 34317
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 6304140,
+            "min": 6304140,
+            "max": 6304140
+          },
+          "undoSteps": {
+            "median": 50,
+            "min": 50,
+            "max": 50
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "history-cleared": {
+          "retainedHeapAboveEmpty": {
+            "median": 12395120,
+            "min": 12391592,
+            "max": 12405256
+          },
+          "heapUsed": {
+            "median": 51441528,
+            "min": 51435272,
+            "max": 51450312
+          },
+          "encodedBytes": {
+            "median": 6430079,
+            "min": 6430079,
+            "max": 6430079
+          },
+          "gzipBytes": {
+            "median": 34301,
+            "min": 34301,
+            "max": 34317
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "sweep-after-clear": {
+          "retainedHeapAboveEmpty": {
+            "median": 5213264,
+            "min": 5211032,
+            "max": 5224264
+          },
+          "heapUsed": {
+            "median": 44260968,
+            "min": 44253416,
+            "max": 44269320
+          },
+          "encodedBytes": {
+            "median": 171089,
+            "min": 171089,
+            "max": 171089
+          },
+          "gzipBytes": {
+            "median": 11075,
+            "min": 11067,
+            "max": 11084
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "reload-gc": {
+          "retainedHeapAboveEmpty": {
+            "median": 2734520,
+            "min": 2731432,
+            "max": 2745168
+          },
+          "heapUsed": {
+            "median": 41781368,
+            "min": 41774672,
+            "max": 41790224
+          },
+          "encodedBytes": {
+            "median": 171089,
+            "min": 171089,
+            "max": 171089
+          },
+          "gzipBytes": {
+            "median": 11075,
+            "min": 11067,
+            "max": 11084
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "rebuilt-new-ids": {
+          "retainedHeapAboveEmpty": {
+            "median": 2442512,
+            "min": 2439808,
+            "max": 2453120
+          },
+          "heapUsed": {
+            "median": 41489744,
+            "min": 41482664,
+            "max": 41498176
+          },
+          "encodedBytes": {
+            "median": 170006,
+            "min": 170006,
+            "max": 170006
+          },
+          "gzipBytes": {
+            "median": 11041,
+            "min": 11038,
+            "max": 11050
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2416,
+            "min": 2416,
+            "max": 2416
+          },
+          "clockUnits": {
+            "median": 2416,
+            "min": 2416,
+            "max": 2416
+          },
+          "deletedClockUnits": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        }
+      },
+      "curve": [
+        {
+          "updates": 0,
+          "growthMiB": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "updates": 1000,
+          "growthMiB": {
+            "median": 5.85614013671875,
+            "min": 5.6124420166015625,
+            "max": 5.8740386962890625
+          }
+        },
+        {
+          "updates": 3000,
+          "growthMiB": {
+            "median": 10.420822143554688,
+            "min": 10.419921875,
+            "max": 10.433242797851562
+          }
+        }
+      ],
+      "timings": {
+        "preflightMs": {
+          "median": 43.08629999999994,
+          "min": 36.50670000000014,
+          "max": 45.35569999999984
+        },
+        "preflightPostOperationHeapDeltaMiB": {
+          "median": 21.389930725097656,
+          "min": 21.389732360839844,
+          "max": 21.39191436767578
+        },
+        "sweepReleasedMs": {
+          "median": 0.33100000000013097,
+          "min": 0.3079999999999927,
+          "max": 0.40780000000017935
+        },
+        "reloadMs": {
+          "median": 17.101699999999937,
+          "min": 16.699100000000044,
+          "max": 21.762899999999945
+        },
+        "rebuildMs": {
+          "median": 10.739199999999983,
+          "min": 10.376899999999978,
+          "max": 14.787700000000086
+        }
+      },
+      "gcReleasedHeapMiB": {
+        "median": 6.84832763671875,
+        "min": 6.8479156494140625,
+        "max": 6.849151611328125
+      },
+      "preflightAssociatedHeapChangeMiB": {
+        "median": 0.0274505615234375,
+        "min": 0.02414703369140625,
+        "max": 0.0274505615234375
+      }
+    },
+    {
+      "kind": "text",
+      "shapes": 100,
+      "updates": 3000,
+      "capture": false,
+      "loadedHeapMiB": {
+        "median": 1.43756103515625,
+        "min": 1.4368209838867188,
+        "max": 1.4375686645507812
+      },
+      "editedHeapMiB": {
+        "median": 4.8849945068359375,
+        "min": 4.884941101074219,
+        "max": 4.8872528076171875
+      },
+      "growthHeapMiB": {
+        "median": 3.4474258422851562,
+        "min": 3.4473800659179688,
+        "max": 3.4504318237304688
+      },
+      "stages": {
+        "loaded": {
+          "retainedHeapAboveEmpty": {
+            "median": 1507392,
+            "min": 1506616,
+            "max": 1507400
+          },
+          "heapUsed": {
+            "median": 40553760,
+            "min": 40551232,
+            "max": 40557240
+          },
+          "encodedBytes": {
+            "median": 71982,
+            "min": 71982,
+            "max": 71982
+          },
+          "gzipBytes": {
+            "median": 9577,
+            "min": 9574,
+            "max": 9588
+          },
+          "logicalJsonBytes": {
+            "median": 57713,
+            "min": 57713,
+            "max": 57713
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2415,
+            "min": 2415,
+            "max": 2415
+          },
+          "clockUnits": {
+            "median": 2415,
+            "min": 2415,
+            "max": 2415
+          },
+          "deletedClockUnits": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "edited-1000": {
+          "retainedHeapAboveEmpty": {
+            "median": 4925872,
+            "min": 4921928,
+            "max": 4927616
+          },
+          "heapUsed": {
+            "median": 43972552,
+            "min": 43969712,
+            "max": 43973976
+          },
+          "encodedBytes": {
+            "median": 105683,
+            "min": 105683,
+            "max": 105683
+          },
+          "gzipBytes": {
+            "median": 10178,
+            "min": 10173,
+            "max": 10184
+          },
+          "logicalJsonBytes": {
+            "median": 91026,
+            "min": 91026,
+            "max": 91026
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2449,
+            "min": 2449,
+            "max": 2449
+          },
+          "clockUnits": {
+            "median": 3415,
+            "min": 3415,
+            "max": 3415
+          },
+          "deletedClockUnits": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000
+          }
+        },
+        "edited-3000": {
+          "retainedHeapAboveEmpty": {
+            "median": 5122288,
+            "min": 5122232,
+            "max": 5124656
+          },
+          "heapUsed": {
+            "median": 44168648,
+            "min": 44166072,
+            "max": 44175280
+          },
+          "encodedBytes": {
+            "median": 171089,
+            "min": 171089,
+            "max": 171089
+          },
+          "gzipBytes": {
+            "median": 11077,
+            "min": 11077,
+            "max": 11086
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "sweep-retaining-history": {
+          "retainedHeapAboveEmpty": {
+            "median": 5171944,
+            "min": 5171888,
+            "max": 5174312
+          },
+          "heapUsed": {
+            "median": 44218304,
+            "min": 44215728,
+            "max": 44224936
+          },
+          "encodedBytes": {
+            "median": 171089,
+            "min": 171089,
+            "max": 171089
+          },
+          "gzipBytes": {
+            "median": 11077,
+            "min": 11077,
+            "max": 11086
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "after-undo-preflight": {
+          "retainedHeapAboveEmpty": {
+            "median": 5172952,
+            "min": 5172896,
+            "max": 5175320
+          },
+          "heapUsed": {
+            "median": 44219312,
+            "min": 44216736,
+            "max": 44225944
+          },
+          "encodedBytes": {
+            "median": 171089,
+            "min": 171089,
+            "max": 171089
+          },
+          "gzipBytes": {
+            "median": 11077,
+            "min": 11077,
+            "max": 11086
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "history-cleared": {
+          "retainedHeapAboveEmpty": {
+            "median": 5152080,
+            "min": 5152024,
+            "max": 5154448
+          },
+          "heapUsed": {
+            "median": 44198440,
+            "min": 44195864,
+            "max": 44205072
+          },
+          "encodedBytes": {
+            "median": 171089,
+            "min": 171089,
+            "max": 171089
+          },
+          "gzipBytes": {
+            "median": 11077,
+            "min": 11077,
+            "max": 11086
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "sweep-after-clear": {
+          "retainedHeapAboveEmpty": {
+            "median": 5173872,
+            "min": 5173816,
+            "max": 5176224
+          },
+          "heapUsed": {
+            "median": 44220232,
+            "min": 44217656,
+            "max": 44226848
+          },
+          "encodedBytes": {
+            "median": 171089,
+            "min": 171089,
+            "max": 171089
+          },
+          "gzipBytes": {
+            "median": 11077,
+            "min": 11077,
+            "max": 11086
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "reload-gc": {
+          "retainedHeapAboveEmpty": {
+            "median": 2656336,
+            "min": 2655328,
+            "max": 2658328
+          },
+          "heapUsed": {
+            "median": 41702696,
+            "min": 41699168,
+            "max": 41708952
+          },
+          "encodedBytes": {
+            "median": 171089,
+            "min": 171089,
+            "max": 171089
+          },
+          "gzipBytes": {
+            "median": 11077,
+            "min": 11077,
+            "max": 11086
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2515,
+            "min": 2515,
+            "max": 2515
+          },
+          "clockUnits": {
+            "median": 5415,
+            "min": 5415,
+            "max": 5415
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "rebuilt-new-ids": {
+          "retainedHeapAboveEmpty": {
+            "median": 2391064,
+            "min": 2390920,
+            "max": 2393056
+          },
+          "heapUsed": {
+            "median": 41437424,
+            "min": 41434760,
+            "max": 41443680
+          },
+          "encodedBytes": {
+            "median": 170006,
+            "min": 170006,
+            "max": 170006
+          },
+          "gzipBytes": {
+            "median": 11043,
+            "min": 11039,
+            "max": 11053
+          },
+          "logicalJsonBytes": {
+            "median": 155673,
+            "min": 155673,
+            "max": 155673
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 2416,
+            "min": 2416,
+            "max": 2416
+          },
+          "clockUnits": {
+            "median": 2416,
+            "min": 2416,
+            "max": 2416
+          },
+          "deletedClockUnits": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        }
+      },
+      "curve": [
+        {
+          "updates": 0,
+          "growthMiB": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "updates": 1000,
+          "growthMiB": {
+            "median": 3.2601165771484375,
+            "min": 3.2570953369140625,
+            "max": 3.2617721557617188
+          }
+        },
+        {
+          "updates": 3000,
+          "growthMiB": {
+            "median": 3.4474258422851562,
+            "min": 3.4473800659179688,
+            "max": 3.4504318237304688
+          }
+        }
+      ],
+      "timings": {
+        "preflightMs": null,
+        "preflightPostOperationHeapDeltaMiB": null,
+        "sweepReleasedMs": {
+          "median": 0.21250000000009095,
+          "min": 0.19470000000001164,
+          "max": 0.22720000000003893
+        },
+        "reloadMs": {
+          "median": 21.42619999999988,
+          "min": 20.539999999999964,
+          "max": 25.08089999999993
+        },
+        "rebuildMs": {
+          "median": 12.563300000000027,
+          "min": 10.997600000000148,
+          "max": 13.182199999999966
+        }
+      },
+      "gcReleasedHeapMiB": {
+        "median": -0.020782470703125,
+        "min": -0.020782470703125,
+        "max": -0.0207672119140625
+      },
+      "preflightAssociatedHeapChangeMiB": {
+        "median": 0.0009613037109375,
+        "min": 0.0009613037109375,
+        "max": 0.0009613037109375
+      }
+    },
+    {
+      "kind": "text",
+      "shapes": 4000,
+      "updates": 3000,
+      "capture": true,
+      "loadedHeapMiB": {
+        "median": 42.679443359375,
+        "min": 42.67884826660156,
+        "max": 42.68214416503906
+      },
+      "editedHeapMiB": {
+        "median": 52.819976806640625,
+        "min": 52.81910705566406,
+        "max": 52.824302673339844
+      },
+      "growthHeapMiB": {
+        "median": 10.140533447265625,
+        "min": 10.1402587890625,
+        "max": 10.142158508300781
+      },
+      "stages": {
+        "loaded": {
+          "retainedHeapAboveEmpty": {
+            "median": 44752640,
+            "min": 44752016,
+            "max": 44755472
+          },
+          "heapUsed": {
+            "median": 83795888,
+            "min": 83790984,
+            "max": 83796280
+          },
+          "encodedBytes": {
+            "median": 2947055,
+            "min": 2947055,
+            "max": 2947055
+          },
+          "gzipBytes": {
+            "median": 346648,
+            "min": 346562,
+            "max": 346685
+          },
+          "logicalJsonBytes": {
+            "median": 2336004,
+            "min": 2336004,
+            "max": 2336004
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96015,
+            "min": 96015,
+            "max": 96015
+          },
+          "clockUnits": {
+            "median": 96015,
+            "min": 96015,
+            "max": 96015
+          },
+          "deletedClockUnits": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "edited-1000": {
+          "retainedHeapAboveEmpty": {
+            "median": 50346224,
+            "min": 50345840,
+            "max": 50346232
+          },
+          "heapUsed": {
+            "median": 89389472,
+            "min": 89381352,
+            "max": 89390496
+          },
+          "encodedBytes": {
+            "median": 5066460,
+            "min": 5066460,
+            "max": 5066460
+          },
+          "gzipBytes": {
+            "median": 356836,
+            "min": 356747,
+            "max": 356885
+          },
+          "logicalJsonBytes": {
+            "median": 2369317,
+            "min": 2369317,
+            "max": 2369317
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 2100721,
+            "min": 2100721,
+            "max": 2100721
+          },
+          "undoSteps": {
+            "median": 17,
+            "min": 17,
+            "max": 17
+          },
+          "structs": {
+            "median": 96049,
+            "min": 96049,
+            "max": 96049
+          },
+          "clockUnits": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "deletedClockUnits": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000
+          }
+        },
+        "edited-3000": {
+          "retainedHeapAboveEmpty": {
+            "median": 55385760,
+            "min": 55384848,
+            "max": 55390296
+          },
+          "heapUsed": {
+            "median": 94429008,
+            "min": 94425808,
+            "max": 94429112
+          },
+          "encodedBytes": {
+            "median": 9305252,
+            "min": 9305252,
+            "max": 9305252
+          },
+          "gzipBytes": {
+            "median": 371648,
+            "min": 371560,
+            "max": 371695
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 6304140,
+            "min": 6304140,
+            "max": 6304140
+          },
+          "undoSteps": {
+            "median": 50,
+            "min": 50,
+            "max": 50
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "sweep-retaining-history": {
+          "retainedHeapAboveEmpty": {
+            "median": 55424512,
+            "min": 55423600,
+            "max": 55429048
+          },
+          "heapUsed": {
+            "median": 94467760,
+            "min": 94464560,
+            "max": 94467864
+          },
+          "encodedBytes": {
+            "median": 9305252,
+            "min": 9305252,
+            "max": 9305252
+          },
+          "gzipBytes": {
+            "median": 371648,
+            "min": 371560,
+            "max": 371695
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 6304140,
+            "min": 6304140,
+            "max": 6304140
+          },
+          "undoSteps": {
+            "median": 50,
+            "min": 50,
+            "max": 50
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "after-undo-preflight": {
+          "retainedHeapAboveEmpty": {
+            "median": 55442344,
+            "min": 55442328,
+            "max": 55444568
+          },
+          "heapUsed": {
+            "median": 94485592,
+            "min": 94480080,
+            "max": 94486592
+          },
+          "encodedBytes": {
+            "median": 9305252,
+            "min": 9305252,
+            "max": 9305252
+          },
+          "gzipBytes": {
+            "median": 371648,
+            "min": 371560,
+            "max": 371695
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 6304140,
+            "min": 6304140,
+            "max": 6304140
+          },
+          "undoSteps": {
+            "median": 50,
+            "min": 50,
+            "max": 50
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "history-cleared": {
+          "retainedHeapAboveEmpty": {
+            "median": 55328448,
+            "min": 55328440,
+            "max": 55328600
+          },
+          "heapUsed": {
+            "median": 94371696,
+            "min": 94363952,
+            "max": 94372864
+          },
+          "encodedBytes": {
+            "median": 9305252,
+            "min": 9305252,
+            "max": 9305252
+          },
+          "gzipBytes": {
+            "median": 371648,
+            "min": 371560,
+            "max": 371695
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "sweep-after-clear": {
+          "retainedHeapAboveEmpty": {
+            "median": 48165984,
+            "min": 48165712,
+            "max": 48166136
+          },
+          "heapUsed": {
+            "median": 87209232,
+            "min": 87201224,
+            "max": 87210400
+          },
+          "encodedBytes": {
+            "median": 3046262,
+            "min": 3046262,
+            "max": 3046262
+          },
+          "gzipBytes": {
+            "median": 348284,
+            "min": 348202,
+            "max": 348329
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "reload-gc": {
+          "retainedHeapAboveEmpty": {
+            "median": 56350736,
+            "min": 56349144,
+            "max": 56354928
+          },
+          "heapUsed": {
+            "median": 95392392,
+            "min": 95390440,
+            "max": 95395000
+          },
+          "encodedBytes": {
+            "median": 3046262,
+            "min": 3046262,
+            "max": 3046262
+          },
+          "gzipBytes": {
+            "median": 348284,
+            "min": 348202,
+            "max": 348329
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "rebuilt-new-ids": {
+          "retainedHeapAboveEmpty": {
+            "median": 42367856,
+            "min": 41695896,
+            "max": 42372704
+          },
+          "heapUsed": {
+            "median": 81408216,
+            "min": 80740160,
+            "max": 81411104
+          },
+          "encodedBytes": {
+            "median": 3045079,
+            "min": 3045079,
+            "max": 3045079
+          },
+          "gzipBytes": {
+            "median": 373403,
+            "min": 373372,
+            "max": 373446
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96016,
+            "min": 96016,
+            "max": 96016
+          },
+          "clockUnits": {
+            "median": 96016,
+            "min": 96016,
+            "max": 96016
+          },
+          "deletedClockUnits": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        }
+      },
+      "curve": [
+        {
+          "updates": 0,
+          "growthMiB": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "updates": 1000,
+          "growthMiB": {
+            "median": 5.3344573974609375,
+            "min": 5.331390380859375,
+            "max": 5.335060119628906
+          }
+        },
+        {
+          "updates": 3000,
+          "growthMiB": {
+            "median": 10.140533447265625,
+            "min": 10.1402587890625,
+            "max": 10.142158508300781
+          }
+        }
+      ],
+      "timings": {
+        "preflightMs": {
+          "median": 275.7631000000001,
+          "min": 268.05899999999974,
+          "max": 295.2004999999999
+        },
+        "preflightPostOperationHeapDeltaMiB": {
+          "median": 108.9742202758789,
+          "min": 108.61336517333984,
+          "max": 109.74871826171875
+        },
+        "sweepReleasedMs": {
+          "median": 3.6319000000003143,
+          "min": 3.1304000000000087,
+          "max": 3.8447000000001026
+        },
+        "reloadMs": {
+          "median": 401.57130000000006,
+          "min": 368.26800000000003,
+          "max": 446.8098
+        },
+        "rebuildMs": {
+          "median": 316.9819999999995,
+          "min": 309.1736000000001,
+          "max": 354.0499
+        }
+      },
+      "gcReleasedHeapMiB": {
+        "median": 6.830657958984375,
+        "min": 6.830657958984375,
+        "max": 6.830909729003906
+      },
+      "preflightAssociatedHeapChangeMiB": {
+        "median": 0.01700592041015625,
+        "min": 0.014801025390625,
+        "max": 0.01786041259765625
+      }
+    },
+    {
+      "kind": "text",
+      "shapes": 4000,
+      "updates": 3000,
+      "capture": false,
+      "loadedHeapMiB": {
+        "median": 42.739051818847656,
+        "min": 42.68177032470703,
+        "max": 42.74060821533203
+      },
+      "editedHeapMiB": {
+        "median": 45.89012908935547,
+        "min": 45.839805603027344,
+        "max": 45.892181396484375
+      },
+      "growthHeapMiB": {
+        "median": 3.1515731811523438,
+        "min": 3.1510772705078125,
+        "max": 3.1580352783203125
+      },
+      "stages": {
+        "loaded": {
+          "retainedHeapAboveEmpty": {
+            "median": 44815144,
+            "min": 44755080,
+            "max": 44816776
+          },
+          "heapUsed": {
+            "median": 83861136,
+            "min": 83790616,
+            "max": 83866432
+          },
+          "encodedBytes": {
+            "median": 2947055,
+            "min": 2947055,
+            "max": 2947055
+          },
+          "gzipBytes": {
+            "median": 346720,
+            "min": 346676,
+            "max": 346747
+          },
+          "logicalJsonBytes": {
+            "median": 2336004,
+            "min": 2336004,
+            "max": 2336004
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96015,
+            "min": 96015,
+            "max": 96015
+          },
+          "clockUnits": {
+            "median": 96015,
+            "min": 96015,
+            "max": 96015
+          },
+          "deletedClockUnits": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "edited-1000": {
+          "retainedHeapAboveEmpty": {
+            "median": 47936288,
+            "min": 47879760,
+            "max": 48198032
+          },
+          "heapUsed": {
+            "median": 86980648,
+            "min": 86915296,
+            "max": 87249320
+          },
+          "encodedBytes": {
+            "median": 2980790,
+            "min": 2980790,
+            "max": 2980790
+          },
+          "gzipBytes": {
+            "median": 347377,
+            "min": 347329,
+            "max": 347400
+          },
+          "logicalJsonBytes": {
+            "median": 2369317,
+            "min": 2369317,
+            "max": 2369317
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96049,
+            "min": 96049,
+            "max": 96049
+          },
+          "clockUnits": {
+            "median": 97015,
+            "min": 97015,
+            "max": 97015
+          },
+          "deletedClockUnits": {
+            "median": 1000,
+            "min": 1000,
+            "max": 1000
+          }
+        },
+        "edited-3000": {
+          "retainedHeapAboveEmpty": {
+            "median": 48119288,
+            "min": 48066520,
+            "max": 48121440
+          },
+          "heapUsed": {
+            "median": 87165800,
+            "min": 87102056,
+            "max": 87170576
+          },
+          "encodedBytes": {
+            "median": 3046262,
+            "min": 3046262,
+            "max": 3046262
+          },
+          "gzipBytes": {
+            "median": 348356,
+            "min": 348311,
+            "max": 348385
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "sweep-retaining-history": {
+          "retainedHeapAboveEmpty": {
+            "median": 48192752,
+            "min": 48137240,
+            "max": 48194800
+          },
+          "heapUsed": {
+            "median": 87239160,
+            "min": 87172776,
+            "max": 87244040
+          },
+          "encodedBytes": {
+            "median": 3046262,
+            "min": 3046262,
+            "max": 3046262
+          },
+          "gzipBytes": {
+            "median": 348356,
+            "min": 348311,
+            "max": 348385
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "after-undo-preflight": {
+          "retainedHeapAboveEmpty": {
+            "median": 48195136,
+            "min": 48138880,
+            "max": 48197400
+          },
+          "heapUsed": {
+            "median": 87241760,
+            "min": 87174416,
+            "max": 87246424
+          },
+          "encodedBytes": {
+            "median": 3046262,
+            "min": 3046262,
+            "max": 3046262
+          },
+          "gzipBytes": {
+            "median": 348356,
+            "min": 348311,
+            "max": 348385
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "history-cleared": {
+          "retainedHeapAboveEmpty": {
+            "median": 48171304,
+            "min": 48114984,
+            "max": 48173120
+          },
+          "heapUsed": {
+            "median": 87217480,
+            "min": 87150520,
+            "max": 87222592
+          },
+          "encodedBytes": {
+            "median": 3046262,
+            "min": 3046262,
+            "max": 3046262
+          },
+          "gzipBytes": {
+            "median": 348356,
+            "min": 348311,
+            "max": 348385
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "sweep-after-clear": {
+          "retainedHeapAboveEmpty": {
+            "median": 48165400,
+            "min": 48108984,
+            "max": 48167216
+          },
+          "heapUsed": {
+            "median": 87211576,
+            "min": 87144520,
+            "max": 87216688
+          },
+          "encodedBytes": {
+            "median": 3046262,
+            "min": 3046262,
+            "max": 3046262
+          },
+          "gzipBytes": {
+            "median": 348356,
+            "min": 348311,
+            "max": 348385
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "reload-gc": {
+          "retainedHeapAboveEmpty": {
+            "median": 59516888,
+            "min": 59515936,
+            "max": 59519408
+          },
+          "heapUsed": {
+            "median": 98563768,
+            "min": 98551472,
+            "max": 98568176
+          },
+          "encodedBytes": {
+            "median": 3046262,
+            "min": 3046262,
+            "max": 3046262
+          },
+          "gzipBytes": {
+            "median": 348356,
+            "min": 348311,
+            "max": 348385
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96115,
+            "min": 96115,
+            "max": 96115
+          },
+          "clockUnits": {
+            "median": 99015,
+            "min": 99015,
+            "max": 99015
+          },
+          "deletedClockUnits": {
+            "median": 3000,
+            "min": 3000,
+            "max": 3000
+          }
+        },
+        "rebuilt-new-ids": {
+          "retainedHeapAboveEmpty": {
+            "median": 45653616,
+            "min": 45645728,
+            "max": 45676712
+          },
+          "heapUsed": {
+            "median": 84704904,
+            "min": 84690088,
+            "max": 84712248
+          },
+          "encodedBytes": {
+            "median": 3045079,
+            "min": 3045079,
+            "max": 3045079
+          },
+          "gzipBytes": {
+            "median": 373431,
+            "min": 373425,
+            "max": 373438
+          },
+          "logicalJsonBytes": {
+            "median": 2433964,
+            "min": 2433964,
+            "max": 2433964
+          },
+          "retainedDeletedJsonBytes": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "undoSteps": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "structs": {
+            "median": 96016,
+            "min": 96016,
+            "max": 96016
+          },
+          "clockUnits": {
+            "median": 96016,
+            "min": 96016,
+            "max": 96016
+          },
+          "deletedClockUnits": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        }
+      },
+      "curve": [
+        {
+          "updates": 0,
+          "growthMiB": {
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        {
+          "updates": 1000,
+          "growthMiB": {
+            "median": 2.9799270629882812,
+            "min": 2.9749984741210938,
+            "max": 3.2261734008789062
+          }
+        },
+        {
+          "updates": 3000,
+          "growthMiB": {
+            "median": 3.1515731811523438,
+            "min": 3.1510772705078125,
+            "max": 3.1580352783203125
+          }
+        }
+      ],
+      "timings": {
+        "preflightMs": null,
+        "preflightPostOperationHeapDeltaMiB": null,
+        "sweepReleasedMs": {
+          "median": 3.482800000000225,
+          "min": 3.24140000000034,
+          "max": 4.465700000000197
+        },
+        "reloadMs": {
+          "median": 407.0430000000001,
+          "min": 387.9859999999999,
+          "max": 415.39739999999983
+        },
+        "rebuildMs": {
+          "median": 323.45679999999993,
+          "min": 309.1020000000003,
+          "max": 346.25639999999976
+        }
+      },
+      "gcReleasedHeapMiB": {
+        "median": 0.0056304931640625,
+        "min": 0.0056304931640625,
+        "max": 0.0057220458984375
+      },
+      "preflightAssociatedHeapChangeMiB": {
+        "median": 0.0022735595703125,
+        "min": 0.00156402587890625,
+        "max": 0.00247955322265625
+      }
+    }
+  ],
+  "historyCost": [
+    {
+      "kind": "position",
+      "shapes": 100,
+      "pairedExtraHeapMiB": {
+        "median": 5.400642395019531,
+        "min": 5.398170471191406,
+        "max": 5.4215850830078125
+      },
+      "pairedExtraHeapBytesPerUpdate": {
+        "median": 188.76613333333333,
+        "min": 188.67973333333333,
+        "max": 189.49813333333333
+      }
+    },
+    {
+      "kind": "position",
+      "shapes": 4000,
+      "pairedExtraHeapMiB": {
+        "median": 5.526542663574219,
+        "min": 5.5016326904296875,
+        "max": 5.5563812255859375
+      },
+      "pairedExtraHeapBytesPerUpdate": {
+        "median": 193.16666666666666,
+        "min": 192.296,
+        "max": 194.2096
+      }
+    },
+    {
+      "kind": "text",
+      "shapes": 100,
+      "pairedExtraHeapMiB": {
+        "median": 6.973396301269531,
+        "min": 6.969490051269531,
+        "max": 6.985862731933594
+      },
+      "pairedExtraHeapBytesPerUpdate": {
+        "median": 2437.3786666666665,
+        "min": 2436.0133333333333,
+        "max": 2441.736
+      }
+    },
+    {
+      "kind": "text",
+      "shapes": 4000,
+      "pairedExtraHeapMiB": {
+        "median": 6.988685607910156,
+        "min": 6.984123229980469,
+        "max": 6.9894561767578125
+      },
+      "pairedExtraHeapBytesPerUpdate": {
+        "median": 2442.7226666666666,
+        "min": 2441.128,
+        "max": 2442.992
+      }
+    }
+  ],
+  "browser": {
+    "generatedAt": "2026-11-07T03:43:40.335Z",
+    "method": "Values extracted from rendered results JSON; Chrome156 Windows development page; secure cross-origin-isolated measureUserAgentSpecificMemory. Final matched cases6000 updates/100 gestures, one run each. Pilot100/30000 retained separately. Not controlled per-document heap; do not attribute page delta to Yjs. IndexedDB payload bytes are not physical file size.",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+    "memoryApi": "measureUserAgentSpecificMemory",
+    "crossOriginIsolated": true,
+    "browserSourceSha256": "1b8c410b43272cbbac1996c8c1f4d79879a371b670e9199ca35df8c765f50365",
+    "abortedPilot": {
+      "shapes": 4000,
+      "targetUpdates": 30000,
+      "lastObservedUpdates": 8400,
+      "reason": "Switched browser verification to matched6000 cases; aborted run excluded from conclusions."
+    },
+    "samples": [
+      {
+        "pilot": true,
+        "label": "loaded",
+        "count": 100,
+        "updates": 0,
+        "room": "codex-memory-study-100-1794021229890",
+        "measuredAt": "2026-11-07T03:14:12.404Z",
+        "memoryBytes": 190901555,
+        "jsBytes": 181304974,
+        "domBytes": 372552,
+        "canvasBytes": 7266600,
+        "sharedBytes": 1957429,
+        "approximateHeap": 136879371,
+        "encodedBytes": 74592,
+        "logicalJsonBytes": 59312,
+        "indexedDbRecords": 1,
+        "indexedDbPayloadBytes": 74592,
+        "undoSteps": 0,
+        "nativeUndo": 0,
+        "nativeRedo": 0
+      },
+      {
+        "pilot": true,
+        "label": "edited",
+        "count": 100,
+        "updates": 30000,
+        "room": "codex-memory-study-100-1794021229890",
+        "measuredAt": "2026-11-07T03:16:02.840Z",
+        "memoryBytes": 197721049,
+        "jsBytes": 187953135,
+        "domBytes": 380792,
+        "canvasBytes": 7194000,
+        "sharedBytes": 2193122,
+        "approximateHeap": 158929715,
+        "encodedBytes": 1866041,
+        "logicalJsonBytes": 59520,
+        "indexedDbRecords": 1,
+        "indexedDbPayloadBytes": 1866041,
+        "undoSteps": 500,
+        "nativeUndo": 0,
+        "nativeRedo": 0
+      },
+      {
+        "pilot": true,
+        "label": "history-cleared",
+        "count": 100,
+        "updates": 30000,
+        "room": "codex-memory-study-100-1794021229890",
+        "measuredAt": "2026-11-07T03:17:39.774Z",
+        "memoryBytes": 172276893,
+        "jsBytes": 164179170,
+        "domBytes": 380792,
+        "canvasBytes": 7194000,
+        "sharedBytes": 522931,
+        "approximateHeap": 138001402,
+        "encodedBytes": 1866041,
+        "logicalJsonBytes": 59520,
+        "indexedDbRecords": 1,
+        "indexedDbPayloadBytes": 1866041,
+        "undoSteps": 0,
+        "nativeUndo": 0,
+        "nativeRedo": 0
+      },
+      {
+        "pilot": false,
+        "label": "loaded",
+        "count": 100,
+        "updates": 0,
+        "room": "codex-memory-study-100-1794022008878",
+        "measuredAt": "2026-11-07T03:27:04.189Z",
+        "memoryBytes": 190854024,
+        "jsBytes": 181171808,
+        "domBytes": 372552,
+        "canvasBytes": 7266600,
+        "sharedBytes": 2043064,
+        "approximateHeap": 135763038,
+        "encodedBytes": 74592,
+        "logicalJsonBytes": 59312,
+        "indexedDbRecords": 1,
+        "indexedDbPayloadBytes": 74592,
+        "undoSteps": 0,
+        "nativeUndo": 0,
+        "nativeRedo": 0
+      },
+      {
+        "pilot": false,
+        "label": "edited",
+        "count": 100,
+        "updates": 6000,
+        "room": "codex-memory-study-100-1794022008878",
+        "measuredAt": "2026-11-07T03:30:53.970Z",
+        "memoryBytes": 169234898,
+        "jsBytes": 161094379,
+        "domBytes": 375384,
+        "canvasBytes": 7266600,
+        "sharedBytes": 498535,
+        "approximateHeap": 127104062,
+        "encodedBytes": 429157,
+        "logicalJsonBytes": 59415,
+        "indexedDbRecords": 1,
+        "indexedDbPayloadBytes": 429157,
+        "undoSteps": 100,
+        "nativeUndo": 0,
+        "nativeRedo": 0
+      },
+      {
+        "pilot": false,
+        "label": "loaded",
+        "count": 4000,
+        "updates": 0,
+        "room": "codex-memory-study-4000-1794022469515",
+        "measuredAt": "2026-11-07T03:35:01.189Z",
+        "memoryBytes": 408919846,
+        "jsBytes": 393281310,
+        "domBytes": 6200752,
+        "canvasBytes": 7266600,
+        "sharedBytes": 2171184,
+        "approximateHeap": 386019990,
+        "encodedBytes": 2959053,
+        "logicalJsonBytes": 2373002,
+        "indexedDbRecords": 1,
+        "indexedDbPayloadBytes": 2959053,
+        "undoSteps": 0,
+        "nativeUndo": 0,
+        "nativeRedo": 0
+      },
+      {
+        "pilot": false,
+        "label": "edited",
+        "count": 4000,
+        "updates": 6000,
+        "room": "codex-memory-study-4000-1794022469515",
+        "measuredAt": "2026-11-07T03:42:09.303Z",
+        "memoryBytes": 391088088,
+        "jsBytes": 376957854,
+        "domBytes": 6203824,
+        "canvasBytes": 7194000,
+        "sharedBytes": 732410,
+        "approximateHeap": 356541365,
+        "encodedBytes": 3313620,
+        "logicalJsonBytes": 2373105,
+        "indexedDbRecords": 1,
+        "indexedDbPayloadBytes": 3313620,
+        "undoSteps": 100,
+        "nativeUndo": 0,
+        "nativeRedo": 0
+      }
+    ]
+  }
+}
