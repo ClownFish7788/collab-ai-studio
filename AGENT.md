@@ -29,3 +29,10 @@ Before continuing, read docs/collaboration/tldraw-yjs-scheme-a.md and git log/st
 - Persist the exact legacy baseline for reload-time detection. Do not remove it as redundant metadata.
 - Keep changes as small independent commits, inspect each staged file list, and do not merge or push without instruction.
 - Remaining deployment checks: real Liveblocks multi-device/roles/reconnect, old-token isolation and production migration/recovery; no cloud migration has been performed.
+
+## Native history follow-up (2026-11-07)
+- Shared-history attachment stops the native HistoryManager recorder and clears its existing data. Marks belong to the adapter, not the native stack.
+- Preserve the native count-query bridge and deferred cache invalidation: UI queries created before onMount must observe shared undo/redo state even after native recording stops.
+- The protected history access is compatibility code for tldraw 4.5.3; validate native toolbar and empty native stacks on dependency upgrades.
+- The adapter owns history for the Editor lifetime. Detaching does not restart native recording; create a new Editor to return to native history.
+- Yjs history limits and document compaction remain separate work; stopping native recording does not bound Yjs memory.
