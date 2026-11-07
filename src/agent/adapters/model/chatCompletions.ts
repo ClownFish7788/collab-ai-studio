@@ -10,7 +10,8 @@ import { modelDecisionSchema, type AgentMessage, type ContentBlock, type ModelDe
 import { boardToolNameSchema, type BoardToolName, type createBoardToolContracts } from '../../domain/tool'
 import { getToolCorrectionContract } from '../../domain/toolCorrection'
 import { boardTaskBriefPrompt } from '../../../prompts/boardTaskBriefPrompt'
-import { normalizePreparationOutput } from './preparationOutput'
+import { normalizePreparationOutput, preparationResponseFormat } from './preparationOutput'
+import { getPreparationModes, rememberOutputCapability, type OutputMode } from './outputCapabilities'
 import { boardAgentCapabilitiesPrompt, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../../../utils/board/boardCapabilities'
 
 type ModelOptions = {
@@ -218,8 +219,11 @@ function encodeMessages(messages: readonly AgentMessage[]): object[] {
     return [...encoded, ...supplemental]
 }
 
-/** Chat Completions 兼容适配器：对外仅实现模型端口，调用预算和任务重试仍由应用层决定。 */
+/** Chat Completions 兼容适配器：内部协商有界，任务步骤和输出纠错仍由应用层决定。 */
 export function createChatCompletionsModel({ config, contracts, fetcher = fetch, onPreview }: ModelOptions): ModelPort {
+    let preparationRounds = 0
+    let preparationRequests = 0
+    let selectedMode: OutputMode | undefined
     async function requestModel(
         messages: readonly AgentMessage[], allowedTools: readonly BoardToolName[], signal: AbortSignal,
         phase: 'preparation' | 'tool', elementKeys: readonly string[] = [],
@@ -234,23 +238,49 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
             } }
         })
         const encoded = encodeMessages(messages)
-        let response: Response
+        let response: Response | undefined
         try {
             const client = createModelClient(config, signal, fetcher)
-            response = await requestCompletion(client, config, {
+            const input = {
                 messages: [
                     { role: 'system', content: boardAgentCapabilitiesPrompt },
                     ...(phase === 'preparation' ? [{ role: 'system', content: boardTaskBriefPrompt }] : []),
                     ...encoded,
                     ...(phase === 'tool' ? [{ role: 'system', content: executionInstructions(allowedTools) }] : []),
                 ] as OpenAI.ChatCompletionMessageParam[],
-                ...(allowedTools.length ? { tools, tool_choice: 'auto', parallel_tool_calls: true } : {}),
+                ...(allowedTools.length ? { tools, tool_choice: 'auto' as const, parallel_tool_calls: true } : {}),
                 outputLimit: phase === 'preparation' ? 2000 : 4000,
-            }, signal)
+            }
+            if (phase === 'tool') response = await requestCompletion(client, config, input, signal)
+            else {
+                const modes = selectedMode ? [selectedMode] : getPreparationModes(config)
+                for (const mode of modes) {
+                    if (preparationRequests >= 4) throw modelError('需求拆分已用尽四次模型请求预算')
+                    preparationRequests++
+                    try {
+                        response = await requestCompletion(client, config, { ...input,
+                            ...(mode === 'schema' ? { response_format: preparationResponseFormat }
+                                : mode === 'object' ? { response_format: { type: 'json_object' as const } } : {}),
+                        }, signal)
+                    } catch (cause) {
+                        signal.throwIfAborted()
+                        if (cause instanceof ModelRequestError && cause.reason === 'unsupported_output_format' && mode !== 'prompt') {
+                            rememberOutputCapability(config, mode, 'unsupported')
+                            if (!selectedMode) continue
+                        }
+                        throw cause
+                    }
+                    if (mode !== 'prompt') rememberOutputCapability(config, mode, 'accepted')
+                    selectedMode = mode
+                    break
+                }
+            }
         } catch (cause) {
             signal.throwIfAborted()
+            if (cause instanceof AgentApplicationError) throw cause
             throw modelError(cause instanceof ModelRequestError ? cause.message : '模型服务连接失败')
         }
+        if (!response) throw modelError('需求拆分没有可用的输出模式')
         let data: unknown
         let start = true
         const preview = (delta: string) => { onPreview?.(phase, delta, start); start = false }
@@ -267,6 +297,8 @@ export function createChatCompletionsModel({ config, contracts, fetcher = fetch,
     }
     return {
         async prepare(messages, signal) {
+            // 首轮最多三档，成功后固定模式仅允许一次纠错：整个准备阶段最多四次 HTTP 请求。
+            if (++preparationRounds > 2) throw modelError('需求拆分已用尽一次纠错机会')
             const reply = await requestModel(messages, [], signal, 'preparation')
             if (reply.kind !== 'text') throw modelError('需求拆分不能调用工具')
             return normalizePreparationOutput(reply.text)

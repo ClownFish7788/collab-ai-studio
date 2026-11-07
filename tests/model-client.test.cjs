@@ -77,6 +77,43 @@ test('connection errors are sanitized and never retried', async () => {
     assert.equal(calls, 1)
 })
 
+test('response_format is forwarded without enabling transport retries', async () => {
+    const response_format = { type: 'json_schema', json_schema: { name: 'test', strict: true, schema: { type: 'object' } } }
+    let body
+    const client = createModelClient(config, defaultSignal, async (_url, init) => { body = JSON.parse(init.body); return response() })
+    await requestCompletion(client, config, { ...input, response_format }, defaultSignal)
+    assert.deepEqual(body.response_format, response_format)
+})
+
+for (const [name, status, error, expected] of [
+    ['explicit unsupported value', 400, { code: 'unsupported_value', param: 'response_format', message: "Invalid parameter: 'response_format' of type 'json_schema' is not supported with this model." }, 'unsupported_output_format'],
+    ['unsupported format parameter', 400, { code: 'unsupported_parameter', param: 'response_format', message: "Unsupported parameter: 'response_format' is not supported with this model." }, 'unsupported_output_format'],
+    ['compatible service without param', 400, { code: 'InvalidParameter', message: "response_format of type json_schema is not supported with this model" }, 'unsupported_output_format'],
+    ['invalid schema', 400, { code: 'invalid_json_schema', param: 'response_format', message: 'Invalid schema: additionalProperties is required' }, 'invalid_schema'],
+    ['schema keyword unsupported', 400, { code: 'unsupported_value', param: 'response_format.json_schema.schema', message: 'json_schema keyword is not supported' }, 'invalid_schema'],
+    ['thinking conflict', 400, { code: 'InvalidParameter', message: 'Json mode response is not supported when enable_thinking is true' }, 'other'],
+    ['stream conflict', 400, { message: 'json_schema is not supported with stream enabled' }, 'other'],
+    ['tools conflict', 400, { message: 'response_format is not supported with tools' }, 'other'],
+    ['unrelated unsupported parameter', 400, { code: 'unsupported_parameter', param: 'temperature', message: 'temperature is not supported' }, 'other'],
+    ['JSON prompt missing', 400, { code: 'InvalidParameter', message: 'messages must contain JSON when response_format is json_object' }, 'other'],
+    ['unknown request error', 422, { code: 'InvalidParameter', message: 'invalid response_format' }, 'other'],
+    ['authentication', 401, { code: 'unsupported_value', param: 'response_format', message: 'json_schema is not supported with this model' }, 'other'],
+    ['service fault', 500, { code: 'unsupported_value', param: 'response_format', message: 'json_schema is not supported with this model' }, 'other'],
+]) test(`format error classification: ${name}`, async () => {
+    let calls = 0
+    const client = createModelClient(config, defaultSignal, async () => {
+        calls++
+        return new Response(JSON.stringify({ error }), { status, headers: { 'content-type': 'application/json', 'x-request-id': 'req-format-test' } })
+    })
+    await assert.rejects(requestCompletion(client, config, { ...input, response_format: { type: 'json_schema', json_schema: { name: 'test', schema: {} } } }, defaultSignal), cause => {
+        assert.equal(cause.reason, expected)
+        assert.ok(!cause.message.includes(error.message))
+        assert.equal(cause.status, undefined)
+        return true
+    })
+    assert.equal(calls, 1)
+})
+
 test('already cancelled requests do not reach the provider', async () => {
     let calls = 0
     const reason = new Error('cancelled by caller')
