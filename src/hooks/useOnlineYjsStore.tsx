@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useRoom, useStatus } from '@liveblocks/react'
+import { useRoom, useSelf, useStatus } from '@liveblocks/react'
 import type { LiveblocksYjsProvider } from '@liveblocks/yjs'
 import type { JsonObject } from '@liveblocks/client'
 import { IndexeddbPersistence, storeState } from 'y-indexeddb'
@@ -25,16 +25,17 @@ export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, 
 }) {
     const room = useRoom()
     const connection = useStatus()
+    const serverCanWrite = useSelf(self => self.canWrite)
     const permission = useRef(canEdit)
     const verifiedWrite = useRef(false)
     const [preferences] = useState(() => atom('board-user', user))
     useLayoutEffect(() => {
         permission.current = canEdit
-        const self = room.getSelf()
         if (!canEdit) verifiedWrite.current = false
-        else if (self) verifiedWrite.current = self.canWrite
+        // Permissions can arrive after the connection status has already changed.
+        else if (serverCanWrite !== null) verifiedWrite.current = serverCanWrite
         preferences.set(user)
-    }, [canEdit, connection, preferences, room, user])
+    }, [canEdit, preferences, serverCanWrite, user])
     const isOpenNetwork = useNetworkStore(state => state.isOpenNetwork)
     const [store] = useState(() => createTLStore({ shapeUtils: [...defaultShapeUtils, ...shapeUtils] }))
     const [state, setState] = useState<BoardYjsStoreState>({ status: 'loading' })

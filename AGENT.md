@@ -41,3 +41,8 @@ Before continuing, read docs/collaboration/tldraw-yjs-scheme-a.md and git log/st
 - Before implementing history limits or compaction, read docs/collaboration/tldraw-yjs-memory-study.md and its linked raw results. This research changed no product policy; proposed limits and idle timing remain candidates.
 - Compare retained heap, encoded bytes and browser whole-page memory separately. Historical measurements remain in the local docs/collaboration files; benchmark sources were removed with the test suite.
 - Preserve CRDT identity and reachable undo/redo data during reclamation. Fresh-tree reconstruction is a migration boundary; cloud physical reclamation remains unverified.
+
+## Hook acceptance follow-up (2026-11-08)
+- Actual local hooks and real Liveblocks provider were checked in private disposable rooms, using separate browser origins. See docs/collaboration/tldraw-yjs-hook-acceptance.md and its extracted evidence.
+- Liveblocks self permissions may arrive after connected. Subscribe with useSelf; connection status alone cannot update the last verified write grant. Keep offline grants and synchronous write checks.
+- Test rooms were deleted and verified 404; no business database write or production migration. Full business authentication, physical multi-device, live role changes, old-token revocation and compaction remain separate.

@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-08",
+  "run": "7115c0c1",
+  "implementationBase": "49c1568ae7f418505026c1dae3f8bbdb0be51d8a",
+  "evidenceType": "Extracted actual Chrome DOM metrics and real Liveblocks SDK readbacks; not a complete transport log",
+  "transport": {"local": "same-origin actual local hook, IndexedDB and BroadcastChannel", "cloud": "actual online hook and LiveblocksYjsProvider; ports 3017/3018/3019 isolate IndexedDB and BroadcastChannel"},
+  "permissionRegression": {
+    "red": {"role": "collaborator", "connection": "connected", "status": "synced-remote", "parent": true, "child": false, "last": "Rejected: 当前没有白板编辑权限", "revision": 3},
+    "diagnosis": "Initial self permission notification arrives after connected; reconnect made serverCanWrite true and permitted writing. Reproduced on owner and collaborator before fixing.",
+    "fix": "Subscribe to useSelf(self => self.canWrite), update last verified permission in layout effect when that value changes",
+    "greenOwner": {"connection": "connected", "serverCanWrite": true, "parentX": 200, "last": "move finished", "revision": 2},
+    "greenCollaborator": {"connection": "connected", "serverCanWrite": true, "parentColor": "red", "last": "red finished", "revision": 3}
+  },
+  "local": [
+    {"case": "remote changes do not enter new session history", "B": {"parent": true, "parentX": 80, "parentColor": "black", "canUndo": false}},
+    {"case": "A undo movement retains B color", "A": {"parentX": 80, "parentColor": "red", "canRedo": true}, "B": {"parentX": 80, "parentColor": "red"}},
+    {"case": "reload keeps IndexedDB content and resets session history", "A": {"format": 3, "status": "synced-local", "parentX": 80, "parentColor": "red", "canUndo": false, "canRedo": false}},
+    {"case": "v2 requires explicit upgrade", "before": {"format": 2, "status": "error", "message": "旧白板需要受控迁移，不能自动升级"}, "afterUpgradeAndReload": {"format": 3, "status": "synced-local", "parent": true, "parentX": 80, "canUndo": false}}
+  ],
+  "cloud": [
+    {"case": "independent field undo", "AUndo": {"parentX": 80, "parentColor": "red"}, "BUndo": {"parentX": 80, "parentColor": "black"}},
+    {"case": "race1", "cloudBeforeUndo": {"parentKeep": true, "childKeep": true, "childParent": "shape:hook-parent-race1"}, "offlineA": {"connection": "initial", "parent": false, "child": false, "parentKeep": false, "rawParent": true, "canRedo": true}, "reconnectedA": {"parent": true, "child": true, "parentKeep": false, "retained": 1, "parentX": 80, "parentColor": "black", "revision": 5}, "B": {"parent": true, "child": true, "parentKeep": false, "retained": 1, "revision": 6}},
+    {"case": "native toolbar undo last child", "A": {"parent": false, "child": false, "rawParent": true, "parentKeep": false, "retained": 0, "revision": 6}, "B": {"parent": false, "child": false, "rawParent": true, "retained": 0, "canRedo": true, "revision": 7}},
+    {"case": "native toolbar redo child", "A": {"parent": true, "child": true, "parentKeep": false, "retained": 1, "revision": 7}, "B": {"parent": true, "child": true, "parentKeep": false, "retained": 1, "revision": 8}},
+    {"case": "known child refuses whole parent undo after parent redo", "A": {"parent": true, "child": true, "parentKeep": true, "conflicts": 1, "revision": 8}},
+    {"case": "race2 independent record IDs", "offlineA": {"parent": false, "child": false, "parentKeep": false, "rawParent": true, "revision": 4}, "reconnectedA": {"parent": true, "child": true, "parentKeep": false, "retained": 1, "childParent": "shape:hook-parent-race2", "revision": 5}, "B": {"parent": true, "child": true, "parentKeep": false, "retained": 1, "revision": 6}},
+    {"case": "race3 child author closes before receiving parent undo", "cloudChildBeforeClose": {"keep": true, "parentId": "shape:hook-parent-race3", "x": 30, "y": 30}, "offlineA": {"parent": false, "child": false, "parentKeep": false, "rawParent": true, "revision": 4}, "reconnectedA": {"parent": true, "child": true, "parentKeep": false, "retained": 1, "parentX": 80, "revision": 5}},
+    {"case": "fresh isolated viewer after author closed", "state": {"connection": "connected", "serverCanWrite": false, "status": "synced-remote", "readOnly": true, "parent": true, "child": true, "parentKeep": false, "retained": 1, "canUndo": false, "canRedo": false, "revision": 1}},
+    {"case": "viewer bypasses UI with Store.put", "last": "Rejected: 当前没有白板编辑权限", "revisionBefore": 1, "revisionAfter": 1, "cloudContainsViewerAttempt": false},
+    {"case": "cloud final readback", "format": 3, "parent": {"id": "shape:hook-parent-race3", "keep": false, "x": 80, "y": 80, "w": 320, "h": 240, "color": "black"}, "child": {"id": "shape:hook-child-race3", "keep": true, "parentId": "shape:hook-parent-race3"}},
+    {"case": "v3 fresh old-protocol admission", "requestProtocol": 2, "httpStatus": 409},
+    {"case": "authorized owner reads legacy v2", "state": {"connection": "connected", "serverCanWrite": true, "readOnly": true, "format": 2, "parent": true, "parentX": 80}, "cloudAfterMoveAttempt": {"format": 2, "v3RecordCount": 0, "v2ParentX": 80}},
+    {"case": "cache reload before cloud reconnect completes", "state": {"connection": "connecting", "status": "synced-remote", "parent": true, "child": true, "parentKeep": false, "retained": 1, "canUndo": false, "canRedo": false, "revision": 1}}
+  ],
+  "cleanup": {"privateRoomsDeleted": ["codex-hook-20261108-7115c0c1-v3", "codex-hook-20261108-7115c0c1-v2"], "followupGetRoomStatuses": [404, 404], "listeningTestPortsAfterStop": [], "testPagesClosed": true, "businessDatabaseWritten": false},
+  "notVerified": ["physical multiple devices", "business NextAuth and Prisma authorization route", "live permission change during existing session", "old already-issued token revocation", "production migration", "compression and long-session performance"]
+}
