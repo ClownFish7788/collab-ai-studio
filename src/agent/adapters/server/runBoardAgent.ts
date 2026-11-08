@@ -79,6 +79,6 @@ export async function runBoardAgent(
         else throw runtimeFailure ?? new BoardProtocolError(agentErrorSchema.parse(outcome.error))
         return outcome
     } finally {
-        releaseCreateRun(run)
+        await releaseCreateRun(run)
     }
 }

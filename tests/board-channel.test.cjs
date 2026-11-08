@@ -16,7 +16,7 @@ async function fixture(t) {
     const url = `file:${path.join(dir, 'test.db').replaceAll('\\', '/')}`
     const a = new PrismaClient({ datasources: { db: { url } } })
     const b = new PrismaClient({ datasources: { db: { url } } })
-    t.after(async () => { await Promise.all([a.$disconnect(), b.$disconnect()]); rmSync(dir, { recursive: true, force: true }) })
+    t.after(async () => { await Promise.all([a.$disconnect(), b.$disconnect()]); assert.equal(path.dirname(dir), tmpdir()); rmSync(dir, { recursive: true, force: true }) })
     await setupBoardChannel(a, 'sqlite')
     await setupBoardChannel(a, 'sqlite')
     return { a, b, url, store: createBoardRunStore(a, 'sqlite'), other: createBoardRunStore(b, 'sqlite') }
@@ -81,4 +81,46 @@ test('late first result is rejected; accepted results remain readable after call
     await store.submit('run', 'owner', 'accepted', output)
     await store.release('run')
     assert.equal(await a.boardAgentToolCall.count(), 0)
+})
+
+test('competing different answers accept only one; expired runs reject even a stored result', async t => {
+    const { store, other, a } = await fixture(t)
+    await store.begin('run', 'owner', 'room', 180000)
+    await store.register('run', call, 15000)
+    const competing = { ok: true, answers: [{ id: 'color', text: 'red' }] }
+    const writes = await Promise.allSettled([store.submit('run', 'owner', call.id, output), other.submit('run', 'owner', call.id, competing)])
+    assert.equal(writes.filter(item => item.status === 'fulfilled').length, 1)
+    assert.deepEqual((await store.read('run', call.id)).output, writes[0].status === 'fulfilled' ? output : competing)
+    await a.boardAgentRun.update({ where: { id: 'run' }, data: { expiresAt: new Date(0) } })
+    await assert.rejects(store.read('run', call.id))
+    await store.prune()
+    assert.equal(await a.boardAgentRun.count(), 0)
+    assert.equal(await a.boardAgentToolCall.count(), 0)
+})
+
+test('database failure is reported as storage failure instead of a browser timeout', async t => {
+    const { store, a } = await fixture(t)
+    await a.$executeRawUnsafe('DROP TABLE "BoardAgentToolCall"')
+    await a.$executeRawUnsafe('DROP TABLE "BoardAgentRun"')
+    await assert.rejects(store.owned('missing', 'owner'), error => error.status === 503 && error.category === 'storage')
+})
+
+test('write latency crossing the deadline cannot stamp a late result as timely', async t => {
+    const { a, store } = await fixture(t)
+    await store.begin('run', 'owner', 'room', 180000)
+    await store.register('run', call, 500)
+    const pause = () => new Promise(resolve => setTimeout(resolve, 650))
+    const delayed = new Proxy(a, { get(target, key) {
+        if (key !== '$transaction') return Reflect.get(target, key)
+        return (action, options) => target.$transaction(tx => action(new Proxy(tx, { get(target, key) {
+            if (key === '$executeRaw') return async (...args) => { await pause(); return target.$executeRaw(...args) }
+            if (key !== 'boardAgentToolCall') return Reflect.get(target, key)
+            return new Proxy(target.boardAgentToolCall, { get(delegate, method) {
+                if (method !== 'updateMany') return Reflect.get(delegate, method)
+                return async args => { if (args.data.outputJson) await pause(); return delegate.updateMany(args) }
+            } })
+        } })), options)
+    } })
+    await assert.rejects(createBoardRunStore(delayed, 'sqlite').submit('run', 'owner', call.id, output), error => error.status === 409)
+    assert.equal((await store.read('run', call.id)).output, undefined)
 })

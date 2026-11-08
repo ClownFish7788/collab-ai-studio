@@ -4,7 +4,8 @@ import { readModelConfig } from '@/agent/adapters/model/client'
 import type { ModelPort } from '@/agent/application/ports'
 import { boardToolContractSet } from "../../../agent/adapters/board/contracts"
 import { runBoardAgent } from '@/agent/adapters/server/runBoardAgent'
-import { beginCreateRun } from '@/agent/adapters/server/browserExecutor'
+import { beginCreateRun, releaseCreateRun } from '@/agent/adapters/server/browserExecutor'
+import { BoardChannelStorageError } from '@/agent/adapters/server/boardRunStore'
 import { BoardProtocolError } from '../../../agent/adapters/transport/errors'
 import { ERROR_CODES, validateBoardCreateRequest, type BoardAgentError, type BoardCreateEvent } from '../../../agent/adapters/transport/boardProtocol'
 import { MAX_CHAT_REQUEST_BYTES } from '@/utils/chat/images'
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
 }
 
 async function handleBoardCreate(request: Request, trace: AgentTrace) {
-    let run: ReturnType<typeof beginCreateRun> | undefined
+    let run: Awaited<ReturnType<typeof beginCreateRun>> | undefined
 
     try {
         const userId = await trace.step('authentication', requireCreateUser)
@@ -72,20 +73,20 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                     if (event.type === 'completed') finalReply = event.text
                     controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
                 }
-                const adapter = createChatCompletionsModel({
-                    config, contracts: boardToolContractSet, fetcher: tracedFetch, record: trace.record,
-                    onPreview(source, delta, start) {
-                        activeRun.signal.throwIfAborted()
-                        emit({ type: 'preview', runId: activeRun.id, source, delta, start })
-                    }
-                })
-                const modelPort: ModelPort = {
-                    prepare: adapter.prepare,
-                    next: (context, allowedTools, signal) => trace.step('model_call', () => adapter.next(context, allowedTools, signal)),
-                    repairSyntax: adapter.repairSyntax,
-                }
-
                 try {
+                    const adapter = createChatCompletionsModel({
+                        config, contracts: boardToolContractSet, fetcher: tracedFetch, record: trace.record,
+                        onPreview(source, delta, start) {
+                            activeRun.signal.throwIfAborted()
+                            emit({ type: 'preview', runId: activeRun.id, source, delta, start })
+                        }
+                    })
+                    const modelPort: ModelPort = {
+                        prepare: adapter.prepare,
+                        next: (context, allowedTools, signal) => trace.step('model_call', () => adapter.next(context, allowedTools, signal)),
+                        repairSyntax: adapter.repairSyntax,
+                    }
+
                     await runBoardAgent(
                         activeRun,
                         payload,
@@ -108,11 +109,13 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                     await trace.end(timedOut ? 'timed_out' : activeRun.signal.aborted ? 'cancelled' : 'failed', finalReply, error.message)
                     try { emit({ type: 'error', runId: activeRun.id, error }) } catch { /* 连接已关闭。 */ }
                 } finally {
+                    await releaseCreateRun(activeRun)
                     try { controller.close() } catch { /* 浏览器已取消响应流。 */ }
                 }
             },
-            cancel() {
+            async cancel() {
                 activeRun.controller.abort(new Error('浏览器已断开任务连接'))
+                await releaseCreateRun(activeRun)
             },
         })
 
@@ -125,6 +128,8 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
         })
     } catch (cause) {
         run?.controller.abort()
+        if (run) await releaseCreateRun(run)
+        if (cause instanceof BoardChannelStorageError) return Response.json({ error: cause.message }, { status: cause.status })
         if (cause instanceof CreateAccessError) {
             return Response.json({ error: cause.message }, { status: cause.status })
         }

@@ -15,6 +15,8 @@ export class BoardChannelStorageError extends Error {
 
 /** Shared by independent requests; never store callbacks or resumable model history here. */
 export function createBoardRunStore(client: PrismaClient, provider: 'sqlite' | 'postgres') {
+    const instant = provider === 'postgres' ? Prisma.sql`timezone('UTC', clock_timestamp())`
+        : Prisma.sql`CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)`
     const clock = async (tx: Prisma.TransactionClient) => {
         const rows = provider === 'postgres'
             ? await tx.$queryRaw<{ ms: bigint }[]>`SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint AS ms`
@@ -41,9 +43,10 @@ export function createBoardRunStore(client: PrismaClient, provider: 'sqlite' | '
     const active = async (tx: Prisma.TransactionClient, id: string, ownerId?: string) => {
         const run = await tx.boardAgentRun.findUnique({ where: { id } })
         const now = await clock(tx)
-        if (!run || run.expiresAt <= now || ownerId !== undefined && run.ownerId !== ownerId) {
+        if (!run || ownerId !== undefined && run.ownerId !== ownerId) {
             throw new BoardChannelConflict('任务已结束、已过期或不属于当前用户')
         }
+        if (run.expiresAt <= now) throw Object.assign(new BoardChannelConflict('任务已过期'), { name: 'TimeoutError' })
         return { run, now }
     }
     return {
@@ -72,13 +75,15 @@ export function createBoardRunStore(client: PrismaClient, provider: 'sqlite' | '
                     if (!isEqual(JSON.parse(call.outputJson), output)) throw new BoardChannelConflict('工具结果已提交，不能替换')
                     return
                 }
-                const { now } = await active(tx, runId, ownerId)
-                if (call.deadlineAt <= now) throw new BoardChannelConflict('工具调用已超时')
-                const changed = await tx.boardAgentToolCall.updateMany({
-                    where: { runId, callId, outputJson: null, deadlineAt: { gt: now } },
-                    data: { outputJson: JSON.stringify(output), receivedAt: now },
-                })
-                if (changed.count !== 1) throw new BoardChannelConflict('工具结果已提交或调用已失效')
+                // Acquire the row lock first: a blocked UPDATE must not use a pre-lock timestamp.
+                await tx.boardAgentToolCall.updateMany({ where: { runId, callId }, data: { callId } })
+                const changed = await tx.$executeRaw`
+                    UPDATE "BoardAgentToolCall" SET "outputJson" = ${JSON.stringify(output)}, "receivedAt" = ${instant}
+                    WHERE "runId" = ${runId} AND "callId" = ${callId} AND "outputJson" IS NULL
+                    AND "deadlineAt" > ${instant}
+                    AND EXISTS (SELECT 1 FROM "BoardAgentRun" WHERE "id" = ${runId}
+                        AND "ownerId" = ${ownerId} AND "expiresAt" > ${instant})`
+                if (changed !== 1) throw new BoardChannelConflict('工具结果已提交或调用已失效')
             })
         },
         read: (runId: string, callId: string) => transaction(async tx => {

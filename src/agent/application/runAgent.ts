@@ -136,6 +136,9 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     dispatched = true
                     const output = await entry.execute(prepared, dependencies.signal)
                     const result = tools.invocations.validateToolResult(proposal, output)
+                    if (result.state === 'not_executed' && result.error.code !== ERROR_CODES.INVALID_ARGUMENTS) {
+                        fatal ??= new AgentApplicationError(result.error)
+                    }
                     if (result.state === 'known' && result.output.ok && entry.contract.kind === 'write') {
                         const mutation = tools.invocations.mutationResultSchema.parse({ callId: result.callId, name: result.name, output: result.output })
                         assertElementTargets(prepared.elements, mutation.name === 'create_shapes' ? 'create' : mutation.name === 'update_shapes' ? 'update' : 'delete',

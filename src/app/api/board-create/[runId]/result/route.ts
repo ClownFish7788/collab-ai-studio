@@ -1,5 +1,6 @@
 import { CreateAccessError, readCreatePayload, requireCreateAccess, requireCreateUser } from '@/agent/adapters/server/access'
 import { getOwnedCreateRun, submitCreateResult } from '@/agent/adapters/server/browserExecutor'
+import { BoardChannelStorageError } from '@/agent/adapters/server/boardRunStore'
 import { validateCreateResultRequest } from '../../../../../agent/adapters/transport/boardProtocol'
 import prisma from '@/lib/prisma'
 import { appendAgentTraceEvent } from '@/lib/agentTrace'
@@ -20,17 +21,17 @@ export async function POST(request: Request, context: { params: Promise<{ runId:
     try {
         userId = await requireCreateUser()
         runId = (await context.params).runId
-        const run = getOwnedCreateRun(runId, userId)
+        const run = await getOwnedCreateRun(runId, userId)
         await requireCreateAccess(run.roomId, userId)
 
         const result = validateCreateResultRequest(await readCreatePayload(request))
-        submitCreateResult(runId, userId, result.callId, result.output)
+        await submitCreateResult(runId, userId, result.callId, result.output)
         await recordResult(runId, { operation: 'result_submit', outcome: 'success', callId: result.callId }, Date.now() - began)
 
         return Response.json({ accepted: true }, { headers: { 'Cache-Control': 'no-store' } })
     } catch (cause) {
-        const status = cause instanceof CreateAccessError ? cause.status : 409
-        const message = cause instanceof CreateAccessError ? cause.message : '工具结果被拒绝：任务已失效、调用不匹配或参数不合法'
+        const status = cause instanceof CreateAccessError || cause instanceof BoardChannelStorageError ? cause.status : 409
+        const message = cause instanceof CreateAccessError || cause instanceof BoardChannelStorageError ? cause.message : '工具结果被拒绝：任务已失效、调用不匹配或参数不合法'
         const error = classifyTraceError(cause, { operation: cause instanceof CreateAccessError ? cause.status === 401 ? 'authentication' : 'access' : 'result_submit' })
         // 任务可能刚刚结束而从等待表移除；只给同一用户的持久化记录追加迟到/非法结果。
         let owned = false

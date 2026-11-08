@@ -1,16 +1,14 @@
+import { setTimeout as delay } from 'node:timers/promises'
+import prisma from '@/lib/prisma'
+import { createBoardRunStore } from './boardRunStore'
+import { serializeTraceData } from '../../../lib/modelTrace'
 import { BOARD_RUN_TIMEOUT_MS, BOARD_ANSWER_TIMEOUT_MS, type ToolExecutorPort } from '../../application/ports'
 import type { AgentError } from '../../domain/error'
 import { toAgentToolResult, toBoardToolCall } from '../board/protocol'
-import { validateBoardToolOutput, toolOutputMatchesCall, validateBoardToolCall, type BoardCreateEvent, type BoardToolCall, type BoardToolOutput } from '../transport/boardProtocol'
+import { toolOutputMatchesCall, validateBoardToolCall, type BoardCreateEvent, type BoardToolCall, type BoardToolOutput } from '../transport/boardProtocol'
 import { validateCreateInput, validateUpdateInput, validateDeleteInput, parseSnapshotInput, parseAskInput } from '../board/nativeValidation'
 import type { TraceRecorder } from '../../../lib/modelTrace'
 import { classifyTraceError } from '../../../utils/agent-traces/outcomes'
-
-type PendingTool = {
-    call: BoardToolCall
-    resolve: (output: BoardToolOutput) => void
-    output?: BoardToolOutput
-}
 
 export type CreateRun = {
     id: string
@@ -18,94 +16,54 @@ export type CreateRun = {
     roomId: string
     signal: AbortSignal
     controller: AbortController
-    pending: Map<string, PendingTool>
 }
 
-// shortcut: 单进程 Demo 的等待表；多实例/Serverless 部署前必须替换为共享任务与结果通道。
-// globalThis 使 Next 开发环境的启动路由和结果路由共享同一张表，热更新不产生两份模块状态。
-const runtime = globalThis as typeof globalThis & { boardCreateRuns?: Map<string, CreateRun> }
-const runs = runtime.boardCreateRuns ??= new Map<string, CreateRun>()
+// Both development and production use the same channel; only SQL clock syntax differs.
+const store = createBoardRunStore(prisma, process.env.NODE_ENV === 'production' ? 'postgres' : 'sqlite')
 
-/** 创建后端任务；同一用户一次只运行一个。任务 ID 由后端分配，断开或超时后自动失效。 */
-export function beginCreateRun(ownerId: string, roomId: string, signal: AbortSignal, id = crypto.randomUUID()): CreateRun {
+export async function beginCreateRun(ownerId: string, roomId: string, signal: AbortSignal, id = crypto.randomUUID()): Promise<CreateRun> {
     signal.throwIfAborted()
-
-    if ([...runs.values()].some(run => run.ownerId === ownerId && !run.signal.aborted)) {
-        throw new Error('已有运行中的白板任务')
-    }
-
+    await store.begin(id, ownerId, roomId, BOARD_RUN_TIMEOUT_MS)
     const controller = new AbortController()
-    const run: CreateRun = {
-        id, ownerId, roomId, controller, pending: new Map(),
-        signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(BOARD_RUN_TIMEOUT_MS)]),
-    }
-
-    runs.set(run.id, run)
-    run.signal.addEventListener('abort', () => runs.delete(run.id), { once: true })
+    const run = { id, ownerId, roomId, controller,
+        signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(BOARD_RUN_TIMEOUT_MS)]) }
+    try { await store.prune() } catch (cause) { logCleanup(id, cause) }
+    if (run.signal.aborted) { await releaseCreateRun(run); run.signal.throwIfAborted() }
     return run
 }
 
-export function getOwnedCreateRun(id: string, ownerId: string): CreateRun {
-    const run = runs.get(id)
+export const getOwnedCreateRun = store.owned
+export const submitCreateResult = store.submit
 
-    if (!run || run.signal.aborted || run.ownerId !== ownerId) {
-        throw new Error('任务已结束、已过期或不属于当前用户')
-    }
-
-    return run
+function logCleanup(runId: string, cause: unknown) {
+    console.error(serializeTraceData({ type: 'board_channel_cleanup_error', runId,
+        error: classifyTraceError(cause, { operation: 'storage' }) }))
 }
 
-/** 接收一个已授权结果，只能唤醒对应任务正在等待的调用；相同重传幂等，不能替换既有结果。 */
-export function submitCreateResult(id: string, ownerId: string, callId: string, value: unknown) {
-    const run = getOwnedCreateRun(id, ownerId)
-    const pending = run.pending.get(callId)
-    const output = validateBoardToolOutput(value)
-
-    if (!pending || pending.call.id !== callId) {
-        throw new Error('当前任务没有等待这个工具调用')
-    }
-    if (!toolOutputMatchesCall(pending.call, output)) throw new Error('工具结果与当前调用不匹配')
-    if (pending.output) {
-        if (JSON.stringify(pending.output) !== JSON.stringify(output)) {
-            throw new Error('工具结果已提交，不能替换')
-        }
-        return
-    }
-
-    pending.output = output
-    pending.resolve(output)
+/** Cleanup failure must not mask the run's original outcome; the DB lease still expires. */
+export async function releaseCreateRun(run: CreateRun) {
+    try { await store.release(run.id) } catch (cause) { logCleanup(run.id, cause) }
 }
 
-async function executeInBrowser(
-    run: CreateRun,
-    call: BoardToolCall,
-    emit: (event: BoardCreateEvent) => void | Promise<void>,
-    waitMs: number,
-    signal: AbortSignal,
-) {
+async function executeInBrowser(run: CreateRun, call: BoardToolCall,
+    emit: (event: BoardCreateEvent) => void | Promise<void>, signal: AbortSignal) {
     signal.throwIfAborted()
-    let rejectWait!: (error: unknown) => void
-    const promise = new Promise<BoardToolOutput>((resolve, reject) => {
-        run.pending.set(call.id, { call, resolve })
-        rejectWait = reject
-    })
-    const timer = setTimeout(() => rejectWait(new DOMException('等待浏览器工具结果超时', 'TimeoutError')), waitMs)
-    const onAbort = () => rejectWait(signal.reason)
-    signal.addEventListener('abort', onAbort, { once: true })
-
-    try {
-        await emit({ type: 'tool', runId: run.id, call })
-        return await promise
-    } finally {
-        clearTimeout(timer)
-        signal.removeEventListener('abort', onAbort)
-        if (!run.pending.get(call.id)?.output) run.pending.delete(call.id)
+    await emit({ type: 'tool', runId: run.id, call })
+    const asking = call.function.name === 'ask_user'
+    let interval = asking ? 1000 : 250
+    while (true) {
+        signal.throwIfAborted()
+        const result = await store.read(run.id, call.id)
+        signal.throwIfAborted()
+        if (result.output) {
+            if (!toolOutputMatchesCall(call, result.output)) throw new Error('工具结果与当前调用不匹配')
+            return result.output
+        }
+        const remaining = +result.deadlineAt - +result.now
+        if (remaining <= 0) throw new DOMException('等待浏览器工具结果超时', 'TimeoutError')
+        await delay(Math.min(interval, remaining), undefined, { signal })
+        interval = asking ? 2000 : 500
     }
-}
-
-/** 结束任务后撤销结果入口；已有结果仅供本次循环消费，不跨任务恢复授权。 */
-export function releaseCreateRun(run: CreateRun) {
-    runs.delete(run.id)
 }
 
 /** 将应用执行端口接到浏览器等待通道；任务编排和工具预算仍留在应用层。 */
@@ -134,10 +92,18 @@ export function createBrowserToolExecutor({ run, emit, mapError, onFailure, wait
         } catch (cause) {
             return { callId: prepared.call.id, name: prepared.call.name, state: 'not_executed', error: mapError(cause) }
         }
+        try {
+            await store.register(run.id, call, call.function.name === 'ask_user' ? BOARD_ANSWER_TIMEOUT_MS + 5000 : waitMs)
+            activeSignal.throwIfAborted()
+        } catch (cause) {
+            onFailure(cause)
+            await record('tool_error', { callId: call.id, error: classifyTraceError(cause, { operation: 'storage', signal: activeSignal }) })
+            return { callId: prepared.call.id, name: prepared.call.name, state: 'not_executed', error: mapError(cause) }
+        }
         const began = Date.now()
         let output: BoardToolOutput
         try {
-            output = await executeInBrowser(run, call, emit, call.function.name === 'ask_user' ? BOARD_ANSWER_TIMEOUT_MS + 5000 : waitMs, activeSignal)
+            output = await executeInBrowser(run, call, emit, activeSignal)
         } catch (cause) {
             // 派发后超时/断线不证明没有副作用；向应用层传播异常，由其登记 unknown 并停止后续写入。
             onFailure(cause)
