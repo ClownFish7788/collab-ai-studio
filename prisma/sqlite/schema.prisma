@@ -11,6 +11,27 @@ datasource db {
 }
 
 // 3. 设计我们的数据表（模型 Model）
+model BoardAgentRun {
+  id        String @id
+  ownerId   String @unique
+  roomId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  calls     BoardAgentToolCall[]
+  @@index([expiresAt])
+}
+
+model BoardAgentToolCall {
+  runId      String
+  callId     String
+  callJson   String
+  deadlineAt DateTime
+  outputJson String?
+  receivedAt DateTime?
+  run        BoardAgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  @@id([runId, callId])
+}
+
 // 假设我们要存一个“文档列表”
 model Document {
   id            String         @id @default(cuid())
