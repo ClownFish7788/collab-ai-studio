@@ -2,6 +2,10 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
+import { Liveblocks } from "@liveblocks/node";
+import { createBoardRoom } from "@/lib/boardRoomProtocol";
+
+const liveblocks = new Liveblocks({ secret: process.env.LIVEBLOCKS_SECRET_KEY as string });
 
 // 避免缓存
 export const dynamic = 'force-dynamic'
@@ -14,6 +18,9 @@ export async function POST (request: NextRequest) {
             return NextResponse.json({success: false, error:"用户未登录"}, {status: 401})
         }
         const userId = session.user.id
+        if (typeof roomId !== 'string' || !roomId.trim()) {
+            return NextResponse.json({ success: false, error: '房间编号无效' }, { status: 400 })
+        }
         // 检查房间是否存在
         if (checkRoom) {
             const document = await prisma.document.findUnique({
@@ -36,14 +43,18 @@ export async function POST (request: NextRequest) {
         }
         
         // 创建新文档
-        const newDocument = await prisma.document.create({
-            data: {
+        const existing = await prisma.document.findUnique({ where: { roomId } })
+        if (existing && existing.ownerId !== userId) {
+            return NextResponse.json({ success: false, error: '房间已存在' }, { status: 409 })
+        }
+        const newDocument = await createBoardRoom(liveblocks, roomId, userId, () => prisma.document.upsert({
+            where: { roomId }, update: {}, create: {
                 title: '未命名新文档',
                 roomId: roomId,
                 ownerId: userId,
                 isPublic: false
             }
-        })
+        }))
         return NextResponse.json({ 
             success: true, 
             data: newDocument 

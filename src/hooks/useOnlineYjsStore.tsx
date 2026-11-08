@@ -1,259 +1,141 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRoom } from "@liveblocks/react";
-import { LiveblocksYjsProvider } from "@liveblocks/yjs";
-import { YKeyValue } from "y-utility/y-keyvalue";
-import { IndexeddbPersistence, storeState } from "y-indexeddb";
-import * as Y from "yjs";
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useRoom, useSelf, useStatus } from '@liveblocks/react'
+import type { LiveblocksYjsProvider } from '@liveblocks/yjs'
+import type { JsonObject } from '@liveblocks/client'
+import { IndexeddbPersistence, storeState } from 'y-indexeddb'
+import * as Y from 'yjs'
 import {
-  computed,
-  createPresenceStateDerivation,
-  createTLStore,
-  transact,
-  react,
-  defaultShapeUtils,
-  InstancePresenceRecordType,
-  TLAnyShapeUtilConstructor,
-  TLInstancePresence,
-  TLRecord,
-  TLStoreWithStatus,
-} from "tldraw";
-import { throttle } from "@/utils/throttle";
-import useNetworkStore from "@/app/store/useNetworkStore";
-import CustomBoradcastChannel from "@/utils/collaboration/BoradcastChannelProvider";
-import toggleRealtimeEditing from "@/utils/collaboration/toggleRealtimeEditing";
+    atom, createPresenceStateDerivation, createTLStore, defaultShapeUtils,
+    InstancePresenceRecordType, react, type TLAnyShapeUtilConstructor, type TLInstancePresence,
+} from 'tldraw'
+import useNetworkStore from '@/app/store/useNetworkStore'
+import CustomBoradcastChannel from '@/utils/collaboration/BoradcastChannelProvider'
+import { bindTldrawYjs, type TldrawYjsBinding } from '@/utils/collaboration/bindTldrawYjs'
+import { assertBoard, BOARD_FORMAT, BOARD_META, BOARD_RECORDS } from '@/utils/collaboration/tldrawYjsMigration'
+import { bindLegacyBoardReadOnly, canLoadBoard } from '@/utils/collaboration/legacyBoard'
+import type { BoardYjsStoreState } from './boardYjsStoreState'
+import { toast } from '@/components/Toast'
 
-export function useOnlineYjsStore(yDoc: Y.Doc, yProvider: LiveblocksYjsProvider, {
-  shapeUtils = [],
-  user
-}: Partial<{
-  hostUrl: string;
-  version: number;
-  shapeUtils: TLAnyShapeUtilConstructor[];
-  user: {
-    id: string;
-    color: string;
-    name: string;
-  };
-}>) {
-  const room = useRoom();
-  const { yStore, indexDbProvider } = useMemo(() => {
-    const indexDbProvider = new IndexeddbPersistence(`room-${room.id}`, yDoc);
-    const yArr = yDoc.getArray<{ key: string; val: TLRecord }>("tl_records");
-    const yStore = new YKeyValue(yArr);
-    return { yStore, indexDbProvider };
-  }, [room, yDoc]);
-  
-  const isOpenNetwork = useNetworkStore(state => state.isOpenNetwork)
-  const toggleNetworkStatus = useNetworkStore(state => state.toggleNetworkStatus)
+export function useOnlineYjsStore(yDoc: Y.Doc, provider: LiveblocksYjsProvider, {
+    shapeUtils = [], user, canEdit,
+}: {
+    shapeUtils?: TLAnyShapeUtilConstructor[]
+    user: { id: string; name: string; color: string }
+    canEdit: boolean
+}) {
+    const room = useRoom()
+    const connection = useStatus()
+    const serverCanWrite = useSelf(self => self.canWrite)
+    const permission = useRef(canEdit)
+    const verifiedWrite = useRef(false)
+    const [preferences] = useState(() => atom('board-user', user))
+    useLayoutEffect(() => {
+        permission.current = canEdit
+        if (!canEdit) verifiedWrite.current = false
+        // Permissions can arrive after the connection status has already changed.
+        else if (serverCanWrite !== null) verifiedWrite.current = serverCanWrite
+        preferences.set(user)
+    }, [canEdit, preferences, serverCanWrite, user])
+    const isOpenNetwork = useNetworkStore(state => state.isOpenNetwork)
+    const [store] = useState(() => createTLStore({ shapeUtils: [...defaultShapeUtils, ...shapeUtils] }))
+    const [state, setState] = useState<BoardYjsStoreState>({ status: 'loading' })
 
-  useEffect(() => {
-    toggleRealtimeEditing(yProvider, !isOpenNetwork, null)
-    if(isOpenNetwork && user) {
-      const channel = new CustomBoradcastChannel(room.id, yDoc)
-      return () => channel.destroy()
-    }
-  }, [isOpenNetwork, yProvider, toggleNetworkStatus, yDoc, user, room.id])
+    useEffect(() => {
+        if (isOpenNetwork) room.connect()
+        else room.disconnect()
+        if (!isOpenNetwork) return
+        const channel = new CustomBoradcastChannel(room.id, yDoc)
+        return () => channel.destroy()
+    }, [isOpenNetwork, room, yDoc])
 
-  const [store] = useState(() => {
-    return createTLStore({ shapeUtils: [...defaultShapeUtils, ...shapeUtils] });
-  });
-
-  const [storeWithStatus, setStoreWithStatus] = useState<TLStoreWithStatus>({
-    status: "loading",
-  });
-
-  const localStateField = useCallback(() => {
-    throttle(() => {
-      yProvider.awareness.setLocalStateField("presence", null)
-    }, 50)
-  }, [yProvider])
-
-  useEffect(() => {
-    setStoreWithStatus({ status: "loading" });
-    const unsubs: (() => void)[] = [];
-
-    function handleSync() {
-      // 初始化数据装载
-      if (yStore.yarray.length) {
-        transact(() => {
-          const toRemove = store.allRecords()
-            .filter(record => 
-               record.typeName === 'shape' ||
-               record.typeName === 'page' ||
-               record.typeName === 'document' ||
-               record.typeName === 'asset' ||
-               record.typeName === 'binding'
-            )
-            .map(record => record.id);
-          if(toRemove.length > 0) {
-            store.remove(toRemove)
-          }
-          const records = yStore.yarray.toJSON().map(({ val }) => val);
-          store.put(records);
-        });
-      } else {
-        yDoc.transact(() => {
-          for (const record of store.allRecords()) {
-            if (
-               record.typeName === 'shape' ||
-               record.typeName === 'page' ||
-               record.typeName === 'document' ||
-               record.typeName === 'asset' ||
-               record.typeName === 'binding'
-            ) {
-               yStore.set(record.id, record);
-            }
-          }
-        });
-      }
-
-      // 监听 Yjs 变动（来自别人广播或本地IndexedDB） -> 渲染到 tldraw
-      const handleChange = (changes: any, transaction: Y.Transaction) => {
-        if (transaction.local) return;
-        const toRemove: TLRecord["id"][] = [];
-        const toPut: TLRecord[] = [];
-        changes.forEach((change: any, id: string) => {
-          switch (change.action) {
-            case "add":
-            case "update": {
-                const record = yStore.get(id);
-                if (!record) break;
-                if (
-                    record.typeName === 'shape' ||
-                    record.typeName === 'page' ||
-                    record.typeName === 'document' ||
-                    record.typeName === 'asset' ||
-                    record.typeName === 'binding'
-                ) {
-                    toPut.push(record as TLRecord);
-                }
-                break;
-                }
-            case "delete": {
-                if (id.startsWith('shape:') || id.startsWith('page:') || id.startsWith('asset:') || id.startsWith('binding:')) {
-                    toRemove.push(id as TLRecord["id"]);
-                }
-                break;
-                }
-            }
-        });
-
-        store.mergeRemoteChanges(() => {
-          if (toRemove.length) store.remove(toRemove);
-          if (toPut.length) store.put(toPut);
-        });
-      };
-
-      yStore.on("change", handleChange);
-      unsubs.push(() => yStore.off("change", handleChange));
-
-      // 🌟🌟 【核心修复】监听 Tldraw 本地绘画动作 -> 广播给 Yjs / Liveblocks / IndexedDB
-      unsubs.push(
-        store.listen(
-          ({ changes }) => {
-            yDoc.transact(() => {
-              Object.values(changes.added).forEach((record) => {
-                yStore.set(record.id, record);
-              });
-              Object.values(changes.updated).forEach(([_, record]) => {
-                yStore.set(record.id, record);
-              });
-              Object.values(changes.removed).forEach((record) => {
-                yStore.delete(record.id);
-              });
-            });
-          },
-          { source: 'user', scope: 'document' }
-        )
-      );
-
-      // ==== 光标 (Presence) 逻辑 ====
-      const userPreferences = computed("userPreferences", () => {
-        if (!user) throw new Error("Failed to get user");
-        return { id: user.id, color: user.color, name: user.name };
-      });
-
-      const self = room.getSelf();
-      const presenceId = InstancePresenceRecordType.createId(
-        yProvider.awareness.doc.clientID.toString()
-      );
-
-      const presenceDerivation = createPresenceStateDerivation(userPreferences, presenceId)(store);
-
-      yProvider.awareness.setLocalStateField(
-        "presence",
-        (presenceDerivation.get() as any) ?? null
-      );
-
-      unsubs.push(
-        react("when presence changes", () => {
-          const presence = presenceDerivation.get() ?? null;
-          if(!presence) {
-            localStateField()
-          }
-          let safePresence = presence
-          if(safePresence?.selectedShapeIds && safePresence.selectedShapeIds.length > 10) {
-            safePresence = {
-              ...presence,
-              selectedShapeIds: []
-            } as TLInstancePresence
-          }
-          throttle(() => {
-            yProvider.awareness.setLocalStateField("presence", safePresence as any);
-          }, 50)
-        })
-      );
-
-      const handleUpdate = (update: { added: number[]; updated: number[]; removed: number[] }) => {
-        const states = yProvider.awareness.getStates() as Map<number, { presence: TLInstancePresence }>;
-        const toRemove: TLInstancePresence["id"][] = [];
-        const toPut: TLInstancePresence[] = [];
-
-        for (const clientId of [...update.added, ...update.updated]) {
-          const state = states.get(clientId);
-          if (state?.presence && state.presence.id !== presenceId) {
-            toPut.push(state.presence);
-          }
+    useEffect(() => {
+        let disposed = false, localLoaded = false
+        let binding: TldrawYjsBinding | undefined
+        let stopLegacy: (() => void) | undefined
+        let presenceStarted = false
+        const persistence = new IndexeddbPersistence(`room-${room.id}`, yDoc)
+        const unsubs: (() => void)[] = []
+        const fail = (cause: unknown) => {
+            if (!disposed) setState({ status: 'error', error: cause instanceof Error ? cause : new Error(String(cause)) })
         }
-        for (const clientId of update.removed) {
-          toRemove.push(InstancePresenceRecordType.createId(clientId.toString()));
+        const ready = () => {
+            if (!disposed) setState({ store, binding, readOnly: !binding, status: 'synced-remote',
+                connectionStatus: room.getStatus() === 'connected' ? 'online' : 'offline' })
         }
 
-        store.mergeRemoteChanges(() => {
-          if (toRemove.length > 0) store.remove(toRemove);
-          if (toPut.length > 0) store.put(toPut);
-        });
-      };
+        function startPresence() {
+            if (presenceStarted) return
+            presenceStarted = true
+            const presenceId = InstancePresenceRecordType.createId(provider.awareness.doc.clientID.toString())
+            const presence = createPresenceStateDerivation(preferences, presenceId)(store)
+            unsubs.push(react('board-presence', () => {
+                const value = presence.get()
+                const payload = value ? {
+                    ...value, selectedShapeIds: value.selectedShapeIds.length > 10 ? [] : value.selectedShapeIds,
+                } : null
+                // tldraw's JSON-safe presence interfaces lack Liveblocks' JSON index signature.
+                provider.awareness.setLocalStateField('presence', payload as unknown as JsonObject | null)
+            }))
+            const updatePresence = (update: { added: number[]; updated: number[]; removed: number[] }) => {
+                const states = provider.awareness.getStates() as Map<number, { presence?: TLInstancePresence }>
+                const toPut = [...update.added, ...update.updated].flatMap(id => {
+                    const value = states.get(id)?.presence
+                    return value && value.id !== presenceId ? [value] : []
+                })
+                const toRemove = update.removed.map(id => InstancePresenceRecordType.createId(String(id)))
+                store.mergeRemoteChanges(() => {
+                    if (toRemove.length) store.remove(toRemove)
+                    if (toPut.length) store.put(toPut)
+                })
+            }
+            provider.awareness.on('change', updatePresence)
+            unsubs.push(() => provider.awareness.off('change', updatePresence))
+            updatePresence({ added: [...provider.awareness.getStates().keys()], updated: [], removed: [] })
+        }
 
-      yProvider.awareness.on("change", handleUpdate);
-      unsubs.push(() => yProvider.awareness.off("change", handleUpdate));
+        function start() {
+            if (disposed || binding || !localLoaded) return
+            // A valid cache is usable offline; an empty cache must await the authoritative cloud snapshot.
+            if (!canLoadBoard(yDoc, provider.synced)) return
+            try {
+                if (yDoc.getMap(BOARD_META).get('format') !== BOARD_FORMAT) {
+                    if (!stopLegacy) {
+                        stopLegacy = bindLegacyBoardReadOnly(store, yDoc, error => { if (error) fail(error); else ready() })
+                        startPresence()
+                    }
+                    return
+                }
+                stopLegacy?.()
+                stopLegacy = undefined
+                assertBoard(yDoc, store.schema)
+                binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), (error, source) => {
+                    if (source === 'write') { if (error) toast.show(error.message); return }
+                    if (error) fail(error); else ready()
+                }, () => permission.current && verifiedWrite.current && room.getSelf()?.canWrite !== false)
 
-      setStoreWithStatus({ store, status: "synced-remote", connectionStatus: "online" });
-    }
+                startPresence()
+                ready()
+            } catch (cause) { fail(cause) }
+        }
+        yDoc.getMap(BOARD_META).observe(start)
+        unsubs.push(() => yDoc.getMap(BOARD_META).unobserve(start))
+        provider.on('sync', start)
+        unsubs.push(() => provider.off('sync', start))
+        void persistence.whenSynced.then(() => { localLoaded = true; start() }).catch(fail)
+        const beforeUnload = () => { void storeState(persistence).catch(fail) }
+        window.addEventListener('beforeunload', beforeUnload)
+        return () => {
+            disposed = true
+            window.removeEventListener('beforeunload', beforeUnload)
+            unsubs.forEach(unsubscribe => unsubscribe())
+            stopLegacy?.()
+            binding?.dispose()
+            provider.awareness.setLocalStateField('presence', null)
+            void persistence.destroy()
+        }
+    }, [preferences, provider, room, store, yDoc])
 
-    if (indexDbProvider.synced) {
-      handleSync();
-    } else {
-      const syncedHandler = () => handleSync();
-      indexDbProvider.on("synced", syncedHandler);
-      unsubs.push(() => indexDbProvider.off("synced", syncedHandler));
-    }
-
-    const handleBeforeUnload = () => {
-      if (!indexDbProvider._destroyed) {
-        storeState(indexDbProvider);
-      }
-    };
-    if (typeof window !== "undefined") {
-      window.addEventListener("beforeunload", handleBeforeUnload);
-      unsubs.push(() => window.removeEventListener("beforeunload", handleBeforeUnload));
-    }
-
-    return () => {
-      unsubs.forEach((fn) => fn());
-      unsubs.length = 0;
-    };
-  }, [yProvider, yDoc, store, yStore, indexDbProvider, room, user, localStateField]);
-
-  return storeWithStatus;
+    const connectionStatus: 'online' | 'offline' = connection === 'connected' ? 'online' : 'offline'
+    const visibleState: BoardYjsStoreState = state.status === 'synced-remote' ? { ...state, connectionStatus } : state
+    return { ...visibleState, backup: () => Y.encodeStateAsUpdate(yDoc) }
 }

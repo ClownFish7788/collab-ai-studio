@@ -1,5 +1,10 @@
 import type { Role } from '@/app/store/useEditorStore'
 
+export type RoomAccessScope = { roomId: string; principal: string; notFound: boolean }
+
+export const matchesRoomAccess = (scope: RoomAccessScope | null, roomId: string, principal: string): boolean =>
+    scope?.roomId === roomId && scope.principal === principal
+
 export type RoomValidationResult = {
   success: boolean
   message?: {

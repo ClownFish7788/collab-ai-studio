@@ -8,7 +8,7 @@ import { checkLocalDoc } from "@/utils/storage/db"
 import NotFound from "@/components/NotFound/NotFound"
 import { toast } from "@/components/Toast"
 import { useSession } from "next-auth/react"
-import { resolveRoomAccess } from "@/utils/collaboration/roomAccess"
+import { matchesRoomAccess, resolveRoomAccess, type RoomAccessScope } from "@/utils/collaboration/roomAccess"
 
 const EditorPage = ({
     params
@@ -17,8 +17,10 @@ const EditorPage = ({
 }) => {
     const resolvedParams = React.use(params)
     const setRole = useEditorStore(state => state.setRole)
-    const { status } = useSession()
+    const toggleId = useEditorStore(state => state.toggleId)
+    const { status, data: session } = useSession()
     const isAuthenticated = status === 'authenticated'
+    const principal = isAuthenticated ? session?.user?.id ?? '' : 'local'
     // useCallback缓存authEndpoint函数
     const authEndpointFn = useCallback(async (room:string | undefined) => {
         const response = await fetch('/api/liveblocks-auth', {
@@ -27,23 +29,32 @@ const EditorPage = ({
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                room
+                room, boardProtocol: 3
             })
         })
+        if (!response.ok) throw new Error(await response.text())
         const data = await response.json()
         return data
     }, [])
 
     // 检查该用户是否有资格进入
-    const [isNotFound, setIsNotFound] = useState(false)
+    const [accessScope, setAccessScope] = useState<RoomAccessScope | null>(null)
     useEffect(() => {
         if (status === 'loading') return
+        let cancelled = false
+        const controller = new AbortController()
+        const finish = (notFound: boolean, role: Parameters<typeof setRole>[0] = null) => {
+            if (cancelled) return
+            toggleId(resolvedParams.workId)
+            setRole(role)
+            setAccessScope({ roomId: resolvedParams.workId, principal, notFound })
+        }
 
         const checkCookie = async () => {
             try {
                 if (!isAuthenticated) {
                     const localDoc = await checkLocalDoc(resolvedParams.workId)
-                    setIsNotFound(resolveRoomAccess(false, localDoc).notFound)
+                    finish(resolveRoomAccess(false, localDoc).notFound)
                     return
                 }
 
@@ -52,37 +63,41 @@ const EditorPage = ({
                     headers: {
                         "Content-Type": "application/json"
                     },
+                    signal: controller.signal,
                     body: JSON.stringify({
                         roomId: resolvedParams.workId
                     })
                 })
+                if (!response.ok) { finish(true); return }
                 const result = await response.json()
                 const access = resolveRoomAccess(true, false, result)
                 if (access.notFound || !access.role) {
-                    setIsNotFound(true)
+                    finish(true)
                     return
                 }
 
-                setIsNotFound(false)
-                setRole(access.role)
+                finish(false, access.role)
             }catch (err) {
+                if (cancelled) return
                 console.error(err)
                 toast.show('校验文档访问失败，请稍后重试')
-                setIsNotFound(true)
+                finish(true)
             }
         }
-        checkCookie()
-    }, [resolvedParams.workId, setRole, isAuthenticated, status])
+        void checkCookie()
+        return () => { cancelled = true; controller.abort() }
+    }, [resolvedParams.workId, principal, setRole, toggleId, isAuthenticated, status])
 
     // 检查登录session
     if(status === 'loading') return null
-    if(isNotFound) return <NotFound />
+    if (!matchesRoomAccess(accessScope, resolvedParams.workId, principal)) return null
+    if(accessScope?.notFound) return <NotFound />
     if(!isAuthenticated) return <LocalEditor />
     return (
         <LiveblocksProvider
             authEndpoint={authEndpointFn}
         >
-            <RoomProvider id={resolvedParams.workId}>
+            <RoomProvider key={`${principal}:${resolvedParams.workId}`} id={resolvedParams.workId}>
                 <LocalEditor />
             </RoomProvider>
         </LiveblocksProvider>

@@ -45,4 +45,5 @@ next-env.d.ts
 /prisma/migrations/
 
 *.db
-/docs
+/docs/
+/.superpowers/

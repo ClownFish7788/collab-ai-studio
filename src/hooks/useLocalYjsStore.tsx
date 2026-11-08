@@ -1,121 +1,67 @@
-import { useEffect, useMemo, useState } from "react";
-import { YKeyValue } from "y-utility/y-keyvalue";
-import { IndexeddbPersistence, storeState } from "y-indexeddb";
-import * as Y from "yjs";
-import { createTLStore, transact, defaultShapeUtils, TLRecord, TLStoreWithStatus } from "tldraw";
+import { useEffect, useRef, useState } from 'react'
+import { IndexeddbPersistence, fetchUpdates, storeState } from 'y-indexeddb'
+import * as Y from 'yjs'
+import { createTLStore, defaultShapeUtils } from 'tldraw'
+import { bindTldrawYjs, type TldrawYjsBinding } from '@/utils/collaboration/bindTldrawYjs'
+import { assertBoard, BOARD_META, BOARD_RECORDS, initializeBoard } from '@/utils/collaboration/tldrawYjsMigration'
+import CustomBoradcastChannel from '@/utils/collaboration/BoradcastChannelProvider'
+import type { BoardYjsStoreState } from './boardYjsStoreState'
+import { toast } from '@/components/Toast'
 
 export function useLocalYjsStore(yDoc: Y.Doc, roomId: string) {
-  const { yStore, indexDbProvider } = useMemo(() => {
-    // 绑定本地数据库
-    const indexDbProvider = new IndexeddbPersistence(`room-${roomId}`, yDoc);
-    const yArr = yDoc.getArray<{ key: string; val: TLRecord }>("tl_records");
-    const yStore = new YKeyValue(yArr);
-    return { yStore, indexDbProvider };
-  }, [roomId, yDoc]);
+    const [store] = useState(() => createTLStore({ shapeUtils: defaultShapeUtils }))
+    const [state, setState] = useState<BoardYjsStoreState>({ status: 'loading' })
+    const upgrade = useRef<(() => Promise<void>) | null>(null)
 
-  const [store] = useState(() => createTLStore({ shapeUtils: [...defaultShapeUtils] }));
-  const [storeWithStatus, setStoreWithStatus] = useState<TLStoreWithStatus>({ status: "loading" });
+    useEffect(() => {
+        let disposed = false
+        let binding: TldrawYjsBinding | undefined
+        const persistence = new IndexeddbPersistence(`room-${roomId}`, yDoc)
+        const channel = new CustomBoradcastChannel(roomId, yDoc)
+        const fail = (cause: unknown) => {
+            if (!disposed) setState({ status: 'error', error: cause instanceof Error ? cause : new Error(String(cause)) })
+        }
+        const ready = () => {
+            if (!disposed) setState({ store, status: 'synced-local', binding })
+        }
 
-  useEffect(() => {
-    setStoreWithStatus({ status: "loading" });
-    const unsubs: (() => void)[] = [];
+        async function start(allowLegacy = false) {
+            if (binding) throw new Error('此白板已升级，请先导出备份并检查错误')
+            await persistence.whenSynced
+            if (disposed) return
+            if (!navigator.locks) throw new Error('此浏览器不支持安全初始化，请换用支持 Web Locks 的浏览器')
+            await navigator.locks.request(`board-init-${roomId}`, async () => {
+                if (disposed) return
+                await fetchUpdates(persistence)
+                if (disposed) return
+                initializeBoard(yDoc, store.schema, { allowLegacy })
+                await storeState(persistence, true)
+            })
+            if (disposed) return
+            if (binding) return
+            assertBoard(yDoc, store.schema)
+            binding = bindTldrawYjs(store, yDoc.getMap(BOARD_RECORDS), (error, source) => {
+                if (source === 'write') { if (error) toast.show(error.message); return }
+                if (error) fail(error); else ready()
+            })
+            ready()
+        }
+        void start().catch(fail)
+        upgrade.current = () => start(true).catch(fail)
+        const beforeUnload = () => { void storeState(persistence).catch(fail) }
+        window.addEventListener('beforeunload', beforeUnload)
+        return () => {
+            disposed = true
+            upgrade.current = null
+            window.removeEventListener('beforeunload', beforeUnload)
+            binding?.dispose()
+            channel.destroy()
+            void persistence.destroy()
+        }
+    }, [roomId, store, yDoc])
 
-    function handleSync() {
-      // 1. 初始化时，将 Yjs 数据载入 Tldraw
-      if (yStore.yarray.length) {
-        transact(() => {
-          const toRemove = store.allRecords()
-            .filter(r => ['shape', 'page', 'document', 'asset', 'binding'].includes(r.typeName))
-            .map(r => r.id);
-          if (toRemove.length > 0) store.remove(toRemove);
-          const records = yStore.yarray.toJSON().map(({ val }: any) => val);
-          store.put(records);
-        });
-      } else {
-        yDoc.transact(() => {
-          for (const record of store.allRecords()) {
-            if (['shape', 'page', 'document', 'asset', 'binding'].includes(record.typeName)) {
-              yStore.set(record.id, record);
-            }
-          }
-        });
-      }
-
-      // 2. 监听 Yjs 的变化，同步到 Tldraw（解决跨标签页/远端同步）
-      const handleChange = (changes: any, transaction: Y.Transaction) => {
-        if (transaction.local) return;
-        const toRemove: TLRecord["id"][] = [];
-        const toPut: TLRecord[] = [];
-        
-        changes.forEach((change: any, id: string) => {
-          switch (change.action) {
-            case "add":
-            case "update": {
-                const record = yStore.get(id);
-                if (!record) break;
-                if (['shape', 'page', 'document', 'asset', 'binding'].includes(record.typeName)) {
-                    toPut.push(record as TLRecord);
-                }
-                break;
-            }
-            case "delete": {
-                if (id.startsWith('shape:') || id.startsWith('page:') || id.startsWith('asset:') || id.startsWith('binding:')) {
-                    toRemove.push(id as TLRecord["id"]);
-                }
-                break;
-            }
-          }
-        });
-        store.mergeRemoteChanges(() => {
-          if (toRemove.length) store.remove(toRemove);
-          if (toPut.length) store.put(toPut);
-        });
-      };
-
-      yStore.on("change", handleChange);
-      unsubs.push(() => yStore.off("change", handleChange));
-
-      // 🌟🌟 3. 【核心修复】监听 Tldraw 的变化，写回 Yjs 和本地数据库
-      unsubs.push(
-        store.listen(
-          ({ changes }) => {
-            yDoc.transact(() => {
-              Object.values(changes.added).forEach((record) => {
-                yStore.set(record.id, record);
-              });
-              Object.values(changes.updated).forEach(([_, record]) => {
-                yStore.set(record.id, record);
-              });
-              Object.values(changes.removed).forEach((record) => {
-                yStore.delete(record.id);
-              });
-            });
-          },
-          { source: 'user', scope: 'document' } // 必须指定 source: 'user'，防止死循环
-        )
-      );
-
-      setStoreWithStatus({ store, status: "synced-remote", connectionStatus: "online" });
-    }
-
-    if (indexDbProvider.synced) {
-      handleSync();
-    } else {
-      const syncedHandler = () => handleSync();
-      indexDbProvider.on("synced", syncedHandler);
-      unsubs.push(() => indexDbProvider.off("synced", syncedHandler));
-    }
-
-    const handleBeforeUnload = () => {
-      if (!indexDbProvider._destroyed) {
-        storeState(indexDbProvider);
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    unsubs.push(() => window.removeEventListener("beforeunload", handleBeforeUnload));
-
-    return () => unsubs.forEach((fn) => fn());
-  }, [yDoc, store, yStore, indexDbProvider]);
-
-  return storeWithStatus;
+    const format = yDoc.getMap(BOARD_META).get('format')
+    const canUpgrade = state.status === 'error' && (format === undefined || format === 1 || format === 2)
+    return { ...state, backup: () => Y.encodeStateAsUpdate(yDoc),
+        upgrade: canUpgrade ? () => upgrade.current?.() : undefined }
 }

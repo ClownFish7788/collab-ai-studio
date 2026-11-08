@@ -11,6 +11,10 @@ import * as Y from 'yjs'
 import { useParams } from 'next/navigation'
 import AIChat from '../AIChat/AIChat'
 import BoardDraftProvider, { BoardChatSlot } from './BoardDraftProvider'
+import { attachTldrawYjsHistory } from '@/utils/collaboration/tldrawYjsHistory'
+import { BoardSyncError } from './BoardSyncError'
+import { toast } from '@/components/Toast'
+import { BoardRetainedNotice } from './BoardRetainedNotice'
 
 const LocalDrawEditor = ({licenseKey}: {
     licenseKey:string
@@ -32,9 +36,15 @@ const LocalDrawEditor = ({licenseKey}: {
         if(!tldrawRef) return
         tldrawRef.user.updateUserPreferences({ colorScheme: theme === 'dark' ? 'dark' : 'light' })
     }, [theme, tldrawRef])
-    if(storeWithStatus.status === 'loading' && licenseKey) return <div className={styles.container}>加载本地私有画板中...</div>
+    if(storeWithStatus.status === 'loading') return <div className={styles.container}>加载本地私有画板中...</div>
+    if (storeWithStatus.status === 'error') return <div className={styles.container}>
+        <BoardSyncError error={storeWithStatus.error} backup={storeWithStatus.backup} roomId={roomId}
+            onUpgrade={storeWithStatus.upgrade} />
+    </div>
     return (
-        <div className={styles.container}>
+        <div className={`${styles.container} ${styles.boardLayout}`}>
+            <BoardRetainedNotice binding={storeWithStatus.binding} />
+            <div className={styles.canvas}>
             <BoardDraftProvider editor={tldrawRef} licenseKey={licenseKey} roomId={roomId} canEdit local chat={<AIChat key={roomId} />}>
             <Tldraw
                 components={{ SharePanel: BoardChatSlot }}
@@ -44,9 +54,12 @@ const LocalDrawEditor = ({licenseKey}: {
                     editor.user.updateUserPreferences({ locale: 'zh-cn' })
                     editor.updateInstanceState({isReadonly: false}) // 游客自己玩，肯定是可编辑的
                     setTldrawRef(editor)
+                    if (storeWithStatus.binding) return attachTldrawYjsHistory(editor, storeWithStatus.binding,
+                        () => toast.show('相关内容已被协作者修改，本次撤销或重做未执行'))
                 }}
             />
             </BoardDraftProvider>
+            </div>
         </div>
     )
 }
