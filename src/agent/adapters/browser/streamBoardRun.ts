@@ -5,8 +5,10 @@ import { MAX_BOARD_TOOL_ARGUMENT_CHARS, MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_ASK
 import { formatBoardJsonPreview } from '../presentation/jsonPreview'
 import { validateBoardCreateEvent, validateBoardToolOutput, toolOutputMatchesCall, ERROR_CODES, type BoardCreateRequest, type BoardToolCall, type BoardToolOutput, type BoardMutationResult } from '../transport/boardProtocol'
 import { BoardProtocolError } from '../transport/errors'
+import { MAX_BOARD_RESULT_TEXT_CHARS } from '../../domain/outcome'
 
-const MAX_EVENT_CHARS = 30000 * MAX_BOARD_WRITES_PER_TASK
+// JSON 转义可能将一个回答字符展开为六个字符。
+const MAX_EVENT_CHARS = Math.max(30000 * MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_RESULT_TEXT_CHARS * 6 + 1000)
 
 export type CreateAgentStep = {
     stage: 'request' | 'plan' | 'preview' | 'call' | 'result' | 'summary' | 'text'

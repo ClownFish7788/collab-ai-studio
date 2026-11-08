@@ -2,11 +2,14 @@ import { z } from 'zod'
 import { agentErrorSchema } from './error'
 import { toolCallReferenceSchema, type createToolInvocationSchemas } from './invocation'
 
+// 完整复述最多 20 份千字回答，另留编号和格式空间。
+export const MAX_BOARD_RESULT_TEXT_CHARS = 24000
+
 /** Agent 结束不等于正式白板已应用；changes 只保存已确认的草稿写入。 */
 export function createAgentOutcomeSchema(mutationResultSchema: ReturnType<typeof createToolInvocationSchemas>['mutationResultSchema']) {
     return z.strictObject({
         status: z.enum(['completed', 'partial', 'failed', 'cancelled']),
-        text: z.string().min(1).max(8000).regex(/\S/),
+        text: z.string().min(1).max(MAX_BOARD_RESULT_TEXT_CHARS).regex(/\S/),
         changes: z.array(mutationResultSchema),
         uncertainCalls: z.array(toolCallReferenceSchema),
         error: agentErrorSchema.optional(),

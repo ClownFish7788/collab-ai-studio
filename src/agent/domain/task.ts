@@ -17,6 +17,7 @@ export const taskObjectSchema = z.strictObject({
 
 /** 一次解析同时检查结构与图引用；通过校验不代表自然语言需求已被完整理解。 */
 export const taskBriefSchema = z.strictObject({
+    completionMode: z.enum(['model', 'write', 'echo_answers']),
     goal: z.string().min(1).max(1000).regex(/\S/, '不能只包含空白'),
     tasks: z.array(shortTextSchema).min(1).max(30),
     objects: z.array(taskObjectSchema).max(MAX_BOARD_ELEMENT_ROWS),
@@ -28,6 +29,10 @@ export const taskBriefSchema = z.strictObject({
     constraints: z.array(shortTextSchema).max(20),
     unresolvedQuestions: z.array(shortTextSchema).max(MAX_BOARD_QUESTIONS),
 }).superRefine((brief, ctx) => {
+    if (brief.completionMode === 'echo_answers' && !brief.unresolvedQuestions.length) {
+        ctx.addIssue({ code: 'custom', path: ['unresolvedQuestions'], message: '仅询问并复述的任务须列出至少一个待询问问题' })
+        return
+    }
     const parents = new Map<string, string | undefined>()
     for (const [index, object] of brief.objects.entries()) {
         if (parents.has(object.key)) {

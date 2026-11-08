@@ -38,6 +38,13 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
         const finishTask = (text: string): AgentOutcome => {
             const error = [...unresolvedErrors.values()].at(-1)?.error
             if (error) throw new AgentApplicationError(error)
+            if (preparation.brief.completionMode === 'write' && !changes.length) {
+                throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED,
+                    message: `本任务尚未执行用户要求的白板修改。${text}`.slice(0, 1000) })
+            }
+            if (preparation.brief.completionMode === 'echo_answers' && !counts.ask_user) {
+                throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED, message: '本任务尚未取得用户的实际回答' })
+            }
             if (uncertainCalls.length) throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED, message: '仍有写入结果未知，不能确认任务完成' })
             const missing = changes.length ? getUncoveredTaskObjects(preparation.brief, covered, []) : []
             if (missing.length) throw new AgentApplicationError({ code: ERROR_CODES.TASK_FAILED,
@@ -55,11 +62,16 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
             if (counts.get_board_snapshot < 2) allowed.push('get_board_snapshot')
             if (counts.get_board_screenshot < 2) allowed.push('get_board_screenshot')
             if (counts.ask_user < MAX_BOARD_ASK_CALLS) allowed.push('ask_user')
-            if (reference && !uncertainCalls.length && changes.length < MAX_BOARD_WRITES_PER_TASK) {
+            if (preparation.brief.completionMode !== 'echo_answers' && reference && !uncertainCalls.length && changes.length < MAX_BOARD_WRITES_PER_TASK) {
                 allowed.push('create_shapes')
                 if (observedTypes.size) allowed.push('update_shapes', 'delete_shapes')
             }
-            const parsed = modelDecisionSchema.safeParse(await dependencies.model.next(context, allowed, dependencies.signal))
+            const proposal = preparation.brief.completionMode === 'echo_answers'
+                ? { kind: 'tool', calls: [{ id: `ask_${input.runId}`, name: 'ask_user', input: {
+                    questions: preparation.brief.unresolvedQuestions.map((question, index) => ({ id: `question_${index + 1}`, question })),
+                } }] }
+                : await dependencies.model.next(context, allowed, dependencies.signal)
+            const parsed = modelDecisionSchema.safeParse(proposal)
             dependencies.signal.throwIfAborted()
             if (!parsed.success) throw validationFailure(parsed.error, ERROR_CODES.INVALID_MODEL_RESPONSE, '模型决策格式不合法')
             const decision = parsed.data
@@ -178,6 +190,13 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     text: '工具参数未通过校验。请根据具体字段错误修正；数组直接使用 [...]，对象使用 {...}，不能二次编码成字符串。写入纠错使用同名工具、全新 callId 与 retryOf：增量格式为 {retryOf,patches:[{itemKey:"item_0",props:{font:"sans"}}]}，只修改错误字段，其余元素和字段保留；props 按字段合并，richText/points 等嵌套值整项替换。可选 isFinal/references 覆盖旧值。增加/删除元素或更换 type/objectKey/shapeId 时，使用带 retryOf 的完整替代参数。保持原始需求，本任务只有一次参数纠正机会；禁止重放已成功或结果未知的调用。'
                         + toolCorrectionHints(context, pendingCorrections, dependencies.tools),
                 }] }] })
+            }
+            if (preparation.brief.completionMode === 'echo_answers' && !batchFailed) {
+                const answers = context.toolResults.flatMap(result => result.name === 'ask_user' && result.state === 'known' && result.output.ok ? result.output.answers : [])
+                if (answers.length) return finishTask(preparation.brief.unresolvedQuestions.map((_question, index) => {
+                    const answer = answers.find(answer => answer.id === `question_${index + 1}`)
+                    return `${index + 1}. ${answer?.text || '已提供图片或选中元素'}`
+                }).join('\n'))
             }
             if (finalRequested && !batchFailed && !uncertainCalls.length) return finishTask('已经执行草稿修改，请检查白板预览。')
         }

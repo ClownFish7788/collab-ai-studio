@@ -89,8 +89,8 @@ function decodeDecision(value: unknown, tools: readonly { function: { name: Boar
 }
 
 function executionInstructions(allowedTools: readonly BoardToolName[]) {
-    return `本步骤仅允许这些工具：${allowedTools.join('、')}。这是随执行状态变化的步骤门禁，不是用户对整个任务的授权范围；其他工具即使出现在历史也不能在本步骤调用。本任务已经执行哪些操作，以本任务真实工具结果为准；读取快照和回答不表示写入成功，历史任务的成功也不算本任务的执行。查看、截图、统计、分类是只读任务，实际读取后用content返回结果，不写入；用户要求截图时实际调用get_board_screenshot，不能声称工具不存在。不能用content声称未实际执行的写入。每次写入须提供isFinal，仍需后续操作为false，最后一次写入为true。${allowedTools.includes('get_board_snapshot') && !allowedTools.includes('create_shapes')
-            ? '当前尚未取得首份白板快照，写入工具因此暂未开放；这不表示本任务只能询问或用户禁止绘图。用户要求后续白板写入且必要答案已齐时，现在先调用 get_board_snapshot，下一步骤将开放写入工具；不能直接写入或以工具暂未开放为由结束。用户回答不等于快照。' : ''}${allowedTools.includes('ask_user')
+    return `本步骤仅允许这些工具：${allowedTools.join('、')}。这是随执行状态变化的步骤门禁，不是用户对整个任务的授权范围；其他工具即使出现在历史也不能在本步骤调用。本任务已经执行哪些操作，以本任务真实工具结果为准；读取快照和回答不表示写入成功，历史任务的成功也不算本任务的执行。原始用户明确要求“收到答案后只复述并结束”时，所需答案已齐就直接用 content 复述并结束，不进行白板操作，也不反问是否执行下一步；task_brief 不能扩大原始范围。用户要求“先问再创建/修改/删除”的任务，收齐答案后必须继续读取和实际写入，不能只复述或承诺稍后执行，也不要求用户重发同样需求。查看、截图、统计、分类是只读任务，实际读取后用content返回结果，不写入；用户要求截图时实际调用get_board_screenshot，不能声称工具不存在。不能用content声称未实际执行的写入。每次写入须提供isFinal，仍需后续操作为false，最后一次写入为true。${allowedTools.includes('get_board_snapshot') && !allowedTools.includes('create_shapes')
+            ? '当前尚未取得首份白板快照，写入工具因此暂未开放；这不表示本任务只能询问或用户禁止绘图。用户要求后续白板写入且必要答案已齐时，现在先调用 get_board_snapshot，下一步骤将开放写入工具；不能直接写入或以工具暂未开放为由结束。用户回答不等于快照。用户只要求复述并结束时直接通过 content 完成，不读取白板。' : ''}${allowedTools.includes('ask_user')
             ? '只要需要用户回答、补充或确认，就必须真正调用 ask_user 等待答案；优先一次问齐所有对象的待确认项，已真实回答的题目无需再问，不能把第一个对象的答案当成其余对象的默认值。确需补问时本轮仍可调用 ask_user。目标不明确也用此工具澄清，不能仅在 content 中写问题并结束。目标尚不明确时先询问，不读取白板或猜测操作。用户按描述指定更新或删除目标，而该范围快照 truncated=true 时，即使只返回一个匹配项也不能确认唯一，必须先询问用户是否操作这个已读取对象；用户已明确指定真实 ID 或已明确选定目标时例外。这是继续当前任务的协议要求。' : '询问预算已用尽，不能再通过 content 反问用户；信息充分则继续，仍不足则说明无法继续的原因并结束，不用其他对象的答案或默认值填补用户要求确认的信息。'}`
 }
 

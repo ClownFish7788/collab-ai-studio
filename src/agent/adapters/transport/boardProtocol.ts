@@ -3,6 +3,7 @@ import { validateBoardAnswers } from '../interaction/askUser'
 import { answersMatchQuestions, boardToolNameSchema, type BoardToolName, type BoardAnswers } from '../../domain/tool'
 import { MAX_BOARD_SNAPSHOT_SHAPES } from '../../domain/observation'
 import { ERROR_CODES, agentErrorSchema, type AgentError as BoardAgentError } from '../../domain/error'
+import { MAX_BOARD_RESULT_TEXT_CHARS } from '../../domain/outcome'
 import { isEqual } from '@tldraw/utils'
 import { shapeIdSchema, type CreateShapeParameters, type UpdateShapeParameters, type SnapshotRange } from '../board/contracts'
 import type { RegionSnapshot } from '../board/tldraw'
@@ -311,7 +312,7 @@ export function validateBoardCreateEvent(value: unknown): BoardCreateEvent {
             break
         case 'completed': {
             fields(value, ['type', 'runId', 'text', 'results'])
-            if (typeof value.text !== 'string' || !value.text.trim() || value.text.length > 8000) {
+            if (typeof value.text !== 'string' || !value.text.trim() || value.text.length > MAX_BOARD_RESULT_TEXT_CHARS) {
                 throw new Error('任务完成说明不合法')
             }
             if (!Array.isArray(value.results) || value.results.length > MAX_BOARD_WRITES_PER_TASK) throw new Error('写入结果列表不合法')
