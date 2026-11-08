@@ -6,10 +6,12 @@ import type { BoardElementRow } from '../domain/elements'
 import type { ToolCall } from '../domain/invocation'
 import type { AgentMessage } from '../domain/message'
 import type { TaskBrief } from '../domain/task'
+import type { SyntaxProblem } from '../domain/syntaxRepair'
 import type { BoardToolContracts, BoardToolName } from '../domain/tool'
 
 export const MAX_BOARD_WRITES_PER_TASK = 3
 export const MAX_BOARD_ASK_CALLS = 3
+export const MAX_BOARD_SYNTAX_REPAIRS = 2
 export const MAX_BOARD_TOOL_CALLS = 6
 export const MAX_BOARD_MODEL_CALLS = 20
 export const MAX_BOARD_ELEMENT_TABLE_CHARS = 6000
@@ -20,6 +22,7 @@ export const BOARD_ANSWER_TIMEOUT_MS = 120000
 export type ModelPort = {
     prepare(messages: readonly AgentMessage[], signal: AbortSignal): Promise<string>
     next(context: AgentContext, allowedTools: readonly BoardToolName[], signal: AbortSignal): Promise<unknown>
+    repairSyntax(problem: SyntaxProblem, signal: AbortSignal): Promise<string>
 }
 
 /** call 保留模型意图供结果核对；input 是移除元数据、补全类型后的实际执行参数。 */

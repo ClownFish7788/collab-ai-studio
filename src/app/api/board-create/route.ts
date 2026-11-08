@@ -82,6 +82,7 @@ async function handleBoardCreate(request: Request, trace: AgentTrace) {
                 const modelPort: ModelPort = {
                     prepare: adapter.prepare,
                     next: (context, allowedTools, signal) => trace.step('model_call', () => adapter.next(context, allowedTools, signal)),
+                    repairSyntax: adapter.repairSyntax,
                 }
 
                 try {

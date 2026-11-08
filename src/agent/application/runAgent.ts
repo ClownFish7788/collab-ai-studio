@@ -4,10 +4,11 @@ import { ERROR_CODES, type AgentError } from '../domain/error'
 import type { MutationResult, ToolCallProposal, ToolResult } from '../domain/invocation'
 import { createToolResultMessage, modelDecisionSchema } from '../domain/message'
 import { createAgentOutcomeSchema, type AgentOutcome } from '../domain/outcome'
-import { applicationError, AgentApplicationError, MAX_BOARD_ASK_CALLS, MAX_BOARD_MODEL_CALLS, MAX_BOARD_TOOL_CALLS, MAX_BOARD_WRITES_PER_TASK, validationFailure, type AgentDependencies, type RunAgentInput } from './ports'
+import { applicationError, AgentApplicationError, MAX_BOARD_SYNTAX_REPAIRS, MAX_BOARD_ASK_CALLS, MAX_BOARD_MODEL_CALLS, MAX_BOARD_TOOL_CALLS, MAX_BOARD_WRITES_PER_TASK, validationFailure, type AgentDependencies, type RunAgentInput } from './ports'
 import { prepareTask } from './prepareTask'
 import { createToolRegistry } from './toolRegistry'
 import { resolveToolCorrection, toolCorrectionHints } from './toolCorrection'
+import { repairToolSyntax } from './repairSyntax'
 
 /** 用例仅编排领域数据；模型协议、浏览器等待、权限来源和 trace 持久化均由端口提供。 */
 export async function runAgent(input: RunAgentInput, dependencies: AgentDependencies): Promise<AgentOutcome> {
@@ -20,7 +21,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
     let context: AgentContext
     const unresolvedErrors = new Map<string, { name: ToolCallProposal['name']; error: AgentError }>()
     const pendingCorrections = new Set<string>()
-    let finalRequested = false, argumentCorrectionUsed = false
+    let finalRequested = false, argumentCorrectionUsed = false, modelCalls = 0, syntaxRepairs = 0
     const fail = (message: string): never => { throw new AgentApplicationError({ code: ERROR_CODES.INVALID_ARGUMENTS, message }) }
     const assertActive = async () => { dependencies.signal.throwIfAborted(); await dependencies.checkAccess(); dependencies.signal.throwIfAborted() }
     const finish = (text: string): AgentOutcome => outcomeSchema.parse({ status: 'completed', text, changes, uncertainCalls })
@@ -57,6 +58,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
 
         for (let step = 0; step < MAX_BOARD_MODEL_CALLS; step++) {
             await assertActive()
+            if (modelCalls >= MAX_BOARD_MODEL_CALLS) break
             const { reference, observedTypes } = getObservedContextState(context)
             const allowed: ToolCallProposal['name'][] = []
             if (counts.get_board_snapshot < 2) allowed.push('get_board_snapshot')
@@ -66,6 +68,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                 allowed.push('create_shapes')
                 if (observedTypes.size) allowed.push('update_shapes', 'delete_shapes')
             }
+            if (preparation.brief.completionMode !== 'echo_answers') modelCalls++
             const proposal = preparation.brief.completionMode === 'echo_answers'
                 ? { kind: 'tool', calls: [{ id: `ask_${input.runId}`, name: 'ask_user', input: {
                     questions: preparation.brief.unresolvedQuestions.map((question, index) => ({ id: `question_${index + 1}`, question })),
@@ -81,18 +84,26 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
             if (decision.calls.length > MAX_BOARD_TOOL_CALLS) fail('工具列表超过本轮上限')
             if (decision.calls.some(call => !allowed.includes(call.name))) fail('本轮工具未开放')
             const correctionErrors = new Map<string, AgentError>()
+            const syntaxCalls = new Set([...(decision.syntaxCallIds ?? []), ...Object.keys(decision.syntaxProblems ?? {})])
             const retries = new Map<string, string>()
-            const calls = decision.calls.map(proposal => {
+            const calls: ToolCallProposal[] = []
+            for (let proposal of decision.calls) {
                 try {
+                    const problems = decision.syntaxProblems?.[proposal.id]
+                    if (problems) proposal = await repairToolSyntax(proposal, problems, dependencies, () => {
+                        if (syntaxRepairs >= MAX_BOARD_SYNTAX_REPAIRS || modelCalls >= MAX_BOARD_MODEL_CALLS) return undefined
+                        modelCalls++
+                        return ++syntaxRepairs
+                    })
                     const resolved = resolveToolCorrection(proposal, context, pendingCorrections, dependencies.tools)
                     if (resolved.retryOf) retries.set(proposal.id, resolved.retryOf)
-                    return resolved.proposal
+                    calls.push(resolved.proposal)
                 } catch (cause) {
                     if (!(cause instanceof AgentApplicationError)) throw cause
                     correctionErrors.set(proposal.id, cause.detail)
-                    return proposal
+                    calls.push(proposal)
                 }
-            })
+            }
             // 登记补全后的完整提议，执行结果必须与新 callId 下的完整参数核对。
             context = contextSchema.parse({ ...context, messages: [...context.messages, { role: 'assistant', content: decision.content?.trim()
                 ? [{ type: 'text', source: 'assistant', text: decision.content }] : [], calls }] })
@@ -136,7 +147,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     } else if (entry.contract.kind === 'write') finalRequested = false
                     return result
                 } catch (cause) {
-                    if (dependencies.signal.aborted || dispatched || !(cause instanceof AgentApplicationError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS) fatal ??= cause
+                    if (syntaxCalls.has(proposal.id) || dependencies.signal.aborted || dispatched || !(cause instanceof AgentApplicationError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS) fatal ??= cause
                     const error = dependencies.signal.aborted ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时' } : applicationError(cause, dependencies)
                     await dependencies.record?.('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall: proposal, error }, Date.now() - began)
                     return tools.invocations.toolResultSchema.parse({ callId: proposal.id, name: proposal.name, state: dispatched ? 'unknown' : 'not_executed', error })

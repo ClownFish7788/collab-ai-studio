@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { jsonValueSchema, type JsonValue } from './data'
 import { boardToolNameSchema } from './tool'
 import { toolCallIdSchema, toolCallProposalSchema, type ToolResult } from './invocation'
+import { syntaxProblemSchema } from './syntaxRepair'
 
 const sourceSchema = z.enum(['system', 'user', 'assistant', 'tool'])
 /** 内容来源独立于供应商的 role；工具图片被编码成其他 role 时也不能变成用户指令。 */
@@ -63,7 +64,14 @@ export const agentConversationSchema = z.array(agentMessageSchema).superRefine((
 /** 完整模型决策，不包含流式分片、choices 或供应商 finish_reason。 */
 export const modelDecisionSchema = z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('text'), text: z.string().min(1).max(8000).regex(/\S/) }),
-    z.strictObject({ kind: z.literal('tool'), calls: callsSchema, content: z.string().max(8000).optional() }),
+    z.strictObject({ kind: z.literal('tool'), calls: callsSchema, content: z.string().max(8000).optional(),
+        syntaxCallIds: z.array(toolCallIdSchema).max(6).optional(),
+        syntaxProblems: z.record(toolCallIdSchema, z.array(syntaxProblemSchema).min(1).max(40)).optional(),
+    }).superRefine((decision, ctx) => {
+        for (const id of [...(decision.syntaxCallIds ?? []), ...Object.keys(decision.syntaxProblems ?? {})]) {
+            if (!decision.calls.some(call => call.id === id)) ctx.addIssue({ code: 'custom', path: ['syntaxProblems', id], message: '参数诊断须对应本批真实调用' })
+        }
+    }),
 ])
 export type ModelDecision = z.infer<typeof modelDecisionSchema>
 
