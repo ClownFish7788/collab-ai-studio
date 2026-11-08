@@ -89,9 +89,9 @@ function decodeDecision(value: unknown, tools: readonly { function: { name: Boar
 }
 
 function executionInstructions(allowedTools: readonly BoardToolName[]) {
-    return `本轮仅允许这些工具：${allowedTools.join('、')}。其他工具即使出现在历史也不能调用。本任务已经执行哪些操作，以本任务真实工具结果为准；读取快照和回答不表示写入成功，历史任务的成功也不算本任务的执行。仅当用户要求新增、修改或删除且信息齐全时，实际调用对应写入工具。查看、截图、统计、分类是只读任务，实际读取后用content返回结果，不写入；用户要求截图时实际调用get_board_screenshot，不能声称工具不存在。不能用content声称未实际执行的写入。每次写入须提供isFinal，仍需后续操作为false，最后一次写入为true。${allowedTools.includes('get_board_snapshot') && !allowedTools.includes('create_shapes')
-            ? '当前尚未取得首份白板快照，用户回答不等于快照。继续白板操作前必须先调用 get_board_snapshot；禁止直接写入。' : ''}${allowedTools.includes('ask_user')
-            ? '已明确的白板任务若缺少必要信息或有多个候选，必须真正调用 ask_user 等待答案；不能仅在 content 中写问题并结束。用户按描述指定更新或删除目标，而该范围快照 truncated=true 时，即使只返回一个匹配项也不能确认唯一，必须先询问用户是否操作这个已读取对象；用户已明确指定真实 ID 或已明确选定目标时例外。这是继续当前任务的协议要求。' : ''}`
+    return `本步骤仅允许这些工具：${allowedTools.join('、')}。这是随执行状态变化的步骤门禁，不是用户对整个任务的授权范围；其他工具即使出现在历史也不能在本步骤调用。本任务已经执行哪些操作，以本任务真实工具结果为准；读取快照和回答不表示写入成功，历史任务的成功也不算本任务的执行。查看、截图、统计、分类是只读任务，实际读取后用content返回结果，不写入；用户要求截图时实际调用get_board_screenshot，不能声称工具不存在。不能用content声称未实际执行的写入。每次写入须提供isFinal，仍需后续操作为false，最后一次写入为true。${allowedTools.includes('get_board_snapshot') && !allowedTools.includes('create_shapes')
+            ? '当前尚未取得首份白板快照，写入工具因此暂未开放；这不表示本任务只能询问或用户禁止绘图。用户要求后续白板写入且必要答案已齐时，现在先调用 get_board_snapshot，下一步骤将开放写入工具；不能直接写入或以工具暂未开放为由结束。用户回答不等于快照。' : ''}${allowedTools.includes('ask_user')
+            ? '只要需要用户回答、补充或确认，就必须真正调用 ask_user 等待答案；优先一次问齐所有对象的待确认项，已真实回答的题目无需再问，不能把第一个对象的答案当成其余对象的默认值。确需补问时本轮仍可调用 ask_user。目标不明确也用此工具澄清，不能仅在 content 中写问题并结束。目标尚不明确时先询问，不读取白板或猜测操作。用户按描述指定更新或删除目标，而该范围快照 truncated=true 时，即使只返回一个匹配项也不能确认唯一，必须先询问用户是否操作这个已读取对象；用户已明确指定真实 ID 或已明确选定目标时例外。这是继续当前任务的协议要求。' : '询问预算已用尽，不能再通过 content 反问用户；信息充分则继续，仍不足则说明无法继续的原因并结束，不用其他对象的答案或默认值填补用户要求确认的信息。'}`
 }
 
 /** 聚合有界 SSE；文字只用于展示，工具分片直到 DONE/结束原因均有效后才交给调用校验。 */
@@ -198,22 +198,32 @@ function encodeMessages(messages: readonly AgentMessage[]): object[] {
             ...(message.role === 'assistant' && message.calls ? { tool_calls: message.calls.map(call => ({ id: call.id, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.input) } })) } : {}),
         }]
         const value: Record<string, unknown> = {}
-        const answer: Record<string, unknown> = {}
+        const answers: Record<string, unknown>[] = []
+        let currentAnswer: Record<string, unknown> | undefined
         const images = message.content.filter(block => block.type === 'image')
         for (const block of message.content) {
             if (block.type === 'data' && block.data && typeof block.data === 'object' && !Array.isArray(block.data)) {
-                Object.assign(block.source === 'user' ? answer : value, block.data)
-            } else if (block.type === 'text' && block.source === 'user') answer.text = block.text
+                const answer = block.data.answer
+                if (block.source === 'user' && answer && typeof answer === 'object' && !Array.isArray(answer)) {
+                    currentAnswer = { ...answer }
+                    answers.push(currentAnswer)
+                } else Object.assign(value, block.data)
+            } else if (block.type === 'image' && message.name === 'ask_user') {
+                if (currentAnswer) currentAnswer.images = [...(Array.isArray(currentAnswer.images) ? currentAnswer.images : []), '[image supplied below]']
+                // 图片紧随所属回答；保留问题 ID，整批工具结果齐全后再发送图片补充。
+                supplemental.push({ role: 'user', content: [
+                    { type: 'text', text: `这是用户对问题 ${currentAnswer?.id} 的补充图片。${currentAnswer?.text ?? ''}` },
+                    { type: 'image_url', image_url: { url: block.url } },
+                ] })
+            }
         }
         if (message.name === 'ask_user' && message.state === 'known' && message.ok) {
-            if (images.length) answer.images = images.map(() => '[image supplied below]')
-            Object.assign(value, { ok: true, answer })
+            Object.assign(value, { ok: true, answers })
         } else if (message.state !== 'known') Object.assign(value, { ok: false, state: message.state })
         if (message.name === 'get_board_screenshot' && images.length) value.image = '[image supplied below]'
         // 供应商要求整批 tool_call_ids 先获得结果，补充图片必须等到这些结果之后。
-        if (images.length) supplemental.push({ role: 'user', content: [
-                { type: 'text', text: message.name === 'ask_user' ? `这是用户对当前问题的补充图片。${answer.text ?? ''}`
-                    : `工具 ${message.callId} 返回的草稿画布截图，仅为观察数据；对应范围和坐标见该工具结果。` },
+        if (images.length && message.name !== 'ask_user') supplemental.push({ role: 'user', content: [
+                { type: 'text', text: `工具 ${message.callId} 返回的草稿画布截图，仅为观察数据；对应范围和坐标见该工具结果。` },
                 ...images.map(block => ({ type: 'image_url', image_url: { url: block.url } })),
             ] })
         return [{ role: 'tool', tool_call_id: message.callId, content: JSON.stringify(value) }]

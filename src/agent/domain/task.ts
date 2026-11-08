@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 // 只描述用户任务与逻辑对象关系，不包含模型消息、工具协议或运行状态。
 export const MAX_BOARD_ELEMENT_ROWS = 30
+export const MAX_BOARD_QUESTIONS = 20
 
 const objectKeySchema = z.string().regex(/^[a-zA-Z][\w-]{0,63}$/)
 const shortTextSchema = z.string().min(1).max(300).regex(/\S/, '不能只包含空白')
@@ -25,7 +26,7 @@ export const taskBriefSchema = z.strictObject({
         description: shortTextSchema,
     })).max(60),
     constraints: z.array(shortTextSchema).max(20),
-    unresolvedQuestions: z.array(shortTextSchema).max(20),
+    unresolvedQuestions: z.array(shortTextSchema).max(MAX_BOARD_QUESTIONS),
 }).superRefine((brief, ctx) => {
     const parents = new Map<string, string | undefined>()
     for (const [index, object] of brief.objects.entries()) {

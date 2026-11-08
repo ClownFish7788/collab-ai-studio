@@ -1,6 +1,6 @@
-import type { BoardAnswer } from '../../domain/tool'
+import type { BoardAnswers, BoardQuestion } from '../../domain/tool'
 import type { createTldrawTools } from '../board/tldraw'
-import { validateBoardAnswer } from '../interaction/askUser'
+import { validateBoardAnswers } from '../interaction/askUser'
 import { validateBoardToolCall, validateBoardToolSuccess, ERROR_CODES, type BoardToolOutput } from '../transport/boardProtocol'
 import { parseCreateInput, parseSnapshotInput, parseAskInput, parseUpdateInput, parseDeleteInput } from '../board/nativeValidation'
 import { BoardProtocolError } from '../transport/errors'
@@ -8,7 +8,7 @@ import { BoardProtocolError } from '../transport/errors'
 /** 单任务浏览器分发入口：统一去重与错误输出，具体白板能力保持各自的成功返回类型。 */
 export function createBrowserToolDispatcher({ board, ask, assertActive, onReadRetry }: {
     board: ReturnType<typeof createTldrawTools>
-    ask: (question: string) => Promise<BoardAnswer>
+    ask: (questions: BoardQuestion[]) => Promise<BoardAnswers>
     assertActive: () => void
     onReadRetry?: (callId: string, attempt: number) => void
 }) {
@@ -39,13 +39,14 @@ export function createBrowserToolDispatcher({ board, ask, assertActive, onReadRe
                         return await board.get_board_screenshot(input, attempt => onReadRetry?.(call.id, attempt))
                     }
                     case 'ask_user': {
-                        const { question } = parseAskInput(call.function.arguments)
+                        const { questions } = parseAskInput(call.function.arguments)
                         invoked = true
-                        const answer = validateBoardAnswer(await ask(question))
+                        const answers = validateBoardAnswers(await ask(questions), questions)
                         assertActive()
                         // 交互适配器只提供回答；分发器再请求同一个白板实例核实选区，沿用其参照和授权范围。
-                        const snapshot = answer.selectedShapeIds?.length ? await board.readSelection(answer.selectedShapeIds) : undefined
-                        return validateBoardToolSuccess('ask_user', { ok: true, answer, ...(snapshot ? { snapshot } : {}) })
+                        const ids = [...new Set(answers.flatMap(answer => answer.selectedShapeIds ?? []))]
+                        const snapshot = ids.length ? await board.readSelection(ids) : undefined
+                        return validateBoardToolSuccess('ask_user', { ok: true, answers, ...(snapshot ? { snapshot } : {}) })
                     }
                     case 'create_shapes': {
                         const input = parseCreateInput(call.function.arguments)

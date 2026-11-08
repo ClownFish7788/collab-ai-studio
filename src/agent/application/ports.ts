@@ -9,6 +9,7 @@ import type { TaskBrief } from '../domain/task'
 import type { BoardToolContracts, BoardToolName } from '../domain/tool'
 
 export const MAX_BOARD_WRITES_PER_TASK = 3
+export const MAX_BOARD_ASK_CALLS = 3
 export const MAX_BOARD_TOOL_CALLS = 6
 export const MAX_BOARD_MODEL_CALLS = 20
 export const MAX_BOARD_ELEMENT_TABLE_CHARS = 6000

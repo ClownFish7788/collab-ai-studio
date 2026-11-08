@@ -4,7 +4,7 @@ import { ERROR_CODES, type AgentError } from '../domain/error'
 import type { MutationResult, ToolCallProposal, ToolResult } from '../domain/invocation'
 import { createToolResultMessage, modelDecisionSchema } from '../domain/message'
 import { createAgentOutcomeSchema, type AgentOutcome } from '../domain/outcome'
-import { applicationError, AgentApplicationError, MAX_BOARD_MODEL_CALLS, MAX_BOARD_TOOL_CALLS, MAX_BOARD_WRITES_PER_TASK, validationFailure, type AgentDependencies, type RunAgentInput } from './ports'
+import { applicationError, AgentApplicationError, MAX_BOARD_ASK_CALLS, MAX_BOARD_MODEL_CALLS, MAX_BOARD_TOOL_CALLS, MAX_BOARD_WRITES_PER_TASK, validationFailure, type AgentDependencies, type RunAgentInput } from './ports'
 import { prepareTask } from './prepareTask'
 import { createToolRegistry } from './toolRegistry'
 import { resolveToolCorrection, toolCorrectionHints } from './toolCorrection'
@@ -54,7 +54,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
             const allowed: ToolCallProposal['name'][] = []
             if (counts.get_board_snapshot < 2) allowed.push('get_board_snapshot')
             if (counts.get_board_screenshot < 2) allowed.push('get_board_screenshot')
-            if (counts.ask_user < 1) allowed.push('ask_user')
+            if (counts.ask_user < MAX_BOARD_ASK_CALLS) allowed.push('ask_user')
             if (reference && !uncertainCalls.length && changes.length < MAX_BOARD_WRITES_PER_TASK) {
                 allowed.push('create_shapes')
                 if (observedTypes.size) allowed.push('update_shapes', 'delete_shapes')
@@ -101,7 +101,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     const prepared = validation.prepared
                     if (entry.contract.kind === 'write' && (uncertainCalls.length || changes.length >= MAX_BOARD_WRITES_PER_TASK)) fail('写入结果不明或写入预算已用尽，不能继续写入')
                     if (proposal.name === 'get_board_snapshot' || proposal.name === 'get_board_screenshot' || proposal.name === 'ask_user') {
-                        if (++counts[proposal.name] > (proposal.name === 'ask_user' ? 1 : 2)) fail('读取或询问预算已用尽')
+                        if (++counts[proposal.name] > (proposal.name === 'ask_user' ? MAX_BOARD_ASK_CALLS : 2)) fail('读取或询问预算已用尽')
                     }
                     if (prepared.isFinal && getUncoveredTaskObjects(preparation.brief, covered, prepared.elements).length) fail('最终写入不能遗漏需求对象')
                     await dependencies.record?.('operation_result', { operation: 'element_preparation', outcome: 'success', modelCall: proposal,

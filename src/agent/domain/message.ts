@@ -88,10 +88,11 @@ export function createToolResultMessage(result: ToolResult): ToolResultMessage {
         const { image, ...metadata } = result.output
         content.push({ type: 'data', source: 'tool', data: messageData(metadata) }, { type: 'image', source: 'tool', url: image })
     } else if (result.output.ok && result.name === 'ask_user') {
-        const { answer, snapshot } = result.output
-        if (answer.text?.trim()) content.push({ type: 'text', source: 'user', text: answer.text })
-        answer.images?.forEach(url => content.push({ type: 'image', source: 'user', url }))
-        if (answer.selectedShapeIds?.length) content.push({ type: 'data', source: 'user', data: { selectedShapeIds: answer.selectedShapeIds } })
+        const { answers, snapshot } = result.output
+        for (const { images, ...answer } of answers) {
+            content.push({ type: 'data', source: 'user', data: messageData({ answer }) })
+            images?.forEach(url => content.push({ type: 'image', source: 'user', url }))
+        }
         if (snapshot) content.push({ type: 'data', source: 'tool', data: messageData({ snapshot }) })
     } else {
         content.push({ type: 'data', source: 'tool', data: messageData(result.output) })

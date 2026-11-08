@@ -10,7 +10,7 @@ import { createDraftShapes, updateDraftShapes, deleteDraftShapes } from '@/agent
 import { getConfirmedRoomRole } from '@/utils/collaboration/roomAccess'
 import { createTldrawTools, captureBoardSnapshot, captureBoardScreenshot } from '@/agent/adapters/board/tldraw'
 import { createBrowserToolDispatcher } from '@/agent/adapters/browser/toolDispatcher'
-import { requestBoardAnswer, type BoardQuestion } from '@/agent/adapters/interaction/askUser'
+import { requestBoardAnswer, type PendingBoardQuestions } from '@/agent/adapters/interaction/askUser'
 import { validateChatSnapshot } from '@/utils/board/snapshot/chatSnapshots'
 import { BoardProtocolError } from '../agent/adapters/transport/errors'
 import { ERROR_CODES, type BoardCreateRequest } from '../agent/adapters/transport/boardProtocol'
@@ -36,7 +36,7 @@ export function useBoardDraftSession({ editor, roomId, canEdit, local = false }:
     const [applying, setApplying] = useState(false)
     const [error, setError] = useState('')
     const [changes, setChanges] = useState(EMPTY_CHANGES)
-    const [question, setQuestion] = useState<BoardQuestion | null>(null)
+    const [question, setQuestion] = useState<PendingBoardQuestions | null>(null)
     const [resolutions, setResolutions] = useState<Resolutions>({})
     const activeRef = useRef<BoardDraft | null>(null)
     // 草稿可以跨多条消息累积，应用/放弃时通知所有参与过的后端任务。
@@ -171,7 +171,7 @@ export function useBoardDraftSession({ editor, roomId, canEdit, local = false }:
         })
         const execute = createBrowserToolDispatcher({
             board, assertActive,
-            ask: text => requestBoardAnswer(text, signal, pending => {
+            ask: questions => requestBoardAnswer(questions, signal, pending => {
                 if (agentRef.current === controller) setQuestion(pending)
             }, reason => controller.abort(reason)),
             onReadRetry: (callId, attempt) => { void reportAgentOperation(traceId, 'tool_retry', 'error', new Error(`调用 ${callId} 第${attempt}次读取失败，正在重试`)) },

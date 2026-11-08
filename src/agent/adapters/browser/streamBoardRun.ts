@@ -1,7 +1,7 @@
 import { isEqual } from '@tldraw/utils'
 import { MAX_CHAT_REQUEST_BYTES } from '../../../utils/chat/images'
 import { reportAgentOperation } from '../../../utils/agent-traces/client'
-import { MAX_BOARD_TOOL_ARGUMENT_CHARS, MAX_BOARD_WRITES_PER_TASK } from '../../../utils/board/boardCapabilities'
+import { MAX_BOARD_TOOL_ARGUMENT_CHARS, MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_ASK_CALLS } from '../../../utils/board/boardCapabilities'
 import { formatBoardJsonPreview } from '../presentation/jsonPreview'
 import { validateBoardCreateEvent, validateBoardToolOutput, toolOutputMatchesCall, ERROR_CODES, type BoardCreateRequest, type BoardToolCall, type BoardToolOutput, type BoardMutationResult } from '../transport/boardProtocol'
 import { BoardProtocolError } from '../transport/errors'
@@ -135,7 +135,7 @@ export async function streamBoardRun(
                         && localResults.length >= MAX_BOARD_WRITES_PER_TASK) throw new Error('工具写入预算已用尽')
                     if (call.function.name === 'get_board_snapshot' && ++reads > 2
                         || call.function.name === 'get_board_screenshot' && ++screenshots > 2
-                        || call.function.name === 'ask_user' && ++asks > 1) throw new Error('工具调用预算已用尽')
+                        || call.function.name === 'ask_user' && ++asks > MAX_BOARD_ASK_CALLS) throw new Error('工具调用预算已用尽')
                     callIds.add(call.id)
                     onStep({ stage: 'call', message: `后端请求 ${call.function.name}`, data: call })
                     const task = (async () => {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { jsonValueSchema, jsonValuesEqual } from './data'
 import { agentErrorSchema } from './error'
-import { boardToolNameSchema, type BoardToolContracts, type BoardToolName } from './tool'
+import { answersMatchQuestions, boardToolNameSchema, type BoardToolContracts, type BoardToolName } from './tool'
 
 export const toolCallIdSchema = z.string().min(1).max(200).regex(/\S/)
 export const toolCallReferenceSchema = z.strictObject({ id: toolCallIdSchema, name: boardToolNameSchema })
@@ -59,7 +59,7 @@ export function createToolInvocationSchemas<T extends string>(tools: BoardToolCo
                 matches = 'range' in input && result.output.range === input.range
                 break
             case 'ask_user':
-                matches = 'question' in input
+                matches = 'questions' in input && answersMatchQuestions(input.questions, result.output.answers)
                 break
             case 'create_shapes':
                 matches = 'shapes' in input && result.output.shapes.length === input.shapes.length

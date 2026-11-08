@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MAX_BOARD_ELEMENT_ROWS, taskObjectSchema } from './task'
+import { MAX_BOARD_ELEMENT_ROWS, MAX_BOARD_QUESTIONS, taskObjectSchema } from './task'
 import { MAX_BOARD_SNAPSHOT_SHAPES, boardSnapshotSchema, boardReferenceSchema, shapeIdSchema, shapeTypeSchema } from './observation'
 import { jsonObjectSchema } from './data'
 import { agentErrorSchema } from './error'
@@ -41,6 +41,27 @@ export const boardAnswerSchema = z.strictObject({
     '请提供文字、图片或选择元素')
 export type BoardAnswer = z.infer<typeof boardAnswerSchema>
 
+export const boardQuestionSchema = z.strictObject({
+    id: z.string().regex(/^[a-zA-Z][\w-]{0,63}$/),
+    question: z.string().min(1).max(1000).regex(/\S/, '问题不能只包含空白'),
+})
+export const boardQuestionsSchema = z.array(boardQuestionSchema).min(1).max(MAX_BOARD_QUESTIONS)
+    .refine(questions => new Set(questions.map(question => question.id)).size === questions.length, '问题 ID 不能重复')
+export const boardAnswersSchema = z.array(boardAnswerSchema.safeExtend({ id: boardQuestionSchema.shape.id })).min(1).max(MAX_BOARD_QUESTIONS)
+    .refine(answers => new Set(answers.map(answer => answer.id)).size === answers.length, '回答的问题 ID 不能重复')
+    .refine(answers => answers.reduce((count, answer) => count + (answer.images?.length ?? 0), 0) <= 3,
+        '本次全部回答合计最多上传 3 张图片')
+    .refine(answers => new Set(answers.flatMap(answer => answer.selectedShapeIds ?? [])).size <= MAX_BOARD_SNAPSHOT_SHAPES,
+        `所有回答合计最多选择 ${MAX_BOARD_SNAPSHOT_SHAPES} 个元素`)
+export type BoardQuestion = z.infer<typeof boardQuestionSchema>
+export type BoardAnswers = z.infer<typeof boardAnswersSchema>
+
+/** 只接受本次问题的完整回答；顺序可变，不能漏题或把其他问题的答案混入。 */
+export function answersMatchQuestions(questions: readonly BoardQuestion[], answers: BoardAnswers): boolean {
+    return boardAnswersSchema.safeParse(answers).success && questions.length === answers.length
+        && questions.every(question => answers.some(answer => answer.id === question.id))
+}
+
 /**
  * 原生能力目录由适配器提供，领域只依赖普通字符串和 Zod。
  * tools 的输入是模型意图；单独返回的 ShapesInput schema 用于移除 objectKey 等元数据后的执行参数。
@@ -80,7 +101,7 @@ export function createBoardToolContracts<T extends string>(shapeTypes: readonly 
             .refine(ids => new Set(ids).size === ids.length, '删除 ID 不能重复').meta({ uniqueItems: true }),
     })
     const snapshotInputSchema = z.strictObject({ range: z.enum(['viewport', 'page']) })
-    const askInputSchema = z.strictObject({ question: z.string().min(1).max(1000).regex(/\S/, '问题不能只包含空白') })
+    const askInputSchema = z.strictObject({ questions: boardQuestionsSchema })
     const createdShapeSchema = z.discriminatedUnion('type', [firstShapeSchema.extend({ id: shapeIdSchema }),
         ...remainingShapeSchemas.map(schema => schema.extend({ id: shapeIdSchema }))])
     const createOutputSchema = z.discriminatedUnion('ok', [z.strictObject({
@@ -104,10 +125,10 @@ export function createBoardToolContracts<T extends string>(shapeTypes: readonly 
         bounds: z.strictObject({ x: z.number(), y: z.number(), w: z.number().positive(), h: z.number().positive() }),
     }), toolFailureSchema])
     const answerOutputSchema = z.discriminatedUnion('ok', [z.strictObject({
-        ok: z.literal(true), answer: boardAnswerSchema, snapshot: boardSnapshotSchema.optional(),
+        ok: z.literal(true), answers: boardAnswersSchema, snapshot: boardSnapshotSchema.optional(),
     }), toolFailureSchema]).superRefine((output, ctx) => {
         if (!output.ok) return
-        const ids = output.answer.selectedShapeIds ?? []
+        const ids = [...new Set(output.answers.flatMap(answer => answer.selectedShapeIds ?? []))]
         if (ids.length ? !output.snapshot || output.snapshot.shapes.length !== ids.length || output.snapshot.shapes.some(shape => !ids.includes(shape.id))
             : output.snapshot !== undefined) {
             ctx.addIssue({ code: 'custom', path: ['snapshot'], message: '回答选区与真实快照不匹配' })
@@ -165,7 +186,7 @@ export function createBoardToolContracts<T extends string>(shapeTypes: readonly 
         },
         ask_user: {
             kind: 'ask' as const,
-            description: '用户已明确具体操作，但缺少必要参数、对象有多个候选，或明确要求先询问/确认时，必须调用本工具并等待真实回答后继续。只提交 question，不提交 elements；无需先确定对象清单、ID、类型或缺项。禁止仅在 content 中提执行问题或用文字冒充调用。问题一次合并相关必要信息，候选用位置或特征区分。只有可选参数缺省且有默认值时无需询问。任务目标本身未明确时使用 content 澄清，不调用本工具。每任务最多一次。',
+            description: `向用户提问的统一入口：目标不明确、缺少必要信息、对象有多个候选，或用户要求先询问/确认时，必须实际调用本工具并等待真实回答后继续。只提交 questions 数组，包含 1～${MAX_BOARD_QUESTIONS} 个 {id,question}，每题 ID 唯一，每项只问一个能独立回答的问题；不提交答案或 elements。优先一次问齐所有已知待确认项，多个对象都须覆盖，不能只问第一个对象而猜测其余对象。用户逐题回答后一次提交，结果 answers 按 id 对应各题的文字、图片和所选元素。已有真实答案不得重复询问或套给其他对象；确需补问时，在本轮工具仍开放的额度内再次调用。禁止仅在 content 中反问或用文字冒充调用。候选用位置或特征区分；只有可选参数缺省且有默认值且用户没有要求确认时无需询问。`,
             inputSchema: askInputSchema, outputSchema: answerOutputSchema,
         },
     }

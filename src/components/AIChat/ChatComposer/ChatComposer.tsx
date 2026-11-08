@@ -25,13 +25,36 @@ export default function ChatComposer({ session, inputHintId, isSelecting, onSele
     const selectionStore = useBoardSelectionStore()
     const hasSelection = useStore(selectionStore, state => !!state.snapshot?.shapes.length)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const { input, setInput, inputRef, isStreaming, error, send, stop } = session
+    const { input, setInput, inputRef, isStreaming, error, send, stop,
+        questionFields, activeQuestionId, selectQuestion, setQuestionText, canSubmitAnswers } = session
     const { images, setImages, isReadingImages, addImages } = session.attachments
 
     return (
         <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send() }}>
             {error && <p className={styles.error} role="alert">{error}</p>}
-            {boardDraft.question && <p className={styles.notice} role="status">{boardDraft.question.text}（可上传图片或选择元素，最多等待 {BOARD_ANSWER_TIMEOUT_MS / 1000} 秒）</p>}
+            {boardDraft.question && <>
+                <p className={styles.notice} role="status">共 {questionFields.length} 个问题，请逐项回答后统一提交，合计最多上传 3 张图片，最多等待 {BOARD_ANSWER_TIMEOUT_MS / 1000} 秒。</p>
+                {questionFields.map((field, index) => <div key={field.id} className={styles.questionField} data-active={field.id === activeQuestionId}>
+                    <label htmlFor={`${inputHintId}-${field.id}`}>{index + 1}. {field.question}</label>
+                    <textarea
+                        id={`${inputHintId}-${field.id}`}
+                        ref={field.id === activeQuestionId ? inputRef : undefined}
+                        autoFocus={index === 0}
+                        maxLength={1000}
+                        rows={2}
+                        value={field.text}
+                        placeholder="填写回答，也可为此题上传图片或选择元素…"
+                        disabled={isClosing || isReadingImages && field.id !== activeQuestionId}
+                        onFocus={() => selectQuestion(field.id)}
+                        onChange={event => setQuestionText(field.id, event.target.value)}
+                    />
+                    {field.id !== activeQuestionId && <>
+                        <SelectedElementsAttachment count={field.snapshot?.shapes.length ?? 0} />
+                        <ChatAttachments images={field.images} onPreview={onPreview} />
+                    </>}
+                </div>)}
+                <p className={styles.footnote} role="status">附件用于第 {questionFields.findIndex(field => field.id === activeQuestionId) + 1} 题；点击其他问题的输入框可切换。</p>
+            </>}
             <SelectedElementsAttachment onRemove={() => inputRef.current?.focus()} />
             <ChatAttachments images={images} onPreview={onPreview} removingDisabled={isReadingImages}
                 onRemove={id => setImages(previous => previous.filter(image => image.id !== id))} />
@@ -48,13 +71,13 @@ export default function ChatComposer({ session, inputHintId, isSelecting, onSele
                     void addImages(files)
                 }}
             />
-            <textarea
+            {!boardDraft.question && <textarea
                 ref={inputRef}
                 autoFocus
                 aria-label="聊天消息"
                 aria-describedby={inputHintId}
-                placeholder={boardDraft.question ? '回答当前问题，继续本次任务…' : '输入问题或白板需求…'}
-                maxLength={boardDraft.question ? 1000 : 4000}
+                placeholder="输入问题或白板需求…"
+                maxLength={4000}
                 rows={3}
                 value={input}
                 onChange={event => setInput(event.target.value)}
@@ -64,7 +87,7 @@ export default function ChatComposer({ session, inputHintId, isSelecting, onSele
                         event.currentTarget.form?.requestSubmit()
                     }
                 }}
-            />
+            />}
             <div className={styles.composerFooter}>
                 {boardDraft.editor && <SelectBoardElementsButton
                     editor={boardDraft.editor}
@@ -80,8 +103,8 @@ export default function ChatComposer({ session, inputHintId, isSelecting, onSele
                     disabled={isClosing || isStreaming && !boardDraft.question || isReadingImages}
                     onClick={() => fileInputRef.current?.click()}
                 ><ImagePlus size={18} aria-hidden="true" /></button>
-                <span id={inputHintId}>Enter 发送 · Shift + Enter 换行</span>
-                {boardDraft.question && <button type="submit" className={styles.sendButton} disabled={(!input.trim() && !images.length && !hasSelection) || isReadingImages || isSelecting}>回答并继续</button>}
+                <span id={inputHintId}>{boardDraft.question ? '全部回答后提交' : 'Enter 发送 · Shift + Enter 换行'}</span>
+                {boardDraft.question && <button type="submit" className={styles.sendButton} disabled={!canSubmitAnswers || isReadingImages || isSelecting || isClosing}>提交全部回答并继续</button>}
                 {isStreaming ? <button type="button" className={styles.sendButton} onClick={stop}>
                     <Square size={14} aria-hidden="true" />
                     停止生成

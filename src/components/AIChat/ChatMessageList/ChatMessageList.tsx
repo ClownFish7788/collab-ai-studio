@@ -35,12 +35,12 @@ export default function ChatMessageList({ messages, isOpen, resolutions, onPrevi
                     <span className={styles.messageRole}>{message.role === 'user' ? '你' : 'AI 助手'}</span>
                     {!!message.snapshot?.shapes.length && <span className={styles.messageRole}>已附加 {message.snapshot.shapes.length} 个白板元素</span>}
                     <ChatAttachments images={message.images} onPreview={onPreview} />
-                    {message.clarification && <div className={styles.bubble}>
-                        <p>{message.clarification.question}</p>
-                        {message.clarification.answer && <p>你的回答：{message.clarification.answer}</p>}
-                        <SelectedElementsAttachment count={message.clarification.snapshot?.shapes.length ?? 0} />
-                        <ChatAttachments images={message.clarification.images} onPreview={onPreview} />
-                    </div>}
+                    {message.clarifications?.flatMap(batch => batch.questions.map(question => <div key={`${batch.callId}-${question.id}`} className={styles.bubble}>
+                        <p>{question.question}</p>
+                        {question.answer && <p>你的回答：{question.answer}</p>}
+                        <SelectedElementsAttachment count={question.snapshot?.shapes.length ?? 0} />
+                        <ChatAttachments images={question.images} onPreview={onPreview} />
+                    </div>))}
                     {message.plan && <details className={styles.bubble} open>
                         <summary>需求拆分</summary>
                         <div>{message.plan}</div>

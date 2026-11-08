@@ -1,6 +1,6 @@
 import { toAgentToolOutput } from '../board/protocol'
-import { validateBoardAnswer } from '../interaction/askUser'
-import { boardToolNameSchema, type BoardToolName, type BoardAnswer } from '../../domain/tool'
+import { validateBoardAnswers } from '../interaction/askUser'
+import { answersMatchQuestions, boardToolNameSchema, type BoardToolName, type BoardAnswers } from '../../domain/tool'
 import { MAX_BOARD_SNAPSHOT_SHAPES } from '../../domain/observation'
 import { ERROR_CODES, agentErrorSchema, type AgentError as BoardAgentError } from '../../domain/error'
 import { isEqual } from '@tldraw/utils'
@@ -9,7 +9,7 @@ import type { RegionSnapshot } from '../board/tldraw'
 import { validateChatSnapshot, validateRegionSnapshot } from '../../../utils/board/snapshot/chatSnapshots'
 import { MAX_CHAT_REQUEST_BYTES, MAX_IMAGES_PER_MESSAGE, validateImageDataUrl } from '../../../utils/chat/images'
 import { MAX_BOARD_WRITES_PER_TASK, MAX_BOARD_TOOL_ARGUMENT_CHARS } from '../../../utils/board/boardCapabilities'
-import { validateCreateInput, validateUpdateInput, validateDeleteInput, parseCreateInput, parseUpdateInput, parseDeleteInput, parseSnapshotInput } from '../board/nativeValidation'
+import { validateCreateInput, validateUpdateInput, validateDeleteInput, parseCreateInput, parseUpdateInput, parseDeleteInput, parseSnapshotInput, parseAskInput } from '../board/nativeValidation'
 import { BoardProtocolError } from './errors'
 
 /** 工具结果的快照传输上限；启动请求另外使用图文请求上限。 */
@@ -51,8 +51,8 @@ export type ScreenshotToolSuccess = {
     reference: RegionSnapshot['reference']
     bounds: { x: number; y: number; w: number; h: number }
 }
-export type { BoardAnswer } from '../../domain/tool'
-export type AnswerToolSuccess = { ok: true; answer: BoardAnswer; snapshot?: RegionSnapshot }
+export type { BoardAnswers } from '../../domain/tool'
+export type AnswerToolSuccess = { ok: true; answers: BoardAnswers; snapshot?: RegionSnapshot }
 
 /** 具体工具保持各自的成功结构；传输分发边界才合并成 BoardToolOutput。 */
 export type BoardToolSuccessMap = {
@@ -194,12 +194,13 @@ function validateDomainToolOutput<T extends BoardToolOutput>(name: BoardToolName
 /** 校验读取、回答或新增的结果；成功结构不能混合，错误统一使用受控诊断。 */
 export function validateBoardToolOutput(value: unknown): BoardToolOutput {
     record(value)
-    if (value.ok === true && 'answer' in value) {
-        fields(value, ['ok', 'answer', 'snapshot'])
-        const answer = validateBoardAnswer(value.answer)
-        if (answer.selectedShapeIds?.length) {
+    if (value.ok === true && 'answers' in value) {
+        fields(value, ['ok', 'answers', 'snapshot'])
+        const answers = validateBoardAnswers(value.answers)
+        const ids = [...new Set(answers.flatMap(answer => answer.selectedShapeIds ?? []))]
+        if (ids.length) {
             validateRegionSnapshot(value.snapshot)
-            if (value.snapshot.shapes.length !== answer.selectedShapeIds.length || value.snapshot.shapes.some(shape => !answer.selectedShapeIds!.includes(shape.id))) throw new Error('回答选区与真实快照不匹配')
+            if (value.snapshot.shapes.length !== ids.length || value.snapshot.shapes.some(shape => !ids.includes(shape.id))) throw new Error('回答选区与真实快照不匹配')
         } else if (value.snapshot !== undefined) throw new Error('回答快照须来自明确选区')
         return validateDomainToolOutput('ask_user', value as AnswerToolSuccess)
     }
@@ -255,9 +256,9 @@ export function validateMutationOutput(value: unknown): MutationToolSuccess {
 export function toolOutputMatchesCall(call: BoardToolCall, output: BoardToolOutput): boolean {
     if (!output.ok) return true
     switch (call.function.name) {
-        case 'get_board_snapshot': return !('answer' in output) && 'snapshot' in output && output.range === parseSnapshotInput(call.function.arguments).range
+        case 'get_board_snapshot': return !('answers' in output) && 'snapshot' in output && output.range === parseSnapshotInput(call.function.arguments).range
         case 'get_board_screenshot': return 'image' in output && output.range === parseSnapshotInput(call.function.arguments).range
-        case 'ask_user': return 'answer' in output
+        case 'ask_user': return 'answers' in output && answersMatchQuestions(parseAskInput(call.function.arguments).questions, output.answers)
         case 'create_shapes': {
             if (!('shapes' in output) || 'operation' in output) return false
             const expected = parseCreateInput(call.function.arguments).shapes
