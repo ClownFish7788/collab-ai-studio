@@ -71,6 +71,28 @@ BASE_MODEL=<已开通的 Qwen 模型 ID>
 
 依赖锁定为 `openai@6.49.0`（支持 Node.js 20+）。验证命令为 `npm test`、`npx tsc --noEmit --incremental false`，以及针对改动文件运行 ESLint。自动测试使用模拟的模型 HTTP 响应，不代表已完成真实厂商或浏览器验收。
 
+### Vercel 白板工具结果通道
+
+白板 Agent 的启动请求和工具结果请求可以落到不同实例。任务资格、已派发调用和完整结果统一保存在 PostgreSQL 的 `BoardAgentRun`、`BoardAgentToolCall` 两张临时表中，不依赖实例内存或 Redis。运行日志仍独立保存，不用截断后的日志内容恢复执行。
+
+首次部署此版本前，使用目标环境的生产数据库配置执行一次：
+
+```bash
+npm run board:setup:postgres
+```
+
+该命令生成 PostgreSQL Prisma Client，并增量创建两张通道表和索引；可重复执行，不重置或覆盖已有用户、白板和运行日志。运行环境继续使用 `POSTGRES_PRISMA_URL`，Prisma schema 的直连地址为 `POSTGRES_URL_NON_POOLING`。确认命令指向目标环境；初始化成功后再部署应用，不要把生产密钥放到 `NEXT_PUBLIC_` 变量。仅重新部署而不建表，会返回任务存储不可用（503）。
+
+本地 `npm run dev` 会生成 SQLite Client 并初始化同样的通道表；也可单独运行 `npm run board:setup:sqlite`。Windows 若遇到 Prisma DLL 重命名 `EPERM`，先关闭占用该客户端的开发/测试进程，再重试生成。
+
+- 同一用户跨实例最多一个活动任务；调用先落库再派发，结果校验归属、当前编辑权限、调用内容和数据库期限。相同结果重传可确认，不同结果不能覆盖。
+- 只有服务端等待工具结果时轮询：普通调用首次间隔 250 ms，之后 500 ms；询问首次 1 秒，之后 2 秒。当前整个任务上限仍为 180 秒，普通工具等待 15 秒，用户回答等待最多 120 秒（服务端增加 5 秒回传余量），均受总期限限制。
+- 完成、失败或取消后释放临时数据；强制终止的残留在过期后由后续任务启动时有界清理。没有流量时不保证物理删除时间。函数崩溃、页面刷新后不能自动续跑，写入结果不明确时停止，不自动重放。
+- 数据库故障停止执行并记录存储错误，不降级为内存 Map。每分钟请求限流仍为进程内实现，尚不是跨实例共享限流。
+- Vercel Function 请求体有 [4.5 MB 平台限制](https://vercel.com/docs/functions/limitations)，大截图/多附件可能返回 413；本次通道改动不扩展媒体传输能力。数据库与函数宜放在相近区域，并检查连接池和函数时限。
+
+验证命令为 `npm test`、`npx tsc --noEmit --incremental false` 和改动文件 ESLint。通道测试使用独立 SQLite 测试库，覆盖真实跨进程结果提交、并发/重复提交、期限、取消和存储失败；不会连接业务数据库。生产 PostgreSQL 的锁等待/超时行为和 Vercel Preview 浏览器闭环仍需独立验收，不能用本地测试代替。
+
 ### Agent 运行记录后台
 
 访问 `/admin/agent-traces`，使用独立后台密码登录；普通用户账号没有查看权限，工作区导航不提供后台入口。
