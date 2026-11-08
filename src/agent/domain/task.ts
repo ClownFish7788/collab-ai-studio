@@ -5,12 +5,16 @@ export const MAX_BOARD_ELEMENT_ROWS = 30
 export const MAX_BOARD_QUESTIONS = 20
 
 const objectKeySchema = z.string().regex(/^[a-zA-Z][\w-]{0,63}$/)
-const shortTextSchema = z.string().min(1).max(300).regex(/\S/, '不能只包含空白')
+// JSON Schema 的 pattern 只要求“包含匹配”，但部分 OpenAI 兼容服务会把 pattern 按整串匹配编译成
+// 结构化输出语法：未加锚点的 /\S/ 在那里退化为“恰好一个非空白字符”，使每个字符串只剩一个字。
+// 这里用整串等价写法表达“至少包含一个非空白字符”，两种语义下都成立。
+const nonBlankPattern = /[\s\S]*\S[\s\S]*/
+const shortTextSchema = z.string().min(1).max(300).regex(nonBlankPattern, '不能只包含空白')
 
 /** key 是逻辑对象身份，role 是语义角色，均不表示真实白板元素。 */
 export const taskObjectSchema = z.strictObject({
     key: objectKeySchema,
-    role: z.string().min(1).max(100).regex(/\S/, '不能只包含空白'),
+    role: z.string().min(1).max(100).regex(nonBlankPattern, '不能只包含空白'),
     description: shortTextSchema,
     parentKey: objectKeySchema.optional(),
 })
@@ -18,7 +22,7 @@ export const taskObjectSchema = z.strictObject({
 /** 一次解析同时检查结构与图引用；通过校验不代表自然语言需求已被完整理解。 */
 export const taskBriefSchema = z.strictObject({
     completionMode: z.enum(['model', 'write', 'echo_answers']),
-    goal: z.string().min(1).max(1000).regex(/\S/, '不能只包含空白'),
+    goal: z.string().min(1).max(1000).regex(nonBlankPattern, '不能只包含空白'),
     tasks: z.array(shortTextSchema).min(1).max(30),
     objects: z.array(taskObjectSchema).max(MAX_BOARD_ELEMENT_ROWS),
     relations: z.array(z.strictObject({
@@ -71,6 +75,6 @@ export const MAX_TASK_PREPARATION_CHARS = 8000
 /** 准备阶段的完整语义决策；是否纠正重试由应用层决定。 */
 export const boardTaskPreparationSchema = z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('task'), brief: taskBriefSchema }),
-    z.strictObject({ kind: z.literal('reply'), text: z.string().min(1).max(MAX_TASK_PREPARATION_CHARS).regex(/\S/, '不能只包含空白') }),
+    z.strictObject({ kind: z.literal('reply'), text: z.string().min(1).max(MAX_TASK_PREPARATION_CHARS).regex(nonBlankPattern, '不能只包含空白') }),
 ])
 export type BoardTaskPreparation = z.infer<typeof boardTaskPreparationSchema>

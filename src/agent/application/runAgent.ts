@@ -4,7 +4,7 @@ import { ERROR_CODES, type AgentError } from '../domain/error'
 import type { MutationResult, ToolCallProposal, ToolResult } from '../domain/invocation'
 import { createToolResultMessage, modelDecisionSchema } from '../domain/message'
 import { createAgentOutcomeSchema, type AgentOutcome } from '../domain/outcome'
-import { applicationError, AgentApplicationError, MAX_BOARD_SYNTAX_REPAIRS, MAX_BOARD_ASK_CALLS, MAX_BOARD_MODEL_CALLS, MAX_BOARD_TOOL_CALLS, MAX_BOARD_WRITES_PER_TASK, validationFailure, type AgentDependencies, type RunAgentInput } from './ports'
+import { applicationError, AgentApplicationError, MAX_BOARD_ARGUMENT_RETRIES, MAX_BOARD_SYNTAX_REPAIRS, MAX_BOARD_ASK_CALLS, MAX_BOARD_MODEL_CALLS, MAX_BOARD_TOOL_CALLS, MAX_BOARD_WRITES_PER_TASK, validationFailure, type AgentDependencies, type RunAgentInput } from './ports'
 import { prepareTask } from './prepareTask'
 import { createToolRegistry } from './toolRegistry'
 import { resolveToolCorrection, toolCorrectionHints } from './toolCorrection'
@@ -21,7 +21,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
     let context: AgentContext
     const unresolvedErrors = new Map<string, { name: ToolCallProposal['name']; error: AgentError }>()
     const pendingCorrections = new Set<string>()
-    let finalRequested = false, argumentCorrectionUsed = false, modelCalls = 0, syntaxRepairs = 0
+    let finalRequested = false, argumentRetries = 0, modelCalls = 0, syntaxRepairs = 0
     const fail = (message: string): never => { throw new AgentApplicationError({ code: ERROR_CODES.INVALID_ARGUMENTS, message }) }
     const assertActive = async () => { dependencies.signal.throwIfAborted(); await dependencies.checkAccess(); dependencies.signal.throwIfAborted() }
     const finish = (text: string): AgentOutcome => outcomeSchema.parse({ status: 'completed', text, changes, uncertainCalls })
@@ -84,7 +84,6 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
             if (decision.calls.length > MAX_BOARD_TOOL_CALLS) fail('工具列表超过本轮上限')
             if (decision.calls.some(call => !allowed.includes(call.name))) fail('本轮工具未开放')
             const correctionErrors = new Map<string, AgentError>()
-            const syntaxCalls = new Set([...(decision.syntaxCallIds ?? []), ...Object.keys(decision.syntaxProblems ?? {})])
             const retries = new Map<string, string>()
             const calls: ToolCallProposal[] = []
             for (let proposal of decision.calls) {
@@ -150,7 +149,7 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     } else if (entry.contract.kind === 'write') finalRequested = false
                     return result
                 } catch (cause) {
-                    if (syntaxCalls.has(proposal.id) || dependencies.signal.aborted || dispatched || !(cause instanceof AgentApplicationError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS) fatal ??= cause
+                    if (dependencies.signal.aborted || dispatched || !(cause instanceof AgentApplicationError) || cause.detail.code !== ERROR_CODES.INVALID_ARGUMENTS) fatal ??= cause
                     const error = dependencies.signal.aborted ? { code: ERROR_CODES.TASK_INACTIVE, message: '任务已取消或超时' } : applicationError(cause, dependencies)
                     await dependencies.record?.('operation_result', { operation: 'element_preparation', outcome: 'error', modelCall: proposal, error }, Date.now() - began)
                     return tools.invocations.toolResultSchema.parse({ callId: proposal.id, name: proposal.name, state: dispatched ? 'unknown' : 'not_executed', error })
@@ -174,9 +173,10 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
                     if (result.state === 'unknown' && tools.registry[result.name].contract.kind === 'write') uncertainCalls.push({ id: result.callId, name: result.name })
                     await dependencies.record?.('tool_result', { callId: result.callId, result }, durations.get(result.callId))
                     const successful = result.state === 'known' && result.output.ok
+                    // 已验证的替代调用接替旧失败；若仍失败，下面会按新 callId 保留错误。
+                    const retryOf = retries.get(result.callId)
+                    if (retryOf) unresolvedErrors.delete(retryOf)
                     if (successful) {
-                        const retryOf = retries.get(result.callId)
-                        if (retryOf) unresolvedErrors.delete(retryOf)
                         if (tools.registry[result.name].contract.kind !== 'write') {
                             for (const [id, failure] of unresolvedErrors) if (failure.name === result.name) unresolvedErrors.delete(id)
                         }
@@ -197,11 +197,11 @@ export async function runAgent(input: RunAgentInput, dependencies: AgentDependen
             if (fatal) throw fatal
             dependencies.signal.throwIfAborted()
             if (argumentError) {
-                if (argumentCorrectionUsed) throw new AgentApplicationError(argumentError)
-                argumentCorrectionUsed = true
+                if (argumentRetries >= MAX_BOARD_ARGUMENT_RETRIES) throw new AgentApplicationError(argumentError)
+                argumentRetries++
                 context = contextSchema.parse({ ...context, messages: [...context.messages, { role: 'system', content: [{
                     type: 'text', source: 'system',
-                    text: '工具参数未通过校验。请根据具体字段错误修正；数组直接使用 [...]，对象使用 {...}，不能二次编码成字符串。写入纠错使用同名工具、全新 callId 与 retryOf：增量格式为 {retryOf,patches:[{itemKey:"item_0",props:{font:"sans"}}]}，只修改错误字段，其余元素和字段保留；props 按字段合并，richText/points 等嵌套值整项替换。可选 isFinal/references 覆盖旧值。增加/删除元素或更换 type/objectKey/shapeId 时，使用带 retryOf 的完整替代参数。保持原始需求，本任务只有一次参数纠正机会；禁止重放已成功或结果未知的调用。'
+                    text: `工具参数未通过校验。请根据具体字段错误修正；数组直接使用 [...]，对象使用 {...}，不能二次编码成字符串。写入纠错使用同名工具、全新 callId 与 retryOf：增量格式为 {retryOf,patches:[{itemKey:"item_0",props:{font:"sans"}}]}，只修改错误字段，其余元素和字段保留；props 按字段合并，richText/points 等嵌套值整项替换。可选 isFinal/references 覆盖旧值。语法修复失败、旧参数不可合并、增加/删除元素或更换 type/objectKey/shapeId 时，使用带 retryOf 的完整替代参数，重新提交全部必要字段。保持原始需求，本任务最多 ${MAX_BOARD_ARGUMENT_RETRIES} 次参数纠正机会，当前第 ${argumentRetries} 次；禁止重放已成功或结果未知的调用。`
                         + toolCorrectionHints(context, pendingCorrections, dependencies.tools),
                 }] }] })
             }

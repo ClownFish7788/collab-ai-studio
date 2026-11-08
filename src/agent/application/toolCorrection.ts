@@ -18,8 +18,8 @@ import { AgentApplicationError, validationFailure } from './ports'
  * 来源调用必须同名，且结果为 not_executed / INVALID_ARGUMENTS。
  * @param tools 原有工具契约表，提供工具种类以及完整输入 schema。
  * @returns 普通提议返回 { proposal }；纠错返回 { proposal: 完整提议, retryOf: 旧调用ID }。
- * 新提议保留新 callId，纠错元数据不会进入执行参数。未带 retryOf 的完整重发仅在同名
- * 待纠正调用恰好一个时兼容关联；多个候选时要求显式指定，不能猜测来源。
+ * 新提议保留新 callId，纠错元数据不会进入执行参数。纠错必须显式指定 retryOf；
+ * 未带 retryOf 的提议视为独立调用，不消费旧失败，也不建立纠错关联。
  * @throws {AgentApplicationError} 来源不合法或补全失败，错误码为 INVALID_ARGUMENTS，
  * 可包含字段诊断；其他非预期异常原样抛出。
  * @remarks 找到合法来源后会立即从 pending 删除旧 ID，防止同批重复认领；即使后续
@@ -31,15 +31,12 @@ import { AgentApplicationError, validationFailure } from './ports'
  */
 export function resolveToolCorrection(proposal: ToolCallProposal, context: AgentContext, pending: Set<string>, tools: BoardToolContracts) {
     const input = proposal.input
-    if (!input || typeof input !== 'object' || Array.isArray(input)) return { proposal }
+    if (!input || typeof input !== 'object' || Array.isArray(input) || input.retryOf === undefined) return { proposal }
     /** 输入拒绝原因；无返回值，抛出定位到 input.retryOf 的 INVALID_ARGUMENTS 应用错误。 */
     const reject = (message: string): never => { throw new AgentApplicationError({ code: ERROR_CODES.INVALID_ARGUMENTS, message,
         issues: [{ path: 'input.retryOf', message }] }) }
-    const failures = context.toolResults.filter(result => pending.has(result.callId) && result.name === proposal.name)
-    if (input.retryOf === undefined && !failures.length) return { proposal }
     if (tools[proposal.name].kind !== 'write') return { proposal }
-    if (input.retryOf === undefined && failures.length !== 1) return reject('存在多个同名失败调用，须用 retryOf 指定要纠正的原调用')
-    const retryOf = input.retryOf ?? failures[0].callId
+    const retryOf = input.retryOf
     if (typeof retryOf !== 'string' || !pending.has(retryOf)) return reject('retryOf 只能引用本任务中尚未纠正的参数失败调用')
     const result = context.toolResults.find(result => result.callId === retryOf)
     if (!result || result.name !== proposal.name || result.state !== 'not_executed' || result.error.code !== ERROR_CODES.INVALID_ARGUMENTS) {
