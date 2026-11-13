@@ -1,72 +1,130 @@
-.composerFooter,
-.sendButton {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.notice {
-    padding: 10px 16px;
-    background: var(--sidebar-bg);
-    font-size: 12px;
-    line-height: 1.6;
-}
-
 .composer {
-    padding: 12px 16px;
-    border-top: 1px solid var(--border-color);
+    padding: 12px 20px 16px;
     max-height: 70%;
     overflow-y: auto;
     flex-shrink: 0;
-
+}
+.inputCard {
+    padding: 14px;
+    border: 1px solid var(--chat-border);
+    border-radius: 18px;
+    background: var(--chat-surface);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 3%);
+    transition: border-color 160ms ease;
+    &:focus-within { border-color: var(--chat-focus); }
+    &:has(textarea:focus-visible) { outline: 2px solid var(--chat-focus); outline-offset: 2px; }
     textarea {
         display: block;
         width: 100%;
-        min-height: 80px;
+        min-height: 86px;
         max-height: 180px;
+        padding: 0;
         resize: vertical;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--chat-text);
         font: inherit;
-        line-height: 1.6;
+        font-size: 14px;
+        line-height: 1.75;
+        box-shadow: none;
+        &::placeholder { color: var(--chat-muted); }
+        &:focus { outline: none; box-shadow: none; }
     }
 }
-
-.composerFooter {
-    justify-content: space-between;
-    flex-wrap: wrap;
-    margin-top: 10px;
-    font-size: 11px;
+.composerFooter,
+.tools,
+.questionHeader,
+.questionHeader > span,
+.questionNavigation,
+.previousButton,
+.nextButton { display: flex; align-items: center; }
+.composerFooter { justify-content: space-between; gap: 12px; margin-top: 10px; }
+.tools { gap: 4px; }
+.iconButton,
+.sendButton {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
 }
-
+.iconButton {
+    background: transparent;
+    color: var(--chat-secondary);
+    &:hover:not(:disabled) { background: var(--chat-hover); color: var(--chat-text); }
+}
+.sendButton,
+.nextButton {
+    background: var(--chat-accent);
+    color: var(--chat-on-accent);
+    border: 1px solid transparent;
+    &:hover:not(:disabled) { background: var(--chat-accent-hover); color: var(--chat-on-accent); }
+}
+.sendButton:disabled { background: var(--chat-hover); color: var(--chat-muted); }
+.context:empty { display: none; }
+.context:not(:empty) { margin-top: 12px; }
+.questionHeader {
+    gap: 10px;
+    margin-bottom: 16px;
+    color: var(--chat-secondary);
+    font-size: 12px;
+    > span { gap: 7px; }
+    .progress { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--chat-text); }
+    .iconButton { width: 24px; height: 24px; }
+}
 .questionField {
-    margin-top: 12px;
-    padding-left: 10px;
-    border-left: 2px solid var(--border-color);
-
-    &[data-active='true'] {
-        border-color: var(--text-color);
-    }
-
     label {
         display: block;
-        margin-bottom: 6px;
-        font-size: 13px;
-        line-height: 1.6;
+        margin-bottom: 12px;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.65;
+        overflow-wrap: anywhere;
+    }
+    textarea { min-height: 74px; }
+}
+.questionNavigation { justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--chat-border); }
+.answerNotice {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 9px;
+    background: var(--chat-hover);
+    color: var(--chat-text);
+    font-size: 12px;
+    line-height: 1.7;
+    button {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 4px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--chat-accent);
+        font-size: inherit;
+        text-decoration: underline;
+        text-underline-offset: 3px;
     }
 }
-
-.sendButton {
-    margin-left: auto;
-    font-size: 13px;
+.previousButton,
+.nextButton { justify-content: center; gap: 5px; min-height: 34px; padding: 7px 10px; border-radius: 9px; font-size: 12px; }
+.previousButton {
+    padding-left: 0;
+    border: 0;
+    background: transparent;
+    color: var(--chat-secondary);
+    &:hover:not(:disabled) { background: var(--chat-hover); color: var(--chat-text); }
 }
-
-.footnote {
-    margin-top: 10px;
-    text-align: center;
-    font-size: 11px;
-}
-
+.footnote { margin-top: 10px; color: var(--chat-muted); text-align: center; font-size: 11px; line-height: 1.7; }
 .error {
     margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--chat-border);
+    border-radius: 10px;
+    background: var(--chat-surface);
     color: var(--error-color);
     font-size: 12px;
     line-height: 1.6;
@@ -75,11 +133,7 @@
     max-height: 120px;
     overflow-y: auto;
 }
-
-.uploadButton {
-    display: grid;
-    place-items: center;
-    padding: 6px;
-    background: transparent;
-    color: var(--text-color);
+@media (max-width: 480px) {
+    .composer { padding: 10px 14px 12px; }
+    .inputCard { padding: 12px; }
 }

@@ -1,8 +1,31 @@
 .draftCard {
+    flex-shrink: 0;
     display: grid;
-    gap: 6px;
-    padding: 12px 16px;
-    border-top: 1px solid var(--border-color);
-    p { font-size: 12px; color: var(--text-color); }
-    button { padding: 8px; font: inherit; cursor: pointer; color: var(--text-color); background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 6px; }
+    gap: 13px;
+    margin: 0 20px;
+    padding: 14px;
+    border: 1px solid var(--chat-border);
+    border-radius: 14px;
+    background: var(--chat-surface);
+    color: var(--chat-text);
 }
+.summary { display: flex; align-items: flex-start; gap: 10px; }
+.summary > svg { flex-shrink: 0; margin-top: 2px; color: var(--chat-accent); }
+.summary h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.summary p { color: var(--chat-secondary); font-size: 11px; line-height: 1.6; }
+.actions { display: flex; align-items: center; gap: 8px; }
+.actions button { min-height: 32px; padding: 7px 11px; border-radius: 8px; font: inherit; font-size: 12px; }
+.applyButton {
+    border: 1px solid transparent;
+    background: var(--chat-accent);
+    color: var(--chat-on-accent);
+    &:hover:not(:disabled) { background: var(--chat-accent-hover); color: var(--chat-on-accent); }
+}
+.discardButton {
+    border: 0;
+    background: transparent;
+    color: var(--chat-secondary);
+    &:hover { background: var(--chat-hover); color: var(--chat-text); }
+}
+.error { color: var(--error-color); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; max-height: 80px; overflow-y: auto; }
+@media (max-width: 480px) { .draftCard { margin: 0 14px; } }

@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef } from 'react'
-import { ImagePlus, Send, Square } from 'lucide-react'
+import { useRef, type MouseEvent } from 'react'
+import { ArrowUp, ChevronLeft, ChevronRight, ImagePlus, MessageCircleQuestion, Square, X } from 'lucide-react'
 import { useStore } from 'zustand'
 import { useBoardDraft } from '../../DrawEditor/BoardDraftProvider'
 import { useBoardSelectionStore } from '../BoardSelectionProvider'
@@ -28,92 +28,129 @@ export default function ChatComposer({ session, inputHintId, isSelecting, onSele
     const { input, setInput, inputRef, isStreaming, error, send, stop,
         questionFields, activeQuestionId, selectQuestion, setQuestionText, canSubmitAnswers } = session
     const { images, setImages, isReadingImages, addImages } = session.attachments
+    const isAsking = !!boardDraft.question
+    const questionIndex = Math.max(0, questionFields.findIndex(field => field.id === activeQuestionId))
+    const question = questionFields[questionIndex]
+    const isLastQuestion = questionIndex === questionFields.length - 1
+    const isBusy = isClosing || isReadingImages || isSelecting
+    const unansweredQuestions = questionFields.flatMap((field, index) =>
+        !field.text.trim() && !field.images.length && !field.snapshot?.shapes.length ? [index] : [])
+    const navigateQuestion = (event: MouseEvent<HTMLButtonElement>, id: string) => {
+        // 翻页可能把当前 DOM 按钮变成 submit，必须取消这次点击的原生提交行为。
+        event.preventDefault()
+        selectQuestion(id)
+    }
 
     return (
-        <form className={styles.composer} onSubmit={event => { event.preventDefault(); void send() }}>
+        <form className={styles.composer} onSubmit={event => {
+            event.preventDefault()
+            if (isBusy) return
+            if (isAsking ? !isLastQuestion || !canSubmitAnswers : isStreaming || boardDraft.active) return
+            void send()
+        }}>
             {error && <p className={styles.error} role="alert">{error}</p>}
-            {boardDraft.question && <>
-                <p className={styles.notice} role="status">共 {questionFields.length} 个问题，请逐项回答后统一提交，合计最多上传 3 张图片，最多等待 {BOARD_ANSWER_TIMEOUT_MS / 1000} 秒。</p>
-                {questionFields.map((field, index) => <div key={field.id} className={styles.questionField} data-active={field.id === activeQuestionId}>
-                    <label htmlFor={`${inputHintId}-${field.id}`}>{index + 1}. {field.question}</label>
-                    <textarea
-                        id={`${inputHintId}-${field.id}`}
-                        ref={field.id === activeQuestionId ? inputRef : undefined}
-                        autoFocus={index === 0}
-                        maxLength={1000}
-                        rows={2}
-                        value={field.text}
-                        placeholder="填写回答，也可为此题上传图片或选择元素…"
-                        disabled={isClosing || isReadingImages && field.id !== activeQuestionId}
-                        onFocus={() => selectQuestion(field.id)}
-                        onChange={event => setQuestionText(field.id, event.target.value)}
-                    />
-                    {field.id !== activeQuestionId && <>
-                        <SelectedElementsAttachment count={field.snapshot?.shapes.length ?? 0} />
-                        <ChatAttachments images={field.images} onPreview={onPreview} />
-                    </>}
-                </div>)}
-                <p className={styles.footnote} role="status">附件用于第 {questionFields.findIndex(field => field.id === activeQuestionId) + 1} 题；点击其他问题的输入框可切换。</p>
-            </>}
-            <SelectedElementsAttachment onRemove={() => inputRef.current?.focus()} />
-            <ChatAttachments images={images} onPreview={onPreview} removingDisabled={isReadingImages}
-                onRemove={id => setImages(previous => previous.filter(image => image.id !== id))} />
-            {isReadingImages && <p className={styles.footnote} role="status">正在读取图片…</p>}
-            <input
-                ref={fileInputRef}
-                type="file"
-                accept={IMAGE_MIME_TYPES.join(',')}
-                multiple
-                hidden
-                onChange={event => {
-                    const files = Array.from(event.target.files || [])
-                    event.target.value = ''
-                    void addImages(files)
-                }}
-            />
-            {!boardDraft.question && <textarea
-                ref={inputRef}
-                autoFocus
-                aria-label="聊天消息"
-                aria-describedby={inputHintId}
-                placeholder="输入问题或白板需求…"
-                maxLength={4000}
-                rows={3}
-                value={input}
-                onChange={event => setInput(event.target.value)}
-                onKeyDown={event => {
-                    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
-                        event.preventDefault()
-                        event.currentTarget.form?.requestSubmit()
-                    }
-                }}
-            />}
-            <div className={styles.composerFooter}>
-                {boardDraft.editor && <SelectBoardElementsButton
-                    editor={boardDraft.editor}
-                    isSelecting={isSelecting}
-                    onSelectingChange={onSelectingChange}
-                    disabled={isClosing || !boardDraft.question && (isStreaming || boardDraft.active)}
+            <div className={styles.inputCard} data-asking={isAsking}>
+                {isAsking && question && <>
+                    <div className={styles.questionHeader}>
+                        <span><MessageCircleQuestion size={15} aria-hidden="true" />需要你补充</span>
+                        <span className={styles.progress} role="status" aria-label={`第 ${questionIndex + 1} 题，共 ${questionFields.length} 题`}>{`${questionIndex + 1}/${questionFields.length}`}</span>
+                        <button type="button" className={styles.iconButton} aria-label="取消本次任务" title="取消本次任务" onClick={stop} disabled={isClosing}>
+                            <X size={15} aria-hidden="true" />
+                        </button>
+                    </div>
+                    <div className={styles.questionField} key={question.id}>
+                        <label htmlFor={`${inputHintId}-${question.id}`}>{question.question}</label>
+                        <textarea
+                            id={`${inputHintId}-${question.id}`}
+                            ref={inputRef}
+                            autoFocus
+                            aria-describedby={inputHintId}
+                            maxLength={1000}
+                            rows={2}
+                            value={question.text}
+                            placeholder="填写回答，也可以添加图片或白板元素…"
+                            disabled={isClosing}
+                            onFocus={() => selectQuestion(question.id)}
+                            onChange={event => setQuestionText(question.id, event.target.value)}
+                        />
+                    </div>
+                </>}
+                {!isAsking && <textarea
+                    ref={inputRef}
+                    autoFocus
+                    aria-label="聊天消息"
+                    aria-describedby={inputHintId}
+                    placeholder="描述你的想法，或选中白板内容来提问…"
+                    maxLength={4000}
+                    rows={3}
+                    value={input}
+                    disabled={isClosing}
+                    onChange={event => setInput(event.target.value)}
+                    onKeyDown={event => {
+                        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+                            event.preventDefault()
+                            event.currentTarget.form?.requestSubmit()
+                        }
+                    }}
                 />}
-                <button
-                    type="button"
-                    className={styles.uploadButton}
-                    aria-label="上传图片"
-                    title={`上传图片（${images.length}/${MAX_IMAGES_PER_MESSAGE}），单张小于 5MB`}
-                    disabled={isClosing || isStreaming && !boardDraft.question || isReadingImages}
-                    onClick={() => fileInputRef.current?.click()}
-                ><ImagePlus size={18} aria-hidden="true" /></button>
-                <span id={inputHintId}>{boardDraft.question ? '全部回答后提交' : 'Enter 发送 · Shift + Enter 换行'}</span>
-                {boardDraft.question && <button type="submit" className={styles.sendButton} disabled={!canSubmitAnswers || isReadingImages || isSelecting || isClosing}>提交全部回答并继续</button>}
-                {isStreaming ? <button type="button" className={styles.sendButton} onClick={stop}>
-                    <Square size={14} aria-hidden="true" />
-                    停止生成
-                </button> : <button type="submit" className={styles.sendButton} disabled={(!input.trim() && !images.length && !hasSelection) || isReadingImages}>
-                    <Send size={16} aria-hidden="true" />
-                    发送
-                </button>}
+                <div className={styles.context}>
+                    <SelectedElementsAttachment onRemove={() => inputRef.current?.focus()} />
+                    <ChatAttachments images={images} onPreview={onPreview} removingDisabled={isReadingImages}
+                        onRemove={id => setImages(previous => previous.filter(image => image.id !== id))} />
+                    {isReadingImages && <p className={styles.footnote} role="status">正在读取图片…</p>}
+                </div>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={IMAGE_MIME_TYPES.join(',')}
+                    multiple
+                    hidden
+                    onChange={event => {
+                        const files = Array.from(event.target.files || [])
+                        event.target.value = ''
+                        void addImages(files)
+                    }}
+                />
+                <div className={styles.composerFooter}>
+                    <div className={styles.tools}>
+                        {boardDraft.editor && <SelectBoardElementsButton
+                            editor={boardDraft.editor}
+                            isSelecting={isSelecting}
+                            onSelectingChange={onSelectingChange}
+                            disabled={isBusy || !isAsking && (isStreaming || boardDraft.active)}
+                        />}
+                        <button
+                            type="button"
+                            className={styles.iconButton}
+                            aria-label="上传图片"
+                            title={`上传图片（${images.length}/${MAX_IMAGES_PER_MESSAGE}），单张小于 5MB`}
+                            disabled={isBusy || isStreaming && !isAsking}
+                            onClick={() => fileInputRef.current?.click()}
+                        ><ImagePlus size={18} aria-hidden="true" /></button>
+                    </div>
+                    {!isAsking && (isStreaming ? <button type="button" className={styles.sendButton} onClick={stop} aria-label="停止生成" title="停止生成" disabled={isClosing}>
+                        <Square size={15} fill="currentColor" aria-hidden="true" />
+                    </button> : <button type="submit" className={styles.sendButton} aria-label="发送消息" title="发送消息" disabled={(!input.trim() && !images.length && !hasSelection) || isBusy || boardDraft.active}>
+                        <ArrowUp size={19} aria-hidden="true" />
+                    </button>)}
+                </div>
+                {isAsking && isLastQuestion && unansweredQuestions.length > 0 && <div className={styles.answerNotice} role="status">
+                    <p>{`第 ${unansweredQuestions.map(index => index + 1).join('、')} 题尚未回答，请补充后提交。`}</p>
+                    <button type="button" disabled={isBusy} onClick={event => navigateQuestion(event, questionFields[unansweredQuestions[0]].id)}>
+                        {`补答第 ${unansweredQuestions[0] + 1} 题`}<ChevronRight size={14} aria-hidden="true" />
+                    </button>
+                </div>}
+                {isAsking && <div className={styles.questionNavigation}>
+                    <button type="button" className={styles.previousButton} disabled={questionIndex === 0 || isBusy} onClick={event => navigateQuestion(event, questionFields[questionIndex - 1].id)}>
+                        <ChevronLeft size={15} aria-hidden="true" />上一题
+                    </button>
+                    {isLastQuestion ? <button type="submit" className={styles.nextButton} disabled={!canSubmitAnswers || isBusy}>提交回答并继续<ArrowUp size={15} aria-hidden="true" /></button>
+                        : <button type="button" className={styles.nextButton} disabled={!question || isBusy} onClick={event => navigateQuestion(event, questionFields[questionIndex + 1].id)}>下一题<ChevronRight size={15} aria-hidden="true" /></button>}
+                </div>}
             </div>
-            <p className={styles.footnote}>聊天记录刷新后清空。</p>
+            <p id={inputHintId} className={styles.footnote}>{isAsking
+                ? `附件仅用于当前题 · 全部回答合计最多 3 张图片 · 请在 ${BOARD_ANSWER_TIMEOUT_MS / 1000} 秒内完成`
+                : 'Enter 发送 · Shift + Enter 换行 · 刷新后清空记录'}</p>
         </form>
     )
 }

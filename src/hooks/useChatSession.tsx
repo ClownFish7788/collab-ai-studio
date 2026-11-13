@@ -130,7 +130,7 @@ export function useChatSession({ boardDraft, isClosing }: {
             if (boardDraft.canRun) {
                 const result = await boardDraft.run({ prompt: content, history: toAgentHistory(messages),
                     ...(images.length ? { images: images.map(image => image.dataUrl) } : {}), ...(snapshot ? { snapshot } : {}) }, controller.signal, step => {
-                    if (step.stage === 'text') updateReply(message => ({ ...message, content: message.content + step.message }))
+                    if (step.stage === 'text') updateReply(message => ({ ...message, content: message.content + step.message, status: undefined }))
                     if (step.stage === 'request') updateReply(message => ({ ...message, status: step.message }))
                     if (step.stage === 'preview') updateReply(message => ({ ...message, preview: step.message }))
                     if (step.stage === 'plan') updateReply(message => ({ ...message, plan: step.message, preview: undefined, status: '需求已拆分，正在规划并执行…' }))

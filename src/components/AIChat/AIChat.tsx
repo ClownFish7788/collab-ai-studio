@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { Bot, Trash2, X } from 'lucide-react'
+import { Sparkles, Trash2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import Modal from '../Modal/Modal'
@@ -56,7 +56,7 @@ const AIChatPanel = () => {
                 aria-controls={panelId}
                 onClick={() => setIsOpen(true)}
             >
-                <Bot size={18} aria-hidden="true" />
+                <Sparkles size={16} aria-hidden="true" />
                 AI 助手
             </button>, boardDraft.launcherHost)}
             <Modal
@@ -88,7 +88,7 @@ const AIChatPanel = () => {
                 >
                     <header className={styles.header}>
                         <div className={styles.title}>
-                            <Bot size={20} aria-hidden="true" />
+                            <Sparkles size={18} aria-hidden="true" />
                             <h2>白板 AI 助手</h2>
                         </div>
                         <div className={styles.headerActions}>
@@ -102,15 +102,17 @@ const AIChatPanel = () => {
                             >
                                 <Trash2 size={16} aria-hidden="true" />
                             </button>
-                            <button type="button" className={styles.clearButton} aria-label="关闭 AI 助手" onClick={handleClose}>
+                            <button type="button" className={styles.clearButton} aria-label="关闭 AI 助手" title="关闭 AI 助手" onClick={handleClose}>
                                 <X size={18} aria-hidden="true" />
                             </button>
                         </div>
                     </header>
 
-                    <p className={styles.notice}>{boardDraft.canRun ? '直接描述白板需求，修改先生成草稿，确认后应用。' : '当前可进行图文对话；白板操作需要在线编辑权限。'}</p>
+                    <p className={styles.notice}>{boardDraft.canRun ? '修改先生成草稿，由你确认后应用到白板。' : '当前可进行图文对话；白板操作需要在线编辑权限。'}</p>
 
-                    <ChatMessageList messages={messages} isOpen={isOpen} resolutions={boardDraft.resolutions} onPreview={openImagePreview} />
+                    <ChatMessageList messages={messages} isOpen={isOpen} isStreaming={isStreaming} isWaitingForAnswer={!!boardDraft.question}
+                        resolutions={boardDraft.resolutions} onPreview={openImagePreview}
+                        onSuggest={text => { session.setInput(text); session.inputRef.current?.focus() }} />
                     <ChatDraftCard isStreaming={isStreaming} onAbortRequest={session.abortRequest} />
                     <ChatComposer session={session} inputHintId={inputHintId} isSelecting={isSelecting}
                         onSelectingChange={setIsSelecting} isClosing={isClosing} onPreview={openImagePreview} />

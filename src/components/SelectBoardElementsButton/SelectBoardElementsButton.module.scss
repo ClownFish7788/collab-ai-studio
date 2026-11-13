@@ -1,9 +1,15 @@
 .button {
     display: grid;
     place-items: center;
-    padding: 6px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
     background: transparent;
-    color: var(--text-color);
+    color: var(--chat-secondary, var(--text-color));
+
+    &:hover:not(:disabled) { background: var(--chat-hover, var(--hover-bg)); color: var(--chat-text, var(--text-color)); }
 }
 
 .selectionToolbar {
@@ -49,20 +55,25 @@
     width: fit-content;
     max-width: 100%;
     margin-bottom: 10px;
-    padding: 12px 30px 12px 12px;
-    border: 1px solid var(--border-color);
+    padding: 7px 28px 7px 9px;
+    border: 1px solid var(--chat-border, var(--border-color));
     border-radius: 8px;
-    background: var(--sidebar-bg);
+    background: var(--chat-hover, var(--sidebar-bg));
+    color: var(--chat-secondary, var(--text-color));
     font-size: 12px;
 }
 
 .remove {
     position: absolute;
-    top: 0;
-    right: 0;
+    top: 50%;
+    right: 5px;
+    transform: translateY(-50%);
     display: grid;
     place-items: center;
-    padding: 3px;
-    background: var(--bg-color);
-    color: var(--text-color);
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--chat-secondary, var(--text-color));
 }
